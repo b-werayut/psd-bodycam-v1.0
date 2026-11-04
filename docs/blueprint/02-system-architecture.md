@@ -21,8 +21,9 @@
 ```mermaid
 flowchart TB
   subgraph Users["ผู้ใช้"]
-    OPS["Admin / Supervisor / Dispatcher<br/>Web browser"]
-    LEAD["หัวหน้าทีม<br/>Mobile app"]
+    OPS["Admin / Operator<br/>Web browser"]
+    LEAD["Operator / Admin<br/>Mobile app"]
+    TL["หัวหน้าทีม<br/>Booking app"]
   end
   subgraph Sys["Bodycam Tracking System (ระบบใหม่)"]
     CORE["Bodycam Platform<br/>NestJS API + Workers"]
@@ -38,6 +39,7 @@ flowchart TB
   CAM["Bodycam devices"]
   OPS -- "HTTPS REST + Socket.IO" --> CORE
   LEAD -- "HTTPS REST + push" --> CORE
+  TL -- "check-in / check-out" --> BOOK
   CORE -- "sync / webhook / write-back" --> BOOK
   CORE -- "devices, location, stream, playback, talk" --> DSS
   CORE -- "status feed" --> BRMS
@@ -144,11 +146,11 @@ flowchart TB
 | `users` | ผู้ใช้, role, role-permission matrix, ระงับบัญชี (`cutAllSessions`) | `modules/users` (ตัด company) |
 | `org` | departments (tree), employees, link employee ↔ user, `BookingEmployeeRef` | `departments`, `employees` |
 | `teams` | ทีม, สมาชิก, เปลี่ยนหัวหน้าทีม (ประวัติ), `BookingTeamRef` | ใหม่ |
-| `devices` | ทะเบียน bodycam, vendor sync (`device-sync.plan.ts`), streaming toggle, **ผูกกล้อง → ทีม** (primary/temporary) | `devices`, `device-assignments` (refactor) |
+| `devices` | ทะเบียน bodycam, vendor sync (`device-sync.plan.ts`), streaming toggle, Depots · การผูกกล้อง → ทีม **อ่านจาก Booking sync เท่านั้น** (ไม่มีหน้าจอผูกเอง — Q20) | `devices`, `device-assignments` (refactor เป็น read-only projection) |
 | `device-status` | **Device Event Processing**: รับ observation จาก StatusPoll / GpsPoll / BRMS MQ / webhook → `DeviceState` + `DeviceStatusHistory` + emit `device:status` · ไม่มี business logic | แยกจาก `GpsPoll.applyVendorStatuses` + `brms-mq.service.ts` |
 | `tracking` | GPS ingestion pipeline (`ingestLocations`), positions snapshot, route history | `modules/tracking` (ตัด road-match) |
 | `sessions` | **Session engine** (sweep, pure `decide()`, open/close/split) · เป็น writer เดียวของ lifecycle session · recording index | ใหม่ (แทน `camera-session.service.ts`) |
-| `work-orders` | lifecycle WO, **matching engine** (อ่าน `BookingJobs`), link/unlink/merge/close/void/reopen, review queue, my-jobs | ใหม่ |
+| `work-orders` | lifecycle WO (**สถานะตาม Booking check-in/check-out**), **matching engine** (อ่าน `BookingJobs`), link/unlink/merge/void, review queue, mobile overview | ใหม่ |
 | `booking-integration` | Booking provider port + adapters (`mock`, `http`), sync (incremental/full), inbox processor, outbox dispatcher, circuit breaker, mapping, monitoring endpoints | ใหม่ (ใช้ pattern provider/driver + webhook HMAC ของ reference) |
 | `streaming` / `evidence` / `talk` | live, playback, recording search, MP4 export, two-way talk, quota, role/device access | port ทั้งหมด |
 | `notifications` | alert engine (dedupe), in-app inbox, FCM push via BullMQ | port + alert types ใหม่ |
@@ -252,7 +254,7 @@ Browser → `POST /api/streams/live` → `StreamingService` ตรวจสิ�
 | media | `evidence-export` | BullMQ | ทันที | port (ffmpeg) |
 | media | `recording-index` | BullMQ repeatable | session เปิด: ทุก 30 นาที · ปิดแล้ว: 30 นาทีหลังจบ | concurrency 2 |
 | media | `StreamIdle` / `TalkIdle` / `EvidenceCleanup` | timer | 60s | port |
-| tracking | `PartitionMaintenance` / `Retention` | BullMQ repeatable | รายวัน | lock |
+| tracking | `PartitionMaintenance` / `Retention` (GPS 3 เดือน, ใบงาน 3 เดือน, audit 12 เดือน) | BullMQ repeatable | รายวัน | lock |
 
 หลักคิด: งานความถี่สูงที่ level-triggered (poll/sweep) ใช้ timer + Redis lock (แบบ reference — ง่าย, self-healing) · งานที่ต้อง retry/durable ใช้ BullMQ
 
@@ -266,14 +268,14 @@ Browser → `POST /api/streams/live` → `StreamingService` ตรวจสิ�
 | Role | Data scope | ใช้ทำอะไร |
 |---|---|---|
 | `ADMIN` | all | ทุกอย่าง รวม settings, integration, roles |
-| `SUPERVISOR` | department (รวมแผนกย่อย) | ดูทั้งหมดในแผนก, link/void/reopen WO, ผูกกล้องสำรอง, live/playback/export, ack alert |
-| `DISPATCHER` | department | monitor map/live, จัดการ review queue (link/unlink), ผูกกล้องสำรอง |
-| `TEAM_LEADER` | team — คำนวณสดจาก `TeamMembers` ของ employee ที่ผูกกับ user | mobile: my-jobs, ปิด WO ของทีม (ต้องเป็น Leader active ณ เวลาที่กด), รับ push |
-
-ผู้ปิดใบงานตามที่ผู้ใช้ยืนยัน = **หัวหน้าทีม + Admin** · Supervisor/Dispatcher ไม่มี `work-orders:close` เป็นค่าเริ่มต้น (เปิดได้ผ่าน role-permission matrix — Part 9 Q17)
+| `OPERATOR` | department (รวมแผนกย่อย) | ศูนย์ควบคุม (web + mobile): แผนที่/live/live wall/talk, คิวตรวจสอบ (link/unlink/ยืนยันคำแนะนำ), classify session, playback/export, จัดการทีม, ack alert |
 | `VIEWER` | department | อ่านอย่างเดียว |
 
-- **Scope** port `server/src/common/scope/*` แล้วเปลี่ยน level เป็น `all` / `department` (subtree ด้วย recursive CTE + cache 60s) / `team` / `own` · นอก scope = 404 (กติกาเดิม)
+- `OPERATOR` แทน `SUPERVISOR` + `DISPATCHER` ของ reference — ระบบใหม่ไม่มีงานสร้าง/อนุมัติ/มอบหมายใบงาน จึงไม่ต้องแยก 2 บทบาท (Part 9 DL14)
+- **ไม่มีการปิด/reopen ใบงานโดยคนในระบบนี้** — ใบงานที่ผูก Booking เปลี่ยนสถานะตาม check-in/check-out ของ Booking (หัวหน้าทีม/แอดมินทำฝั่ง Booking) **[Confirmed — DL13, DL15]** · void = `ADMIN` เฉพาะใบที่ไม่ผูก Booking
+- **ไม่มี role หัวหน้าทีม** — แอปมือถือสำหรับ Operator/Admin/Viewer (monitoring + ตรวจหลักฐาน) **[Confirmed — DL16]**
+
+- **Scope** port `server/src/common/scope/*` แล้วเปลี่ยน level เป็น `all` / `department` (subtree ด้วย recursive CTE + cache 60s) · นอก scope = 404 (กติกาเดิม)
 - Permission catalog ดู [05-api-design.md §5.7](05-api-design.md#57-permission-catalog)
 - **Service-to-service**:
   - Booking → เรา: HMAC-SHA256 (`X-Timestamp` + `X-Signature` บน `${ts}.${rawBody}`, skew ±5 นาที) port จาก `webhook-auth.ts` · หรือ mTLS ถ้า Booking รองรับ **[Assumption]**

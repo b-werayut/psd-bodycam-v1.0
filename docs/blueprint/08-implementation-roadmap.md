@@ -61,7 +61,7 @@ flowchart LR
 ### P1 — Devices & Real-time Tracking
 
 **Deliverables**
-- Devices CRUD + vendor sync (`device-sync.plan.ts` ตัด dashcam) · Teams + TeamMembers + DeviceAssignments (primary/temporary)
+- Devices CRUD + vendor sync (`device-sync.plan.ts` ตัด dashcam) · Teams + TeamMembers · Depots (หลายจุด · dev ใช้พิกัด mock — Q22)
 - `device-status` module: StatusPoll (DSS device list), port GpsPoll + `ingestLocations`, BRMS MQ (ไม่ล้าง state) · `DeviceState` + `DeviceStatusHistory`
 - `GpsLocations` partitioned + `PartitionMaintenance` job
 - Realtime gateway + rooms ใหม่ (ตัด company)
@@ -77,25 +77,26 @@ flowchart LR
 
 **Deliverables**
 - Session engine: pure `decide()` + sweep (ทุกอุปกรณ์, row lock, DB clock) + split rules ครบตาราง Part 3 §3.4.3
-- WO module: auto create (Unlinked), `WorkOrderCounters`, close/void/reopen/edit note, events, idle close, `availableActions`
-- Recording index job (ใช้ DSS recording search) · alerts 1, 4, 6, 9 (alert 5 ต้องใช้ช่วงเวลางานจาก Booking ⇒ ย้ายไป P3b)
+- WO module: auto create (Unlinked), `WorkOrderCounters`, void/edit note, events, idle close ใบรวม, auto-void ไม่มี recording, `availableActions` (สถานะ Closed จาก Booking มาใน P3)
+- Recording index job (ใช้ DSS recording search) · alerts 1, 4, 6, 9, 15 (alert 5 ต้องใช้ช่วงเวลางานจาก Booking ⇒ ย้ายไป P3b)
 - Client: Active sessions, WO list/detail (ยังไม่มี Booking panel), Review queue (Unlinked/NeedsReview)
 
 **Acceptance criteria**
-- unit test ของ `decide()` ครอบทุกแถวใน decision table + scenario: battery swap < / ≥ merge gap, สลับกล้องสำรอง, ปิดด้วยมือขณะกล้องเปิด (**ไม่เกิด loop**), max segment, MQ flap, unknown ยาว, worker restart กลางคัน
+- unit test ของ `decide()` ครอบทุกแถวใน decision table + scenario: battery swap < / ≥ merge gap, สลับกล้องสำรอง, Booking check-out ขณะกล้องเปิด (**ไม่เกิด loop**), กล้องชาร์จที่ฐาน, max segment, MQ flap, unknown ยาว, worker restart กลางคัน
 - รัน 2 worker พร้อมกัน 1,000 รอบ ⇒ ไม่มี session ซ้อน/WO ซ้ำ (constraint ไม่ถูกละเมิด, ไม่มี error ค้าง)
 - เลข WO ไม่ซ้ำภายใต้ concurrent create
-- ปิด WO ⇒ session split ภายใน 1 รอบ sweep และเวลาจบ = `ClosedAt`
+- กล้องชาร์จ/อยู่ฐาน ไม่เปิดใบงาน (ทดสอบด้วย Depots) · ใบรวมไม่มี recording ถูก auto-void
+- WO ถูกปิด (ใน P2 จำลองด้วย mock check-out) ⇒ session split ภายใน 1 รอบ sweep และเวลาจบ = `ClosedAt`
 
 ### P3a — Booking port, mock, projection
 
-**Deliverables**: `BookingProvider` port · `mock` adapter + scenarios · `BookingJobs`, inbox, outbox, sync state, call logs · sync jobs (incremental/full) · circuit breaker · webhook endpoint (HMAC) · mapping (`BookingTeamRef`, `BookingEmployeeRef`, status map)
+**Deliverables**: `BookingProvider` port · `mock` adapter + scenarios (check-in/check-out, DeviceRefs, กล้องประจำทีม — พัฒนาบน mock ก่อนตาม Q14) · sync `DeviceAssignments` จาก Booking (ถ้ามีข้อมูล) · `BookingJobs`, inbox, outbox, sync state, call logs · sync jobs (incremental/full) · circuit breaker · webhook endpoint (HMAC) · mapping (`BookingTeamRef`, `BookingEmployeeRef`, status map)
 
 **Acceptance**: inbox dedupe + version guard (ส่งซ้ำ/สลับลำดับ ⇒ projection ถูก) · breaker เปิด/ปิดตามกติกา · Booking mock ล่ม 30 นาที ⇒ tracking/session ไม่ได้รับผลกระทบ (วัด sweep duration และ GPS lag เท่าเดิม)
 
 ### P3b — Matching, review queue, UI
 
-**Deliverables**: matcher (`AlgoVersion` 1) + `MatchAttempts` · get-or-create linked WO · link/unlink/merge/confirm · re-match triggers · Booking panel + `/booking-jobs` + Review queue เต็ม + `/integration` · alerts 2, 3, 5, 7, 8, 10–12 · job `re-resolve` เมื่อ ref ของทีม/พนักงานเปลี่ยน
+**Deliverables**: matcher (`AlgoVersion` 1) + `MatchAttempts` · get-or-create linked WO · **apply Booking check-in/check-out ⇒ สถานะใบงาน** · DeviceRefs matching · link/unlink/merge · re-match triggers · Booking panel + `/booking-jobs` + Review queue เต็ม + `/integration` · alerts 2, 3, 5, 7, 8, 10–12, 14, 16 (SLA คิว 36 ชม.) · job `re-resolve` เมื่อ ref ของทีม/พนักงานเปลี่ยน
 
 **Acceptance**: ทุก scenario ใน Part 3 §3.3 ผ่านด้วย mock · manual link ไม่ถูก auto แก้ · reconcile หลัง Booking กลับมา link WO `Pending` ได้ถูก · ทุก WO ที่ link อัตโนมัติอธิบายได้จาก `MatchAttempts`
 
@@ -113,7 +114,7 @@ flowchart LR
 
 ### P5 — Mobile API & Notifications
 
-**Deliverables**: `/my-jobs` · ทะเบียนเครื่อง (ไม่มี PIN) · push tokens + FCM queue · notifications inbox · เอกสาร mobile contract ฉบับใหม่ (ปรับจาก `docs/MOBILE-API-CONTRACT.md` ของ reference)
+**Deliverables**: `/mobile/overview` + ใช้ API ชุดเดียวกับ web สำหรับ Operator (monitoring, ใบงาน, หลักฐาน, live/playback) · ทะเบียนเครื่อง (ไม่มี PIN) · push tokens + FCM queue · notifications inbox · เอกสาร mobile contract ฉบับใหม่ (ปรับจาก `docs/MOBILE-API-CONTRACT.md` ของ reference)
 
 **Acceptance**: ทีม mobile เชื่อมต่อได้ครบ · push ถึงเครื่องจริงเมื่อเกิด WO Suggested/Unlinked ของทีม · ระงับบัญชี ⇒ refresh + push token ถูก revoke
 
@@ -125,7 +126,7 @@ flowchart LR
 - Security review (OWASP ASVS L2 checklist, secret scan, dependency audit) · penetration test เบื้องต้น · PDPA review
 - Load test: 300 อุปกรณ์ + 50 ผู้ใช้พร้อมกัน + 16 stream · backup/restore drill
 - Runbooks: Booking ล่ม, DSS ล่ม, Redis ล่ม, migration ค้าง, dead letter
-- Import ข้อมูลจากระบบเดิม (ถ้าตัดสินใจทำ) แบบ dry-run ก่อน · UAT · go-live checklist (ไม่มี demo account, CORS ไม่ใช่ `*`, `prod:check` ผ่าน)
+- ตั้ง master data ใหม่ (ไม่ย้ายข้อมูลจากระบบเดิม — DL19): vendor sync อุปกรณ์, พนักงาน, ผู้ใช้, ทีม, ฐาน · UAT · go-live checklist (ไม่มี demo account, CORS ไม่ใช่ `*`, `prod:check` ผ่าน)
 
 **Acceptance**: ผ่าน load test ที่ p95 API < 500ms, sweep < 10s · ผ่าน security checklist ไม่มี High ค้าง · UAT sign-off
 

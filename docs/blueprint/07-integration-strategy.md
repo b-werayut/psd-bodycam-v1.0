@@ -12,8 +12,13 @@
 | Booking เป็นต้นทางใบงาน | **[Confirmed]** ผู้ใช้ยืนยัน | ระบบใหม่ไม่มี flow สร้าง/อนุมัติ/มอบหมายใบงาน |
 | 1 Booking job = 1 Work Order | **[Confirmed]** ผู้ใช้ยืนยัน | WO มีหลาย session ได้ |
 | ทีมมีหัวหน้า 1 คน (คนขับ) · กล้อง 1 ตัว/ทีม | **[Confirmed]** ผู้ใช้ยืนยัน | |
-| ปิดใบงานโดยหัวหน้าทีมหรือ Admin | **[Confirmed]** ผู้ใช้ยืนยัน | ปิดในระบบเรา — จะแจ้ง Booking หรือไม่ = Assumption |
-| Check-in/out หน้างาน | **[Pending]** รอทีม Booking | ไม่อยู่ในขอบเขตเฟสนี้ |
+| **สถานะใบงานตาม Booking check-in/check-out** · check-out = ปิดใบงาน · ไม่มีการปิดในระบบเรา | **[Confirmed]** ผู้ใช้ยืนยัน (Q1, Q2, Q8) | รูปแบบข้อมูล check-in/check-out = **[Assumption]** — ข้อมูลสำคัญที่สุดที่ต้องได้จาก Booking |
+| การผูกกล้องกับงาน/ทีม (รวมกล้องสำรอง) มาจาก Booking **เท่านั้น** | **[Confirmed]** (Q4, Q20) | field `DeviceRefs` / ข้อมูลกล้องประจำทีม = **[Assumption]** |
+| พัฒนาด้วย mock adapter ก่อน แล้วเปลี่ยนเป็นของจริงเมื่อได้ spec | **[Confirmed]** (Q14) | mock ครอบ check-in/check-out, DeviceRefs, กล้องประจำทีม |
+| Booking ยกเลิกงาน ⇒ ใบงาน "ยกเลิกโดย Booking" และตรวจหลักฐานได้ | **[Confirmed]** (Q6) | |
+| Retention: ใบงาน 3 เดือน · GPS 3 เดือน · audit 12 เดือน · DSS 3 เดือน | **[Confirmed]** (Q12) | |
+| ไม่ย้ายข้อมูลจากระบบเดิม | **[Confirmed]** (Q13) | |
+| ทุกข้อข้างบนอาจเปลี่ยนตามทีม Booking | **[Note]** ผู้ใช้ระบุ | |
 | Booking มี REST API ให้ query งาน | [Assumption] | ต้องมีอย่างน้อย query ตามช่วงเวลา หรือ changed-since |
 | Booking ส่ง webhook ได้ | [Assumption] | ถ้าไม่มี ใช้ polling อย่างเดียว (ออกแบบรองรับแล้ว) |
 | Booking job มี identifier ของทีม/หัวหน้าทีม/รถ | [Assumption] — **ความเสี่ยงอันดับ 1** | ถ้าไม่มี matching อัตโนมัติทำไม่ได้ เหลือ manual link |
@@ -78,8 +83,9 @@ export interface BookingJobSnapshot {
   scheduledDate?: string;           // 'YYYY-MM-DD' Asia/Bangkok — fallback เมื่อไม่มีเวลาตามแผน
   plannedStartAt?: Date;
   plannedEndAt?: Date;
-  startedAt?: Date;
-  completedAt?: Date;
+  checkInAt?: Date;                 // [Assumption] เวลา check-in ใน Booking — ใช้กำหนดสถานะใบงาน
+  checkOutAt?: Date;                // [Assumption] เวลา check-out — ปิดใบงาน
+  deviceRefs?: string[];            // [Assumption] รหัสกล้องที่ใช้กับงาน (รวมกล้องสำรอง)
   site?: { name?: string; address?: string; lat?: number; lng?: number };
   raw: unknown;                     // payload เดิม (ถูก redact ก่อนเก็บ)
 }
@@ -97,6 +103,8 @@ export interface BookingProvider {
   fetchWindow(from: Date, to: Date, cursor: string | undefined, signal: AbortSignal): Promise<BookingPage>;
   /** ดึงงานเดียว (webhook → fetch, ปุ่ม refresh) */
   fetchJob(externalJobId: string, signal: AbortSignal): Promise<BookingJobSnapshot | null>;
+  /** กล้องประจำทีม (optional — ถ้า Booking มี) → upsert DeviceAssignments (Source = BookingSync) */
+  fetchCameraAssignments?(cursor: string | undefined, signal: AbortSignal): Promise<{ items: { deviceRef: string; teamRef: string; validFrom: Date; validTo?: Date }[]; nextCursor?: string }>;
   /** write-back (optional — ไม่ implement = ไม่ส่ง) */
   pushEvent?(event: BookingOutboundEvent, idempotencyKey: string, signal: AbortSignal): Promise<void>;
   /** ตรวจ webhook (optional) */
@@ -189,6 +197,8 @@ RETURNING "Id", (xmax = 0) AS inserted;
 | อื่น ๆ | 9 Unknown | ใช่ แต่ confidence สูงสุด MEDIUM + `MappingIssues` 3 |
 
 - ตาราง map อยู่ในโค้ดของ adapter (versioned + unit test) และ override ได้ด้วย setting `booking.status-map` (JSON) โดยไม่ต้อง deploy
+- **กล้อง**: `BookingJobSnapshot.deviceRefs` → เทียบ `Devices.DeviceCode` / `VendorDeviceId` / `SerialNo` — matching key อันดับ 1 (Part 3 §3.3.1) · ref ที่ map ไม่ได้บันทึกเป็น `MappingIssues` 5 UnknownDeviceRef
+- **check-in / check-out**: upsert แล้ว apply สถานะใบงานทันทีใน inbox processor (check-out ⇒ Closed `BookingCheckout`, check-in หลังปิด ⇒ reopen) — ไม่ต้องรอ sweep
 - **Matching key คือ ref ดิบ** (`BookingJobs.BookingTeamRef`, `BookingLeaderRef`) — matcher เทียบกับ `Teams.BookingTeamRef` และ `Employees.BookingEmployeeRef` ของหัวหน้าทีม **ณ เวลาเริ่ม session** (Part 3 §3.3.1) · `BookingJobs.TeamId` / `LeaderEmployeeId` เป็น cache สำหรับแสดงผล
 - admin แก้ ref ของทีม/พนักงาน หรือเปลี่ยนหัวหน้าทีม ⇒ job `re-resolve` อัปเดต cache + ล้าง `MappingIssues` ที่แก้แล้ว + enqueue re-match ของทีมนั้น (ไม่ต้องรอ `PayloadHash` เปลี่ยน)
 - ถ้า Booking ใช้ "ทะเบียนรถ" เป็นตัวระบุทีม (หัวหน้าทีม = คนขับ) ⇒ ใส่ทะเบียนรถใน `Teams.BookingTeamRef` ได้ทันทีโดยไม่ต้องมีตารางรถ
@@ -236,7 +246,6 @@ Feature flag `booking.writeback-enabled` (false) — เปิดเมื่อ
 |---|---|---|
 | `WorkOrderLinked` | WO link กับงาน (auto/manual) | `{ externalJobId, workOrderNo, linkedAt, linkSource }` |
 | `WorkOrderActivity` | session แรกเริ่ม / session สุดท้ายจบ | `{ externalJobId, firstActivityAt, lastActivityAt, deviceCodes[] }` |
-| `WorkOrderClosed` | ปิดในระบบเรา | `{ externalJobId, workOrderNo, closedAt, closedBy: 'LEADER'|'ADMIN'|'SYSTEM', note }` |
 | `EvidenceAvailable` | recording index เสร็จ | `{ externalJobId, workOrderNo, recordedSeconds, evidenceUrl }` (deep link เข้าระบบเรา — ไม่ส่งไฟล์) |
 
 ---

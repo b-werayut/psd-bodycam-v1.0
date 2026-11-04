@@ -26,7 +26,11 @@
 
 - **Booking เป็นต้นทางใบงานเดียว** — ระบบเราไม่มี flow สร้าง/อนุมัติ/มอบหมายงาน
 - เมื่อกล้องของทีมเริ่มใช้งาน ระบบเปิด **Tracking Session** แล้วสร้าง/ผูก **Work Order** ภายใน (PK ของตัวเอง) ที่อ้างอิง Booking job (1 Booking = 1 WO, 1 WO มีหลาย session)
-- จับคู่ไม่ได้ ⇒ WO `Unlinked` + คิวตรวจสอบ · ข้อมูล Booking มาทีหลัง ⇒ reconcile อัตโนมัติ
+- **สถานะใบงานตาม Booking check-in/check-out** — check-out ⇒ ปิดใบงาน · ระบบเราไม่มีปุ่มปิด/reopen (หัวหน้าทีม/แอดมินทำฝั่ง Booking)
+- จับคู่ไม่ได้ ⇒ WO ยังไม่ผูก Booking + คิวตรวจสอบของ Operator (SLA 36 ชม.) · ข้อมูล Booking มาทีหลัง ⇒ reconcile อัตโนมัติ · กล้องชาร์จที่ฐานไม่เปิดใบงาน
+- ผู้ใช้ระบบ (web + mobile) = `ADMIN`, `OPERATOR`, `VIEWER` — ฝั่ง monitoring และตรวจหลักฐาน ไม่มีผู้ใช้ภาคสนาม
+- Retention: GPS 3 เดือน · ใบงาน 3 เดือน · audit 12 เดือน · ไม่ย้ายข้อมูลจากระบบเดิม
+- **ทั้งหมดอาจปรับตามข้อมูลจากทีม Booking** (ผู้ใช้ระบุ 2026-11-04)
 - Real-time tracking **ไม่ขึ้นกับ Booking** — Booking ล่ม แผนที่/สถานะ/session/หลักฐานยังทำงานครบ
 - Stack เดิม: **NestJS 10 + Drizzle + PostgreSQL + Redis/BullMQ + Socket.IO** · **React 18 + Vite + Tailwind + shadcn** · กล้องผ่าน **DSS middleware + BRMS** ชุดเดิม
 - Reuse โค้ดเดิมได้มาก: infra (`server/src/common/*`), auth/Entra, GPS pipeline, streaming/playback/export/talk, realtime, design system + shell ฝั่ง client
@@ -39,13 +43,15 @@
 |---|---|
 | **Device Online / Offline / Unknown** | สถานะการต่อ platform ของกล้อง · Unknown = ไม่มีข้อมูลใหม่นานเกินกำหนด (คำนวณ ไม่เก็บ) |
 | **GPS Active** | มีพิกัดที่ valid อายุ ≤ 2 นาที (กล้องในอาคารมักไม่มี — ไม่ใช่สัญญาณว่าปิด) |
-| **Camera Active** | Online ต่อเนื่องครบ debounce (5 นาที) = "เริ่มใช้งาน" |
+| **Camera Active** | Online ต่อเนื่องครบ 15 นาที และไม่ได้อยู่ในรัศมีฐาน = "เริ่มใช้งาน" |
+| **Booking Check-in / Check-out** | หัวหน้าทีม/แอดมินกดเริ่ม/จบงานใน Booking · check-out = ปิดใบงานในระบบเรา |
+| **Depot** | ฐาน/จุดชาร์จกล้อง — session ที่เกิดที่ฐานไม่นับเป็นงาน |
 | **Recording** | มีไฟล์บันทึกจริงตาม DSS recording search (รู้ได้หลังเกิดเหตุ) — เปิดกล้อง **ไม่เท่ากับ** อัดวิดีโอ |
 | **Tracking Session** | ช่วงที่กล้อง 1 ตัวเปิดต่อเนื่องและสังกัด WO เดียวกัน |
 | **Work Order (WO)** | ระเบียนการปฏิบัติงานในระบบเรา · `Status` (Open/Closed/Cancelled/Voided/Merged) แยกจาก `LinkStatus` (Pending/Linked/Suggested/Ambiguous/Unlinked) |
 | **Booking Job** | ใบงานในระบบ Booking · ระบบเราเก็บเป็น projection (`BookingJobs`) |
-| **Team** | หน่วยปฏิบัติงาน หัวหน้า 1 คน (คนขับ) + ลูกทีม · กล้องหลัก 1 ตัวต่อทีม |
-| **Primary / Temporary assignment** | การผูกกล้องหลัก / กล้องสำรองชั่วคราวกับทีม |
+| **Team** | หน่วยปฏิบัติงาน หัวหน้า 1 คน (คนขับ) + ลูกทีม · กล้องหลัก 1 ตัวต่อทีม · เก็บเป็นข้อมูลเพื่อจับคู่ (ไม่มีบัญชีผู้ใช้ภาคสนาม) |
+| **DeviceRefs** | กล้องที่ Booking ระบุให้ใบงาน (รวมกล้องสำรอง) — การผูกกล้องมาจาก Booking เท่านั้น |
 | **Review queue** | WO ที่ต้องให้คนตัดสิน (Suggested, Ambiguous, Unlinked, Pending, NeedsReview) |
 
 ---
@@ -59,7 +65,8 @@
 | Session engine แบบ level-triggered sweep 30s | self-healing หลัง restart/MQ หลุด · idempotent | latency สูงสุด ≈ debounce + 1 รอบ |
 | Matching อ่าน projection `BookingJobs` | Booking ล่มไม่กระทบ · อธิบายย้อนหลังได้ (`MatchAttempts`) | ข้อมูล Booking ช้าได้ถึงรอบ sync (2 นาที) |
 | Invariant บังคับที่ DB (partial unique, exclusion, CHECK) | race condition สร้างข้อมูลผิดไม่ได้ | ต้องมี `btree_gist` (มี fallback) |
-| WO Unlinked ได้ (`BookingJobId` nullable) | ตรง requirement · ไม่ทิ้งหลักฐาน | อาจมี WO ขยะจากกล้องชาร์จ — คุมด้วย setting + 1 ใบ/ทีม + idle close |
+| WO Unlinked ได้ (`BookingJobId` nullable) | ตรง requirement · ไม่ทิ้งหลักฐาน | อาจมี WO ขยะจากกล้องชาร์จ — คุมด้วย Depots + 1 ใบรวม/ทีม + ปิดเมื่อไม่มีข้อมูล Booking 240 นาที + auto-void |
+| สถานะใบงานตาม Booking check-in/check-out | ไม่มีสองแหล่งความจริงเรื่องสถานะ | Booking ล่ม = ปิดใบงานช้า (ปิดย้อนหลังด้วยเวลาจริง) · ต้องมี SafetyTimeout |
 | Manual ชนะ auto เสมอ | ผู้ใช้เชื่อถือระบบ | ต้องมีคนดูแลคิวตรวจสอบ |
 | Partition GPS/Audit รายเดือน | retention = drop partition · query เร็ว | DDL partition ต้องเขียน custom migration |
 
@@ -67,9 +74,9 @@
 
 1. DSS middleware + BRMS ชุดเดิม · DSS device list ใช้เป็น bulk status feed ได้
 2. **ทุกอย่างเกี่ยวกับ Booking API = Assumption** จนกว่าทีม Booking ยืนยัน (ดู [Part 7 §7.1](07-integration-strategy.md#71-confirmed-vs-assumption), [Part 9 §9.4](09-risks-open-questions.md#94-booking-information-checklist))
-3. Booking job มี reference ที่ map เป็นทีม/หัวหน้าทีมได้ — **ความเสี่ยงอันดับ 1**
+3. **Booking ส่ง check-in/check-out และระบุกล้อง/ทีมในใบงานได้ — ความเสี่ยงอันดับ 1**
 4. PostgreSQL 16 managed รองรับ `btree_gist` + declarative partitioning
-5. Check-in/out หน้างานยังไม่อยู่ในขอบเขต (รอทีม Booking)
+5. Vendor ไม่มีสถานะชาร์จ (ยืนยันแล้ว) — ตรวจกล้องที่ฐานด้วย Depots + auto-void
 
 ---
 
@@ -79,7 +86,7 @@
 flowchart LR
   subgraph Client["Clients"]
     WEB["Web SPA<br/>React + Vite + Tailwind"]
-    MOB["Mobile app<br/>หัวหน้าทีม"]
+    MOB["Mobile app<br/>Operator / Admin"]
   end
   subgraph Platform["Bodycam Platform"]
     API["api<br/>REST · Socket.IO · webhooks"]
@@ -114,13 +121,13 @@ flowchart LR
 
 ## Recommended Database Schema (สรุป)
 
-34 ตาราง แบ่งกลุ่ม (รายละเอียด [Part 4](04-database-design.md)):
+35 ตาราง แบ่งกลุ่ม (รายละเอียด [Part 4](04-database-design.md)):
 
 | กลุ่ม | ตาราง |
 |---|---|
 | Identity & Access | `Departments`, `Employees`, `Users`, `Roles`, `Permissions`, `RolePermissions`, `RefreshTokens`, `UserDevices`, `PushTokens` |
 | Teams | `Teams`, `TeamMembers` |
-| Devices | `Devices`, `DeviceState`, `DeviceStatusHistory`, `DeviceAssignments` |
+| Devices | `Devices`, `DeviceState`, `DeviceStatusHistory`, `DeviceAssignments`, `Depots` |
 | Tracking | `GpsLocations` (partitioned), `TrackingSessions`, `RecordingSegments` |
 | Work Orders | `WorkOrders`, `WorkOrderEvents`, `WorkOrderCounters` |
 | Booking Integration | `BookingJobs`, `MatchAttempts`, `IntegrationInbox`, `IntegrationOutbox`, `IntegrationSyncState`, `IntegrationCallLogs` |
@@ -130,7 +137,7 @@ flowchart LR
 Invariant สำคัญที่ DB บังคับ:
 - `UQ_TS_OpenPerDevice` + `EX_TS_NoOverlap` — 1 session เปิดต่ออุปกรณ์ ไม่ซ้อนเวลา
 - `UQ_WO_BookingJob` — 1 Booking ↔ 1 WO
-- `UQ_WO_OpenUnlinkedPerTeam` — WO ที่ยังไม่มี Booking เปิดได้ 1 ใบต่อทีม
+- `UQ_WO_OpenUnlinkedPerTeam` / `UQ_WO_OpenUnlinkedPerDevice` — ใบรวมที่ยังไม่มี Booking เปิดได้ 1 ใบต่อทีม (หรือต่อกล้องเมื่อยังไม่รู้ทีม)
 - `UQ_TeamMembers_ActiveLeader` · `UQ_DevAsg_TeamActivePrimary` · `EX_DevAsg_NoOverlap`
 - `CK_WO_LinkConsistency` — `LinkStatus = Linked` ⇔ มี `BookingJobId`
 - `UQ_Inbox_Event` · `IntegrationOutbox.IdempotencyKey` — idempotency ของ integration
@@ -144,9 +151,9 @@ Invariant สำคัญที่ DB บังคับ:
 | P2 Sessions & Work Orders | session engine, auto WO (Unlinked), WO UI, sessions page | Must |
 | P3 Booking Integration | port + mock → projection, inbox/outbox, breaker → matching + review queue → http adapter + pilot (**ติด Booking spec gate**) | Must |
 | P4 Media | live, playback, recordings, MP4 export, live wall, talk | Must / Should |
-| P5 Mobile API & Notifications | my-jobs, FCM, device registry (ไม่มี PIN) | Should |
-| P6 Hardening & Go-live | retention/archive, observability, security, load test, UAT | Must |
+| P5 Mobile API & Notifications | แอป Operator (monitoring + หลักฐาน), FCM, device registry (ไม่มี PIN) | Should |
+| P6 Hardening & Go-live | retention 3/12 เดือน, observability, security, load test, ตั้ง master data ใหม่, UAT | Must |
 
 Critical path: P0 → P1 → P2 → P3 → P6 · P2 ใช้งานได้โดยไม่มี Booking ⇒ Booking ล่าช้าไม่บล็อกการขึ้นระบบในโหมด tracking + evidence
 
-**สิ่งที่ต้องทำต่อทันที**: ส่ง [checklist §9.4](09-risks-open-questions.md#94-booking-information-checklist) ให้ทีม Booking · ให้ผู้ใช้ตัดสิน Q1–Q16 ใน [Part 9 §9.2](09-risks-open-questions.md#92-open-business-rules) · เริ่ม P0
+**สิ่งที่ต้องทำต่อทันที**: ส่ง [checklist §9.4](09-risks-open-questions.md#94-booking-information-checklist) ให้ทีม Booking · ไม่มีคำถามค้างกับผู้ใช้แล้ว ([Part 9 §9.2](09-risks-open-questions.md#92-open-business-rules)) — รอข้อมูลจากทีม Booking · เริ่ม P0 และ P3a (mock Booking) ได้ทันที · เริ่ม P0
