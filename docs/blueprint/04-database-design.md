@@ -17,7 +17,7 @@
 | D6 | **Invariant บังคับที่ DB**: partial unique, exclusion constraint (`btree_gist`), CHECK | race condition ระหว่าง API/worker ไม่สามารถสร้างข้อมูลผิด invariant ได้ แม้ logic มี bug |
 | D7 | Hot state แยกตาราง: `DeviceState` (อัปเดตทุก poll) ออกจาก `Devices` (master) | ลด row churn / lock contention บน master |
 | D8 | Soft delete เฉพาะ **master data** (Users, Employees, Teams, Devices, Departments) · fact/log tables **ไม่มี soft delete** (ใช้ status เช่น `Voided`) | ประวัติหลักฐานต้องไม่หาย |
-| D9 | ไม่มี `CompanyId` (บริษัทเดียว) · scope ผ่าน `DepartmentId` (subtree) / `TeamId` / own | ตัดปัญหา `CompanyId = null` 3 ความหมายของ reference |
+| D9 | ไม่มี `CompanyId` (บริษัทเดียว) · scope ผ่าน `DepartmentId` (subtree) หรือ `all` (ไม่มีผู้ใช้ภาคสนาม — DL14, DL16) | ตัดปัญหา `CompanyId = null` 3 ความหมายของ reference |
 | D10 | `GpsLocations` และ `AuditLogs` **partition รายเดือน** · retention = `DROP PARTITION` | แทน batched ctid DELETE ของ reference (`retention.service.ts`) |
 | D11 | เลขใบงานจาก **counter table** (`WorkOrderCounters`) แบบ atomic upsert | แทน `SELECT max + 1` + retry ของ reference |
 
