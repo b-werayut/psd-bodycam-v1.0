@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**psd-bodycam-v1.0** — a new Bodycam-only tracking and work-order system. It rebuilds the Bodycam part of the reference project `C:\Git\Internal-BodyCam` (with Dashcam and vehicles removed entirely) and links camera usage to work orders from an external **Booking** system.
+**PSD Body worn camera** (repo `psd-bodycam-v1.0`) — a new Bodycam-only tracking and work-order system. It rebuilds the Bodycam part of the reference project `C:\Git\Internal-BodyCam` (with Dashcam and vehicles removed entirely) and links camera usage to work orders from an external **Booking** system.
 
 ## Language policy
 
@@ -28,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `06-frontend-architecture.md` | Folder structure, routes, screens, component reuse, status→tone mapping |
 | `07-integration-strategy.md` | Booking port/adapters, pull-only sync, the API we ask Booking for, inbox, retry, idempotency, Confirmed vs Assumption |
 | `08-implementation-roadmap.md` | Phases P0–P6 with dependencies and acceptance criteria |
-| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL39) |
+| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL44) |
 
 - Implement in roadmap order.
 - P3c (the real Booking `http` adapter) is blocked until the Booking team provides a spec. Until then, build on the `mock` adapter (DL25).
@@ -87,7 +87,7 @@ Client (Vite):
 - UNKNOWN is computed from how stale `LastObservedAt` is. **Never write null on a reconnect or worker restart.**
 - Camera status comes only from GpsPoll: DSS `/location` returns GPS + online/offline in one call (DL32). No StatusPoll, no BRMS MQ (DL30), no device webhook. `StateSource` values 1, 3 and 4 stay reserved.
 - "Camera on" comes from platform status, not GPS: most cameras have no GPS fix indoors.
-- DSS middleware = `psd-bwc-dss-services` (FastAPI). It calls the Dahua DSS server and keeps the DSS tokens; HLS goes through its `/proxy`.
+- DSS middleware = `psd-bwc-dss-services` (FastAPI). It calls the **Dahua DSS Platform** (Dahua's camera VMS) and keeps the DSS tokens; HLS goes through its `/proxy`.
 
 **Work order status follows Booking**
 - A work order's department (data scope) comes from Booking (`departmentRef` → `Departments.BookingDepartmentRef`, DL38); unmapped ⇒ root department + `MappingIssues`.
@@ -110,7 +110,7 @@ Client (Vite):
 - A camera at a depot is not work: the system sets `Classification = IdleOrCharging` on its session. Detection uses the `Depots` radius plus the latest GPS fix.
 - The vendor has no charging state.
 
-**Evidence storage (DL34)**: exported MP4 files go to a local-disk PVC (`STORAGE_DRIVER=local`) shared by `api` and `worker-media`, and are deleted after 24h (`EvidenceCleanup`). No MinIO / object storage. Source video stays on the Dahua DSS server.
+**Evidence storage (DL34)**: exported MP4 files go to a local-disk PVC (`STORAGE_DRIVER=local`) shared by `api` and `worker-media`, and are deleted after 24h (`EvidenceCleanup`). No MinIO / object storage. Source video stays on the Dahua DSS Platform.
 
 **Invariants live in the DB** (partial uniques, exclusion constraints, CHECKs):
 - `UQ_TS_OpenPerDevice` and `EX_TS_NoOverlap`

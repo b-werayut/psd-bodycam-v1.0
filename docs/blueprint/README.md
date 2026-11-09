@@ -1,6 +1,8 @@
-# Blueprint — Bodycam Tracking & Booking Integration System
+# Blueprint — PSD Body worn camera
 
-> เอกสารออกแบบก่อน Implementation ของระบบ `psd-bodycam-v1.0` · ฉบับ 2026-11-03 · ปรับ 2026-11-09 (DL33–DL36)
+**PSD Body worn camera** — ระบบติดตาม Bodycam และหลักฐานตามใบงานจาก Booking (repo `psd-bodycam-v1.0`)
+
+> เอกสารออกแบบก่อน Implementation ของระบบ **PSD Body worn camera** (`psd-bodycam-v1.0`) · ฉบับ 2026-11-03 · ปรับ 2026-11-09 (DL33–DL36)
 > Reference: `C:\Git\Internal-BodyCam` (อ่านอย่างเดียว ไม่ถูกแก้ไข)
 > Diagram ทั้งหมดเป็น Mermaid — เปิดดูได้ใน GitHub / GitLab / VS Code (Markdown Preview Mermaid Support)
 
@@ -54,8 +56,8 @@
 | **Team** | หน่วยปฏิบัติงาน หัวหน้า 1 คน (คนขับ) + ลูกทีม · กล้องหลัก 1 ตัวต่อทีม · เก็บเป็นข้อมูลเพื่อจับคู่ (ไม่มีบัญชีผู้ใช้ภาคสนาม) |
 | **DeviceRefs** | กล้องที่ Booking ระบุให้ใบงาน (รวมกล้องสำรอง) — การผูกกล้องมาจาก Booking เท่านั้น |
 | **AwaitingMatch** | session ที่ยังจับคู่ Booking ไม่ได้ (ไม่มีหรือมีหลาย candidate) — รอ Booking แล้ว rematch อัตโนมัติ · ไม่มีการผูกด้วยมือ / คิวตรวจสอบ (DL33) · ดูหลักฐานได้จาก `/recordings` |
-| **หลักฐาน (Evidence)** | เมนู `/evidence`: เลือกใบงาน → กล้อง + ช่วงเวลาจาก session → playback / ดาวน์โหลด MP4 (DL36) · วิดีโอต้นฉบับอยู่บน Dahua DSS server · ไฟล์ export อยู่บน PVC 24 ชม. (DL34) |
-| **DSS middleware** | `psd-bwc-dss-services` (FastAPI) ที่เรียก Dahua DSS server อีกชั้น — ถือ token ของ DSS, HLS ผ่าน `/proxy`, talk เป็น RTSP **[Confirmed]** |
+| **หลักฐาน (Evidence)** | เมนู `/evidence`: เลือกใบงาน → กล้อง + ช่วงเวลาจาก session → playback / ดาวน์โหลด MP4 (DL36) · วิดีโอต้นฉบับอยู่บน Dahua DSS Platform · ไฟล์ export อยู่บน PVC 24 ชม. (DL34) |
+| **DSS middleware** | `psd-bwc-dss-services` (FastAPI) ที่เรียก Dahua DSS Platform อีกชั้น — ถือ token ของ DSS, HLS ผ่าน `/proxy`, talk เป็น RTSP **[Confirmed]** |
 
 ---
 
@@ -93,7 +95,7 @@ flowchart LR
     WEB["Web SPA<br/>React + Vite + Tailwind"]
     MOB["Mobile app<br/>Operator / Admin"]
   end
-  subgraph Platform["Bodycam Platform"]
+  subgraph Platform["PSD Body worn camera"]
     API["api<br/>REST · Socket.IO"]
     WT["worker tracking<br/>poll · session sweep"]
     WI["worker integration<br/>Booking sync + WO upsert · matching · push"]
@@ -103,7 +105,7 @@ flowchart LR
     FS[("Local disk PVC<br/>ไฟล์ export MP4 24 ชม.")]
   end
   DSS["DSS middleware<br/>psd-bwc-dss-services"]
-  DSV["Dahua DSS server<br/>วิดีโอ 3 เดือน"]
+  DSV["Dahua DSS Platform<br/>วิดีโอ 3 เดือน"]
   BK["Booking System"]
   WEB --> API
   MOB --> API

@@ -1,10 +1,10 @@
 <mxfile host="Electron" agent="Claude Code generator" compressed="false" pages="3">
   <diagram id="overview" name="1. ภาพรวมระบบ (System Overview)">
-    <mxGraphModel dx="1221" dy="841" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1670" math="0" shadow="0">
+    <mxGraphModel dx="1018" dy="701" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1670" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="p1_title" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:22px&quot;&gt;&lt;b&gt;psd-bodycam-v1.0 — System Diagram&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot; color=&quot;#555555&quot;&gt;ระบบติดตาม Bodycam + ใบงานจาก Booking · ที่มา: docs/blueprint Part 2 · ฉบับ 2026-11-09&lt;/font&gt;" vertex="1">
+        <mxCell id="p1_title" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:22px&quot;&gt;&lt;b&gt;PSD Body worn camera — System Diagram&lt;/b&gt;&lt;/font&gt;&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
           <mxGeometry height="56" width="1100" x="40" y="10" as="geometry" />
         </mxCell>
         <mxCell id="u_web" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Web browser&lt;/b&gt;&lt;br&gt;ADMIN · OPERATOR · VIEWER&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;เมนูหลัก: live · หลักฐาน (playback) · แผนที่&lt;/font&gt;" vertex="1">
@@ -19,7 +19,7 @@
         <mxCell id="x_tl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;หัวหน้าทีม / Admin ฝั่ง Booking&lt;/b&gt;&lt;br&gt;Booking app&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;check-in / check-out ใบงาน&lt;/font&gt;" vertex="1">
           <mxGeometry height="80" width="260" x="1600" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="plat" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFFFFF;strokeColor=#999999;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;align=right;spacingRight=14;dashed=1;dashPattern=8 4;fillColor=#FAFAFA;strokeColor=#6B7280;strokeWidth=2;" value="Bodycam Tracking System (psd-bodycam-v1.0) · NestJS modular monolith · Kubernetes" vertex="1">
+        <mxCell id="plat" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFFFFF;strokeColor=#999999;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;align=right;spacingRight=14;dashed=1;dashPattern=8 4;fillColor=#FAFAFA;strokeColor=#6B7280;strokeWidth=2;" value="PSD Body worn camera (psd-bodycam-v1.0) · NestJS modular monolith" vertex="1">
           <mxGeometry height="1050" width="1180" x="360" y="200" as="geometry" />
         </mxCell>
         <mxCell id="ing" parent="plat" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fillColor=#ECEFF1;strokeColor=#78909C;" value="&lt;b&gt;Ingress / LB&lt;/b&gt; — TLS termination · ทุก path → container &lt;b&gt;web&lt;/b&gt; (DL29)" vertex="1">
@@ -118,10 +118,10 @@
         <mxCell id="x_dss" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;DSS middleware&lt;/b&gt; (psd-bwc-dss-services · FastAPI)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;/api/v1: location (GPS + online/offline) · devices · stream · playback · recording/search · talk WS · /proxy HLS&lt;/font&gt;" vertex="1">
           <mxGeometry height="70" width="800" x="400" y="1290" as="geometry" />
         </mxCell>
-        <mxCell id="x_dsssrv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#E0E0E0;strokeColor=#424242;strokeWidth=2;" value="&lt;b&gt;Dahua DSS server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ทะเบียนอุปกรณ์ · media server (live / record) · RTSP talk&lt;/font&gt;" vertex="1">
+        <mxCell id="x_dsssrv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#E0E0E0;strokeColor=#424242;strokeWidth=2;" value="&lt;b&gt;Dahua DSS Platform&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ทะเบียนอุปกรณ์ · media server (live / record) · RTSP talk&lt;/font&gt;" vertex="1">
           <mxGeometry height="70" width="800" x="400" y="1430" as="geometry" />
         </mxCell>
-        <mxCell id="x_cam" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#EEEEEE;" value="&lt;b&gt;Bodycam devices&lt;/b&gt; (4G) — &lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ลงทะเบียนกับ Dahua DSS server · ส่งภาพ / GPS / สถานะ&lt;/font&gt;" vertex="1">
+        <mxCell id="x_cam" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#EEEEEE;" value="&lt;b&gt;Bodycam devices&lt;/b&gt; (4G) — &lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ลงทะเบียนกับ Dahua DSS Platform · ส่งภาพ / GPS / สถานะ&lt;/font&gt;" vertex="1">
           <mxGeometry height="56" width="800" x="400" y="1570" as="geometry" />
         </mxCell>
         <mxCell id="x_book" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;Booking System&lt;/b&gt;&lt;br&gt;ต้นทางใบงานเดียว · check-in / check-out&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;&lt;i&gt;[Assumption] API spec รอทีม Booking&lt;/i&gt;&lt;/font&gt;" vertex="1">
@@ -481,7 +481,7 @@
         <mxCell id="a_dss" value="&lt;b&gt;DSS middleware&lt;/b&gt;&lt;br&gt;(FastAPI)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" vertex="1" parent="laneA">
           <mxGeometry x="70" y="130" width="170" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="a_srv" value="&lt;b&gt;Dahua DSS server&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#E0E0E0;strokeColor=#424242;strokeWidth=2;" vertex="1" parent="laneA">
+        <mxCell id="a_srv" value="&lt;b&gt;Dahua DSS Platform&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#E0E0E0;strokeColor=#424242;strokeWidth=2;" vertex="1" parent="laneA">
           <mxGeometry x="70" y="280" width="170" height="60" as="geometry" />
         </mxCell>
         <mxCell id="a_gp" value="&lt;b&gt;GpsPoll 15s&lt;/b&gt;&lt;br&gt;/location ต่ออุปกรณ์&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;GPS + online/offline&lt;br&gt;ชุดเดียวกัน&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="laneA">
@@ -711,7 +711,7 @@
         <mxCell id="d_dss" value="&lt;b&gt;DSS middleware&lt;/b&gt;&lt;br&gt;(FastAPI)&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;device status · live&lt;br&gt;recording search · playback&lt;br&gt;talk WS · /proxy HLS&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" vertex="1" parent="laneD">
           <mxGeometry x="1430" y="30" width="190" height="280" as="geometry" />
         </mxCell>
-        <mxCell id="d_srv" value="&lt;b&gt;Dahua DSS server&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ภาพ live / record&lt;br&gt;ภาพหลักฐานอยู่ที่นี่&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#E0E0E0;strokeColor=#424242;strokeWidth=2;" vertex="1" parent="laneD">
+        <mxCell id="d_srv" value="&lt;b&gt;Dahua DSS Platform&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ภาพ live / record&lt;br&gt;ภาพหลักฐานอยู่ที่นี่&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#E0E0E0;strokeColor=#424242;strokeWidth=2;" vertex="1" parent="laneD">
           <mxGeometry x="1690" y="30" width="110" height="280" as="geometry" />
         </mxCell>
         <mxCell id="fd_srv" value="DSS API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_dss" target="d_srv">

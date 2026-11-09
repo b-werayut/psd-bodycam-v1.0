@@ -9,7 +9,7 @@ fail() {
   exit 1
 }
 
-[ -n "${BACKEND_URL:-}" ] || fail "BACKEND_URL is not set (e.g. http://<api-service>.<namespace>.svc:3000)"
+[ -n "${BACKEND_URL:-}" ] || fail "BACKEND_URL is not set (e.g. http://<api-service>.team3.svc:3000)"
 
 case "$BACKEND_URL" in
   http://*|https://*) ;;

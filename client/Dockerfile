@@ -21,7 +21,7 @@ RUN chmod 0755 /docker-entrypoint.d/15-require-backend-url.sh \
  && touch /var/run/nginx.pid \
  && chown -R nginx:nginx /var/run/nginx.pid /var/cache/nginx /var/log/nginx /etc/nginx/conf.d
 USER nginx
-# Required at runtime: API base URL without path, e.g. http://<api-service>.<namespace>.svc:3000
+# Required at runtime: API base URL without path, e.g. http://<api-service>.team3.svc:3000
 # (no default on purpose: the container refuses to start without it)
 ENV BACKEND_URL=""
 EXPOSE 8080

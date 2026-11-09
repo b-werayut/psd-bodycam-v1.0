@@ -25,14 +25,14 @@ flowchart TB
     LEAD["Operator / Admin<br/>Mobile app"]
     TL["หัวหน้าทีม<br/>Booking app"]
   end
-  subgraph Sys["Bodycam Tracking System (ระบบใหม่)"]
-    CORE["Bodycam Platform<br/>NestJS API + Workers"]
+  subgraph Sys["PSD Body worn camera (ระบบใหม่)"]
+    CORE["PSD Body worn camera<br/>NestJS API + Workers"]
     DISK[("Local disk (PVC)<br/>MP4 export ชั่วคราว 24 ชม.")]
   end
   subgraph Ext["ระบบภายนอก"]
     BOOK["Booking System<br/>ต้นทางใบงาน"]
     DSSMW["DSS middleware<br/>psd-bwc-dss-services · FastAPI"]
-    DSSSRV["Dahua DSS server<br/>วิดีโอหลักฐาน 3 เดือน"]
+    DSSSRV["Dahua DSS Platform<br/>วิดีโอหลักฐาน 3 เดือน"]
     ENTRA["Microsoft Entra ID<br/>SSO"]
     FCM["Firebase Cloud Messaging"]
   end
@@ -51,8 +51,8 @@ flowchart TB
 
 ขอบเขต: ระบบใหม่ **ไม่คุยกับกล้องโดยตรง** (เหมือน reference) และ **ไม่สร้างใบงานเอง** — ใบงานทุกใบมาจาก Booking (DL33)
 
-- **DSS มี 2 ชั้น [Confirmed — reference `docs/LIVE-STREAMING-CONTRACT.md`]**: ระบบเราเรียก DSS middleware (`psd-bwc-dss-services`, FastAPI) เท่านั้น แล้ว middleware เรียก Dahua DSS server อีกชั้น · token / URL / session ของ DSS server ไม่ออกจาก middleware · HLS URL ที่ได้ชี้กลับ `/proxy` ของ middleware · talk เป็น RTSP ระหว่าง middleware กับ DSS server · กล้องลงทะเบียนกับ DSS server ผ่าน 4G
-- วิดีโอหลักฐานต้นฉบับอยู่บน Dahua DSS server (retention 3 เดือน ฝั่ง infra) · ระบบเราเก็บเฉพาะไฟล์ MP4 ที่ export ชั่วคราวบน Local disk (PVC) — ไม่มี MinIO / object storage (DL34)
+- **DSS มี 2 ชั้น [Confirmed — reference `docs/LIVE-STREAMING-CONTRACT.md`]**: ระบบเราเรียก DSS middleware (`psd-bwc-dss-services`, FastAPI) เท่านั้น แล้ว middleware เรียก Dahua DSS Platform (VMS กล้องของ Dahua) อีกชั้น · token / URL / session ของ DSS Platform ไม่ออกจาก middleware · HLS URL ที่ได้ชี้กลับ `/proxy` ของ middleware · talk เป็น RTSP ระหว่าง middleware กับ DSS Platform · กล้องลงทะเบียนกับ DSS Platform ผ่าน 4G · ทั้ง DSS middleware และ Dahua DSS Platform ติดตั้งใน **PSD on-premise** (DL40)
+- วิดีโอหลักฐานต้นฉบับอยู่บน Dahua DSS Platform (retention 3 เดือน ฝั่ง infra) · ระบบเราเก็บเฉพาะไฟล์ MP4 ที่ export ชั่วคราวบน Local disk (PVC) — ไม่มี MinIO / object storage (DL34)
 
 ---
 
@@ -63,7 +63,7 @@ flowchart LR
   subgraph Edge["Ingress / LB"]
     ING["TLS termination<br/>ทุก path → web"]
   end
-  subgraph App["Kubernetes namespace"]
+  subgraph App["Kubernetes namespace team3"]
     SPA["web: nginx<br/>React SPA static<br/>proxy /api/ · /api/talk/ws · /socket.io/"]
     API1["api pod x N<br/>REST · Socket.IO · talk WS"]
     WT["worker-tracking x 1<br/>GpsPoll · SessionSweep"]
@@ -94,16 +94,26 @@ flowchart LR
 - `worker-integration` / `worker-media` scale แนวนอนได้ (BullMQ consumers)
 - Redis ต้องมี persistence (AOF) และใช้ร่วมระหว่าง API กับ worker (key prefix ต่อ environment — port `lock-key.ts` ของ reference)
 - `worker-media` image ต้องมี ffmpeg · migrate เป็น job แยกก่อน rollout
-- **กันงานแปลงไฟล์แย่งเครื่อง (DL39)** — สำคัญเป็นพิเศษถ้า `api` กับ worker อยู่ server / node เดียวกัน: การแยก process ยังกัน event loop, crash และ deploy ไม่ให้ลากกัน แต่ CPU / RAM / network / disk ยังใช้ร่วมกัน จึงต้องคุมเพิ่ม
+- **กันงานแปลงไฟล์แย่งเครื่อง (DL39)** — สำคัญเป็นพิเศษเพราะ `api` กับ worker อยู่บน PSD Server เครื่องเดียวกัน (DL44): การแยก process ยังกัน event loop, crash และ deploy ไม่ให้ลากกัน แต่ CPU / RAM / network / disk ยังใช้ร่วมกัน จึงต้องคุมเพิ่ม
   - Kubernetes `resources` แยกต่อ container: `worker-media` ตั้ง `limits` (เริ่มที่ CPU 1 core / memory 1 GiB แล้วปรับตามโหลดจริง) · `api` ตั้ง `requests` กัน CPU / memory ไว้ให้เสมอ
   - จำกัดงานแปลงพร้อมกันของ queue `evidence-export` ด้วย env `EVIDENCE_EXPORT_CONCURRENCY` (port จาก reference: default 1, สูงสุด 8) · งานที่เกินรอคิว · timeout ต่องาน `EVIDENCE_EXPORT_TIMEOUT_MINUTES` (default 180)
   - ffmpeg ใช้ `-c:v copy` (ไม่ encode วิดีโอใหม่) จึงกิน CPU น้อย — ภาระหลักคือ network (ดึง segment จาก DSS) กับ disk (เขียน MP4) · คิวยาวให้เพิ่ม pod `worker-media` (× 1..N) แทนการเพิ่ม concurrency ในเครื่องเดียว
-- **ไฟล์ export (DL34)**: Local disk (PVC, `STORAGE_DRIVER=local`) mount ทั้ง `api` และ `worker-media` — `worker-media` เขียนไฟล์ MP4, `api` stream ให้ดาวน์โหลดผ่าน download ticket · ลบไฟล์หลัง 24 ชม. (`EvidenceCleanup`) แต่เก็บแถว `EvidenceExports` 12 เดือน · ไม่มี MinIO / object storage · ถ้า pod อยู่คนละ node ต้องใช้ PVC แบบ ReadWriteMany (Part 9 R16)
+- **ไฟล์ export (DL34)**: Local disk (PVC, `STORAGE_DRIVER=local`) mount ทั้ง `api` และ `worker-media` — `worker-media` เขียนไฟล์ MP4, `api` stream ให้ดาวน์โหลดผ่าน download ticket · ลบไฟล์หลัง 24 ชม. (`EvidenceCleanup`) แต่เก็บแถว `EvidenceExports` 12 เดือน · ไม่มี MinIO / object storage · ตอนนี้มี node เดียว (PSD Server) ใช้ PVC แบบ ReadWriteOnce ได้ · ถ้าเพิ่ม node ภายหลังต้องเป็น ReadWriteMany (Part 9 R16)
 - **เส้นทาง HTTP เหมือนระบบเดิมที่รันอยู่** (`psd-bwc-frontend`): ingress ส่งทุก path ไปที่ container `web` แล้ว nginx ของ `web` proxy `/api/`, `/api/talk/ws` (WebSocket ดิบของ talk) และ `/socket.io/` ต่อไปที่ API ผ่าน env `BACKEND_URL` (`scheme://host:port` ไม่มี path) — ดู `client/nginx.conf` · หน้าเว็บกับ API จึงเป็น same-origin (`VITE_API_BASE=/api`) ไม่ต้องตั้ง CORS / `COOKIE_SAMESITE` ข้ามโดเมน
   - container `web` ไม่ยอม start ถ้าไม่มี `BACKEND_URL` หรือมี path (`client/docker-entrypoint.d/15-require-backend-url.sh`)
   - API อยู่หลัง proxy 2 ชั้น (ingress + nginx ของ `web`) ⇒ ตั้ง `TRUST_PROXY=2` หรือช่วง IP ของ pod / ingress — ค่าเริ่มต้น `loopback` ใช้ไม่ได้บน Kubernetes (`req.ip` จะเป็น IP ของ nginx ทุกคำขอ)
   - ลำดับปล่อยเวอร์ชัน: API ก่อน `web` เสมอ
-- DSS middleware (`psd-bwc-dss-services`, FastAPI) รันบน VM นอก cluster ได้ instance เดียว (`WORKERS=1`, state อยู่ใน memory) — API และ worker เรียกผ่าน HTTP แล้ว middleware เรียก Dahua DSS server ต่อ (§2.2) · diagram infra ดู `docs/diagrams/infrastructure.drawio`
+- **Namespace = `team3` เดิม (DL41)** — namespace ของทีมที่ระบบเดิม (`psd-bwc-frontend`, `psd-bwc-web-backend`) ใช้อยู่ ไม่ใช่ชื่อระบบ · ระบบนี้ deploy ร่วมใน namespace เดียวกัน
+  - ชื่อ Deployment / Service ต้องไม่ชนกับของระบบเดิม (`psd-bwc-*`) · ชื่อจริงกำหนดใน gitops
+  - `BACKEND_URL` ของ `web` = `http://<api-service>.team3.svc:3000`
+  - quota CPU / memory ของ namespace ใช้ร่วมกับระบบเดิม ⇒ `requests` / `limits` ตาม DL39 ต้องตั้งให้ครบทุก container
+- **ทั้งระบบอยู่ใน PSD on-premise (DL43)** — อยู่ใน data center ของ PSD **2 VM (DL44)**
+  - **PSD Server** (VM Ubuntu · `xxx.xxx.x.xx`) เครื่องเดียวรัน Kubernetes namespace `team3` (web / api / worker-\*), data tier (PostgreSQL / Redis / PVC) และ DSS middleware (systemd นอก K8s)
+  - **Dahua DSS Platform** (VM Windows · `xxx.xxx.x.xx`) อยู่คนละเครื่อง
+  - PSD Server เป็น single point of failure (Part 9 R17) ⇒ backup PostgreSQL ต้องเก็บนอกเครื่อง
+  - นอก on-prem: ผู้ใช้ (browser / mobile), Microsoft Entra ID, FCM, Booking System (ตำแหน่ง **[Assumption]**) และกล้องที่ต่อเข้ามาทาง 4G
+  - firewall ขาออกจาก cluster ต้องเปิด: Entra ID (JWKS / OIDC), FCM HTTP v1, Booking API · ขาเข้า: HTTPS ที่ ingress
+- DSS middleware (`psd-bwc-dss-services`, FastAPI) รันเป็น systemd บน **PSD Server** เครื่องเดียวกับ K8s (นอก cluster) ได้ instance เดียว (`WORKERS=1`, state อยู่ใน memory) — API และ worker เรียกผ่าน HTTP ภายในเครื่อง (`xxx.xxx.x.xx:3004`, ไม่ออก network) แล้ว middleware เรียก Dahua DSS Platform อีกเครื่องต่อ (§2.2) · ถ้าแยก middleware ไปเครื่องอื่นภายหลัง talk ต้องเข้ารหัส (TLS / VPN) · diagram infra ดู `docs/diagrams/infrastructure.drawio`
 
 ---
 
@@ -244,7 +254,7 @@ Evidence (หน้า หลักฐาน `/evidence` — DL36): เลือ
 |---|---|---|---|
 | **Booking API** | sync หยุด, projection เก่าลง, ไม่มีใบงานใหม่ | tracking, session, match กับ projection เดิม, live/playback ทั้งหมด | circuit breaker (Redis) · retry backoff · banner "ข้อมูล Booking ไม่เป็นปัจจุบัน" · session ที่ match ไม่ได้ระหว่างนั้นค้าง `AwaitingMatch` แล้ว rematch อัตโนมัติหลัง Booking กลับมา (full reconcile เมื่อ breaker ปิด) |
 | Booking ช้า (timeout) | job ของ queue `booking-*` ช้า | ทุกอย่างนอก queue นั้น | timeout 8s · concurrency จำกัด · อยู่คนละ worker role |
-| DSS middleware / Dahua DSS server | ไม่มี status/GPS ใหม่, live/playback ใช้ไม่ได้, หน้าจอดึงสถานะกล้องไม่ได้ (DL35) | หน้าจอ, WO เดิม, Booking sync | สถานะอุปกรณ์กลายเป็น UNKNOWN (คำนวณจากอายุข้อมูล) · session **ไม่ถูกปิดทันที** (hold ≤ `session.unknown-max-minutes`) |
+| DSS middleware / Dahua DSS Platform | ไม่มี status/GPS ใหม่, live/playback ใช้ไม่ได้, หน้าจอดึงสถานะกล้องไม่ได้ (DL35) | หน้าจอ, WO เดิม, Booking sync | สถานะอุปกรณ์กลายเป็น UNKNOWN (คำนวณจากอายุข้อมูล) · session **ไม่ถูกปิดทันที** (hold ≤ `session.unknown-max-minutes`) |
 | Redis | ไม่มี realtime จาก worker, ไม่มี lock, queue หยุด | REST API, DB | health check แจ้ง · worker-tracking หยุด sweep เมื่อ lock ไม่ได้ (fail-safe) |
 | worker-tracking | ไม่มี session ใหม่ / ไม่มี GPS ใหม่ | UI, Booking sync | level-triggered sweep ⇒ เมื่อกลับมา คำนวณใหม่จาก state ปัจจุบันได้เอง |
 | PostgreSQL | ระบบหยุด | — | managed HA + backup (นอกขอบเขต design นี้) |
@@ -291,7 +301,7 @@ Evidence (หน้า หลักฐาน `/evidence` — DL36): เลือ
 - **Service-to-service**:
   - Booking → เรา: ไม่มี — เชื่อมแบบ pull อย่างเดียว (DL31)
   - เรา → Booking: OAuth2 client credentials หรือ API key ตามที่ Booking กำหนด **[Assumption]** · token cache + refresh ก่อนหมดอายุ
-  - เรา → DSS middleware: `DssAuth` เดิม (token cache 10 นาที, re-login เมื่อ 401) · token ของ Dahua DSS server อยู่ใน middleware เท่านั้น **[Confirmed]**
+  - เรา → DSS middleware: `DssAuth` เดิม (token cache 10 นาที, re-login เมื่อ 401) · token ของ Dahua DSS Platform อยู่ใน middleware เท่านั้น **[Confirmed]**
 
 ---
 
