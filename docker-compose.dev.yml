@@ -1,0 +1,28 @@
+# Local dev infrastructure.
+#   docker compose -f docker-compose.dev.yml up -d                       # redis only
+#   docker compose -f docker-compose.dev.yml --profile postgres up -d    # + postgres on host port 5433
+# If you already run PostgreSQL locally on 5432 (see server/.env.example), skip the postgres profile.
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: bwc
+      POSTGRES_USER: bwc
+      POSTGRES_PASSWORD: bwc
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  redis-data:
+  postgres-data:

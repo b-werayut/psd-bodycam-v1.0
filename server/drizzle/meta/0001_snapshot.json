@@ -1,0 +1,1542 @@
+{
+  "id": "2c143b47-3319-4dd7-8d29-f10dfac7583a",
+  "prevId": "b7d5d00c-e1d5-424e-9f64-68ca04d227b3",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.Departments": {
+      "name": "Departments",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "Departments_Id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "Code": {
+          "name": "Code",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Name": {
+          "name": "Name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ParentId": {
+          "name": "ParentId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "IsActive": {
+          "name": "IsActive",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "CreatedAt": {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "UpdatedAt": {
+          "name": "UpdatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "CreatedBy": {
+          "name": "CreatedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UpdatedBy": {
+          "name": "UpdatedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "IsDeleted": {
+          "name": "IsDeleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "DeletedAt": {
+          "name": "DeletedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "DeletedBy": {
+          "name": "DeletedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "IX_Departments_Parent": {
+          "name": "IX_Departments_Parent",
+          "columns": [
+            {
+              "expression": "ParentId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "UQ_Departments_Code": {
+          "name": "UQ_Departments_Code",
+          "columns": [
+            {
+              "expression": "Code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"Departments\".\"IsDeleted\" = false",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "Departments_ParentId_Departments_Id_fk": {
+          "name": "Departments_ParentId_Departments_Id_fk",
+          "tableFrom": "Departments",
+          "columnsFrom": [
+            "ParentId"
+          ],
+          "tableTo": "Departments",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Departments_CreatedBy_Users_Id_fk": {
+          "name": "Departments_CreatedBy_Users_Id_fk",
+          "tableFrom": "Departments",
+          "columnsFrom": [
+            "CreatedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Departments_UpdatedBy_Users_Id_fk": {
+          "name": "Departments_UpdatedBy_Users_Id_fk",
+          "tableFrom": "Departments",
+          "columnsFrom": [
+            "UpdatedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Departments_DeletedBy_Users_Id_fk": {
+          "name": "Departments_DeletedBy_Users_Id_fk",
+          "tableFrom": "Departments",
+          "columnsFrom": [
+            "DeletedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.Employees": {
+      "name": "Employees",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "Employees_Id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "EmployeeCode": {
+          "name": "EmployeeCode",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "FirstName": {
+          "name": "FirstName",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "LastName": {
+          "name": "LastName",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Phone": {
+          "name": "Phone",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "DepartmentId": {
+          "name": "DepartmentId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "UserId": {
+          "name": "UserId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "BookingEmployeeRef": {
+          "name": "BookingEmployeeRef",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "Status": {
+          "name": "Status",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "CreatedAt": {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "UpdatedAt": {
+          "name": "UpdatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "CreatedBy": {
+          "name": "CreatedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UpdatedBy": {
+          "name": "UpdatedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "IsDeleted": {
+          "name": "IsDeleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "DeletedAt": {
+          "name": "DeletedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "DeletedBy": {
+          "name": "DeletedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "IX_Employees_Department": {
+          "name": "IX_Employees_Department",
+          "columns": [
+            {
+              "expression": "DepartmentId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "UQ_Employees_Code": {
+          "name": "UQ_Employees_Code",
+          "columns": [
+            {
+              "expression": "EmployeeCode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"Employees\".\"IsDeleted\" = false",
+          "concurrently": false
+        },
+        "UQ_Employees_User": {
+          "name": "UQ_Employees_User",
+          "columns": [
+            {
+              "expression": "UserId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"Employees\".\"UserId\" is not null and \"Employees\".\"IsDeleted\" = false",
+          "concurrently": false
+        },
+        "UQ_Employees_BookingRef": {
+          "name": "UQ_Employees_BookingRef",
+          "columns": [
+            {
+              "expression": "BookingEmployeeRef",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"Employees\".\"BookingEmployeeRef\" is not null and \"Employees\".\"IsDeleted\" = false",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "Employees_DepartmentId_Departments_Id_fk": {
+          "name": "Employees_DepartmentId_Departments_Id_fk",
+          "tableFrom": "Employees",
+          "columnsFrom": [
+            "DepartmentId"
+          ],
+          "tableTo": "Departments",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Employees_UserId_Users_Id_fk": {
+          "name": "Employees_UserId_Users_Id_fk",
+          "tableFrom": "Employees",
+          "columnsFrom": [
+            "UserId"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Employees_CreatedBy_Users_Id_fk": {
+          "name": "Employees_CreatedBy_Users_Id_fk",
+          "tableFrom": "Employees",
+          "columnsFrom": [
+            "CreatedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Employees_UpdatedBy_Users_Id_fk": {
+          "name": "Employees_UpdatedBy_Users_Id_fk",
+          "tableFrom": "Employees",
+          "columnsFrom": [
+            "UpdatedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Employees_DeletedBy_Users_Id_fk": {
+          "name": "Employees_DeletedBy_Users_Id_fk",
+          "tableFrom": "Employees",
+          "columnsFrom": [
+            "DeletedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.Permissions": {
+      "name": "Permissions",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "Permissions_Id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "Code": {
+          "name": "Code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Resource": {
+          "name": "Resource",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Action": {
+          "name": "Action",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Description": {
+          "name": "Description",
+          "type": "varchar(300)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CreatedAt": {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "IX_Permissions_Resource": {
+          "name": "IX_Permissions_Resource",
+          "columns": [
+            {
+              "expression": "Resource",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "UQ_Permissions_Code": {
+          "name": "UQ_Permissions_Code",
+          "columns": [
+            "Code"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.PushTokens": {
+      "name": "PushTokens",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "PushTokens_Id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "UserId": {
+          "name": "UserId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "UserDeviceId": {
+          "name": "UserDeviceId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "Token": {
+          "name": "Token",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Platform": {
+          "name": "Platform",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "IsRevoked": {
+          "name": "IsRevoked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "FailureCount": {
+          "name": "FailureCount",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "LastUsedAt": {
+          "name": "LastUsedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CreatedAt": {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "IX_PushTokens_User": {
+          "name": "IX_PushTokens_User",
+          "columns": [
+            {
+              "expression": "UserId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "IsRevoked",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "IX_PushTokens_UserDevice": {
+          "name": "IX_PushTokens_UserDevice",
+          "columns": [
+            {
+              "expression": "UserDeviceId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "PushTokens_UserId_Users_Id_fk": {
+          "name": "PushTokens_UserId_Users_Id_fk",
+          "tableFrom": "PushTokens",
+          "columnsFrom": [
+            "UserId"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "PushTokens_UserDeviceId_UserDevices_Id_fk": {
+          "name": "PushTokens_UserDeviceId_UserDevices_Id_fk",
+          "tableFrom": "PushTokens",
+          "columnsFrom": [
+            "UserDeviceId"
+          ],
+          "tableTo": "UserDevices",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "UQ_PushTokens_Token": {
+          "name": "UQ_PushTokens_Token",
+          "columns": [
+            "Token"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.RefreshTokens": {
+      "name": "RefreshTokens",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "RefreshTokens_Id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "UserId": {
+          "name": "UserId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "TokenHash": {
+          "name": "TokenHash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ExpiresAt": {
+          "name": "ExpiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "RevokedAt": {
+          "name": "RevokedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ReplacedByTokenId": {
+          "name": "ReplacedByTokenId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UserDeviceId": {
+          "name": "UserDeviceId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CreatedAt": {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "IX_RefreshTokens_User": {
+          "name": "IX_RefreshTokens_User",
+          "columns": [
+            {
+              "expression": "UserId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ExpiresAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "IX_RefreshTokens_UserDevice": {
+          "name": "IX_RefreshTokens_UserDevice",
+          "columns": [
+            {
+              "expression": "UserDeviceId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "RefreshTokens_UserId_Users_Id_fk": {
+          "name": "RefreshTokens_UserId_Users_Id_fk",
+          "tableFrom": "RefreshTokens",
+          "columnsFrom": [
+            "UserId"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "RefreshTokens_ReplacedByTokenId_RefreshTokens_Id_fk": {
+          "name": "RefreshTokens_ReplacedByTokenId_RefreshTokens_Id_fk",
+          "tableFrom": "RefreshTokens",
+          "columnsFrom": [
+            "ReplacedByTokenId"
+          ],
+          "tableTo": "RefreshTokens",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "RefreshTokens_UserDeviceId_UserDevices_Id_fk": {
+          "name": "RefreshTokens_UserDeviceId_UserDevices_Id_fk",
+          "tableFrom": "RefreshTokens",
+          "columnsFrom": [
+            "UserDeviceId"
+          ],
+          "tableTo": "UserDevices",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "UQ_RefreshTokens_TokenHash": {
+          "name": "UQ_RefreshTokens_TokenHash",
+          "columns": [
+            "TokenHash"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.RolePermissions": {
+      "name": "RolePermissions",
+      "schema": "",
+      "columns": {
+        "RoleId": {
+          "name": "RoleId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "PermissionId": {
+          "name": "PermissionId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "CreatedAt": {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "IX_RolePermissions_Permission": {
+          "name": "IX_RolePermissions_Permission",
+          "columns": [
+            {
+              "expression": "PermissionId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "RolePermissions_RoleId_Roles_Id_fk": {
+          "name": "RolePermissions_RoleId_Roles_Id_fk",
+          "tableFrom": "RolePermissions",
+          "columnsFrom": [
+            "RoleId"
+          ],
+          "tableTo": "Roles",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "RolePermissions_PermissionId_Permissions_Id_fk": {
+          "name": "RolePermissions_PermissionId_Permissions_Id_fk",
+          "tableFrom": "RolePermissions",
+          "columnsFrom": [
+            "PermissionId"
+          ],
+          "tableTo": "Permissions",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "PK_RolePermissions": {
+          "name": "PK_RolePermissions",
+          "columns": [
+            "RoleId",
+            "PermissionId"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.Roles": {
+      "name": "Roles",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "Roles_Id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "Code": {
+          "name": "Code",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Name": {
+          "name": "Name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Description": {
+          "name": "Description",
+          "type": "varchar(300)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "IsSystem": {
+          "name": "IsSystem",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "CreatedAt": {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "UpdatedAt": {
+          "name": "UpdatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "UQ_Roles_Code": {
+          "name": "UQ_Roles_Code",
+          "columns": [
+            "Code"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.Settings": {
+      "name": "Settings",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "Settings_Id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "SettingKey": {
+          "name": "SettingKey",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "SettingValue": {
+          "name": "SettingValue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ValueType": {
+          "name": "ValueType",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Category": {
+          "name": "Category",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "Description": {
+          "name": "Description",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "IsSystem": {
+          "name": "IsSystem",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "UpdatedAt": {
+          "name": "UpdatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "UpdatedBy": {
+          "name": "UpdatedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "Settings_UpdatedBy_Users_Id_fk": {
+          "name": "Settings_UpdatedBy_Users_Id_fk",
+          "tableFrom": "Settings",
+          "columnsFrom": [
+            "UpdatedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "UQ_Settings_Key": {
+          "name": "UQ_Settings_Key",
+          "columns": [
+            "SettingKey"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.UserDevices": {
+      "name": "UserDevices",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "UserDevices_Id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "UserId": {
+          "name": "UserId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "InstallationId": {
+          "name": "InstallationId",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "Platform": {
+          "name": "Platform",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "DeviceName": {
+          "name": "DeviceName",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "PushEnabled": {
+          "name": "PushEnabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "IsRevoked": {
+          "name": "IsRevoked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "LastSeenAt": {
+          "name": "LastSeenAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CreatedAt": {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "UQ_UserDevices_User_Installation": {
+          "name": "UQ_UserDevices_User_Installation",
+          "columns": [
+            {
+              "expression": "UserId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "InstallationId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "IX_UserDevices_User": {
+          "name": "IX_UserDevices_User",
+          "columns": [
+            {
+              "expression": "UserId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "IsRevoked",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "UserDevices_UserId_Users_Id_fk": {
+          "name": "UserDevices_UserId_Users_Id_fk",
+          "tableFrom": "UserDevices",
+          "columnsFrom": [
+            "UserId"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.Users": {
+      "name": "Users",
+      "schema": "",
+      "columns": {
+        "Id": {
+          "name": "Id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "Users_Id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "Username": {
+          "name": "Username",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "PasswordHash": {
+          "name": "PasswordHash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "Email": {
+          "name": "Email",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "FullName": {
+          "name": "FullName",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "AzureObjectId": {
+          "name": "AzureObjectId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "RoleId": {
+          "name": "RoleId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "DepartmentId": {
+          "name": "DepartmentId",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "Status": {
+          "name": "Status",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "FailedLoginCount": {
+          "name": "FailedLoginCount",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "LockedUntil": {
+          "name": "LockedUntil",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "LastLoginAt": {
+          "name": "LastLoginAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "CreatedAt": {
+          "name": "CreatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "UpdatedAt": {
+          "name": "UpdatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "CreatedBy": {
+          "name": "CreatedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "UpdatedBy": {
+          "name": "UpdatedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "IsDeleted": {
+          "name": "IsDeleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "DeletedAt": {
+          "name": "DeletedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "DeletedBy": {
+          "name": "DeletedBy",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "IX_Users_Department": {
+          "name": "IX_Users_Department",
+          "columns": [
+            {
+              "expression": "DepartmentId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "IX_Users_Role": {
+          "name": "IX_Users_Role",
+          "columns": [
+            {
+              "expression": "RoleId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "UQ_Users_Username": {
+          "name": "UQ_Users_Username",
+          "columns": [
+            {
+              "expression": "lower(\"Username\")",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"Users\".\"IsDeleted\" = false",
+          "concurrently": false
+        },
+        "UQ_Users_Email": {
+          "name": "UQ_Users_Email",
+          "columns": [
+            {
+              "expression": "lower(\"Email\")",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"Users\".\"IsDeleted\" = false",
+          "concurrently": false
+        },
+        "UQ_Users_AzureObjectId": {
+          "name": "UQ_Users_AzureObjectId",
+          "columns": [
+            {
+              "expression": "AzureObjectId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"Users\".\"IsDeleted\" = false",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "Users_RoleId_Roles_Id_fk": {
+          "name": "Users_RoleId_Roles_Id_fk",
+          "tableFrom": "Users",
+          "columnsFrom": [
+            "RoleId"
+          ],
+          "tableTo": "Roles",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Users_DepartmentId_Departments_Id_fk": {
+          "name": "Users_DepartmentId_Departments_Id_fk",
+          "tableFrom": "Users",
+          "columnsFrom": [
+            "DepartmentId"
+          ],
+          "tableTo": "Departments",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Users_CreatedBy_Users_Id_fk": {
+          "name": "Users_CreatedBy_Users_Id_fk",
+          "tableFrom": "Users",
+          "columnsFrom": [
+            "CreatedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Users_UpdatedBy_Users_Id_fk": {
+          "name": "Users_UpdatedBy_Users_Id_fk",
+          "tableFrom": "Users",
+          "columnsFrom": [
+            "UpdatedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "Users_DeletedBy_Users_Id_fk": {
+          "name": "Users_DeletedBy_Users_Id_fk",
+          "tableFrom": "Users",
+          "columnsFrom": [
+            "DeletedBy"
+          ],
+          "tableTo": "Users",
+          "columnsTo": [
+            "Id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

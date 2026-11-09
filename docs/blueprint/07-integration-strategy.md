@@ -11,6 +11,7 @@
 |---|---|---|
 | Booking เป็นต้นทางใบงาน | **[Confirmed]** ผู้ใช้ยืนยัน | ระบบใหม่ไม่มี flow สร้าง/อนุมัติ/มอบหมายใบงาน |
 | 1 Booking job = 1 Work Order | **[Confirmed]** ผู้ใช้ยืนยัน | WO มีหลาย session ได้ |
+| ใบงานมาจาก Booking **เท่านั้น** — ระบบไม่สร้างใบงานเอง · ไม่มีการผูกด้วยมือ | **[Confirmed]** ผู้ใช้ยืนยัน (DL33) | inbox processor upsert `WorkOrders` 1:1 กับ `BookingJobs` (§7.5.2) · session ที่จับคู่ไม่ได้ค้าง `AwaitingMatch` รอ Booking |
 | ทีมมีหัวหน้า 1 คน (คนขับ) · กล้อง 1 ตัว/ทีม | **[Confirmed]** ผู้ใช้ยืนยัน | |
 | **สถานะใบงานตาม Booking check-in/check-out** · check-out = ปิดใบงาน · ไม่มีการปิดในระบบเรา | **[Confirmed]** ผู้ใช้ยืนยัน (Q1, Q2, Q8) | รูปแบบข้อมูล check-in/check-out = **[Assumption]** — ข้อมูลสำคัญที่สุดที่ต้องได้จาก Booking |
 | การผูกกล้องกับงาน/ทีม (รวมกล้องสำรอง) มาจาก Booking **เท่านั้น** | **[Confirmed]** (Q4, Q20) | field `DeviceRefs` / ข้อมูลกล้องประจำทีม = **[Assumption]** |
@@ -19,25 +20,51 @@
 | Retention: ใบงาน 3 เดือน · GPS 3 เดือน · audit 12 เดือน · DSS 3 เดือน | **[Confirmed]** (Q12) | |
 | ไม่ย้ายข้อมูลจากระบบเดิม | **[Confirmed]** (Q13) | |
 | ทุกข้อข้างบนอาจเปลี่ยนตามทีม Booking | **[Note]** ผู้ใช้ระบุ | |
-| Booking มี REST API ให้ query งาน | [Assumption] | ต้องมีอย่างน้อย query ตามช่วงเวลา หรือ changed-since |
-| Booking ส่ง webhook ได้ | [Assumption] | ถ้าไม่มี ใช้ polling อย่างเดียว (ออกแบบรองรับแล้ว) |
-| Booking job มี identifier ของทีม/หัวหน้าทีม/รถ | [Assumption] — **ความเสี่ยงอันดับ 1** | ถ้าไม่มี matching อัตโนมัติทำไม่ได้ เหลือ manual link |
+| เชื่อม Booking แบบ **pull อย่างเดียว** — Booking ไม่ยิง webhook เข้ามา · เราไม่ส่งข้อมูลกลับ | **[Confirmed]** ผู้ใช้เลือก (DL31) | §7.2 |
+| Booking ทำ API ให้ดึงได้ตามที่เราขอ (change feed + ดึงรายใบ + ดึงตามช่วงเวลา) | [Assumption] | สเปกที่ขอ §7.2.1 · มีแค่ query ตามช่วงเวลา ⇒ ใช้ `fetchWindow` ทุกรอบ |
+| Booking job มี identifier ของทีม/หัวหน้าทีม/รถ | [Assumption] — **ความเสี่ยงอันดับ 1** | ถ้าไม่มี matching อัตโนมัติทำไม่ได้ ⇒ session ค้าง `AwaitingMatch` / `NoTeam` (ไม่มี manual link — DL33) |
 | Booking job มีเวลาเริ่ม/จบตามแผน | [Assumption] | ไม่มี ⇒ ใช้ทั้งวันของ `ScheduledDate` (confidence ลดเป็น MEDIUM) |
-| Booking รับ write-back (สถานะ/เลข WO/ลิงก์หลักฐาน) | [Assumption] | ออกแบบ outbox ไว้ เปิดใช้ด้วย feature flag |
-| Auth ระหว่างระบบ | [Assumption] | รองรับ OAuth2 client credentials / API key / HMAC webhook / mTLS |
+| Booking app เปิดดูหลักฐานของใบงานผ่าน deep link | [Assumption] (DL31) | §7.9 · ผู้เปิดต้องมีบัญชีในระบบนี้ |
+| Auth ระหว่างระบบ (เรา → Booking) | [Assumption] | รองรับ OAuth2 client credentials / API key / mTLS |
 
 ---
 
-## 7.2 รูปแบบการเชื่อมต่อ
+## 7.2 รูปแบบการเชื่อมต่อ — pull อย่างเดียว (DL31)
 
-| รูปแบบ | ข้อดี | ข้อเสีย | การใช้ |
+ระบบเรา **ดึงข้อมูลจาก Booking ฝ่ายเดียว** · Booking ไม่ต้องยิงอะไรเข้ามา และเราไม่ส่งข้อมูลกลับ
+
+| ช่องทาง | ทำอะไร | รอบ |
+|---|---|---|
+| **Incremental (change feed)** | ดึงงานที่เปลี่ยนตั้งแต่ cursor — **ตัวหลัก** | ทุก 2 นาที |
+| **Full window reconcile** | ดึงทั้งช่วงเวลา เก็บงานที่ตกหล่นทุกกรณี | รายคืน 02:00 + ทันทีที่ breaker ปิด |
+| **Fetch รายใบ** | ปุ่ม refresh บนหน้าจอ | เมื่อผู้ใช้กด |
+| **File import (CSV)** | ใช้ได้แม้ Booking ยังไม่มี API | pilot / fallback ช่วงแรก |
+
+เหตุผลที่เลือก pull อย่างเดียว:
+- งานหลักของระบบคือ live, playback และหลักฐาน — ใบงานมาช้าสุด ~2 นาทีไม่กระทบ · session ที่เปิดก่อนใบงานมาถึง rematch เองในรอบ sync ถัดไป
+- ไม่ต้องเปิด endpoint สาธารณะให้ Booking · ไม่มี HMAC secret ให้ rotate · ไม่ต้องจัดการ event หายหรือสลับลำดับ
+- ทีม Booking ทำแค่ API ให้ดึง · sync ปกติกับ reconcile ใช้ API ชุดเดียวกัน ต่างกันแค่ช่วงเวลา
+- ผู้ใช้ฝั่ง Booking เปิดดูหลักฐานผ่าน deep link (§7.9) แทน write-back
+
+ถ้าภายหลังต้องการความเร็วระดับวินาที (เช่น check-out แล้ว alert ทันที): ขอ Booking ส่ง event สั้น `{ eventId, jobId, version }` ที่ retry ได้ แล้วเราเรียก `fetchJob` เอง (ไม่เชื่อ payload) — เพิ่มเป็น adapter method ได้โดยไม่แตะ core
+
+### 7.2.1 API ที่ขอจาก Booking [Assumption — รอทีม Booking ยืนยัน]
+
+| # | Endpoint | ใช้กับ | เงื่อนไข |
 |---|---|---|---|
-| **Polling (incremental)** | ไม่ต้องให้ Booking ทำอะไรเพิ่ม · ควบคุมจังหวะเอง | latency = รอบ poll | **กระดูกสันหลัง** — ต้องมีเสมอ |
-| **Webhook / event** | เร็ว | ต้องจัดการ ordering/dedupe/security · หายได้ | **เร่ง** — webhook = "มีของเปลี่ยน" แล้ว fetch job ล่าสุดเสมอ (ไม่เชื่อ payload ว่าครบ) |
-| **Full window reconcile** | แก้ข้อมูลตกหล่นทุกกรณี | หนัก | รายคืน + หลัง breaker ปิด |
-| **File import (CSV)** | ใช้ได้แม้ Booking ยังไม่มี API | manual | pilot / fallback ช่วงแรก |
+| 1 | `GET /jobs/changes?since={cursor}&limit=200` → `{ items, nextCursor, hasMore }` | `fetchChangedSince` | cursor เรียงลำดับแน่นอน (ถ้าใช้ `updatedAt` ต้องมี id ตัดสินเมื่อเวลาเท่ากัน) · งานที่ยกเลิก/ลบต้องยังอยู่ใน feed พร้อมสถานะ ห้ามหายไปเฉย ๆ |
+| 2 | `GET /jobs/{jobId}` | `fetchJob` (ปุ่ม refresh) | |
+| 3 | `GET /jobs?from=&to=` หรือ change feed ที่กรองช่วงเวลาได้ | `fetchWindow` (full reconcile) | pagination แบบ cursor |
 
-**แนะนำ: Hybrid** = polling incremental ทุก 2 นาที + webhook (ถ้ามี) เป็นตัวเร่ง + full reconcile รายคืน
+ข้อมูลในใบงาน:
+- `jobId` ถาวร + เลขใบงานที่แสดงผล · `status` · `version` (ตัวเลขที่เพิ่มทุกครั้งที่ใบเปลี่ยน) หรือ `updatedAt`
+- เวลาตามแผน + เวลา **check-in / check-out จริง** (check-in ได้หลายรอบ ⇒ ส่งเป็นรายการ)
+- ทีม + หัวหน้าทีม ด้วยรหัสที่ตรงกับรหัสพนักงาน HR
+- **แผนกเจ้าของงาน** (`departmentRef`) — ใช้เป็นแผนกของใบงานและคุม data scope (DL38)
+- **`deviceRefs`** = `deviceCode` ของ DSS ของกล้องทุกตัวที่ใช้กับงาน รวมกล้องสำรอง
+- เวลาทั้งหมดเป็น ISO 8601 ระบุ timezone
+
+ข้อตกลงระบบ: auth แบบ server-to-server (OAuth2 client credentials หรือ API key) · rate limit รับการดึงทุก 2 นาที + full reconcile รายคืน · มี sandbox พร้อมข้อมูลทดสอบ
 
 ---
 
@@ -48,7 +75,6 @@ flowchart LR
   subgraph Core["Bodycam core"]
     SYNC["BookingSyncService"]
     PROC["InboxProcessor"]
-    DISP["OutboxDispatcher"]
   end
   PORT["BookingProvider port<br/>interface คงที่"]
   subgraph Adapters["Adapters เลือกด้วย env BOOKING_PROVIDER_DRIVER"]
@@ -59,7 +85,6 @@ flowchart LR
   MAP["BookingMapper<br/>raw ไป canonical"]
   SYNC --> PORT
   PROC --> PORT
-  DISP --> PORT
   PORT --> MOCK & HTTP & CSV
   HTTP --> MAP
   CSV --> MAP
@@ -78,6 +103,7 @@ export interface BookingJobSnapshot {
   status: BookingJobStatus;         // canonical (Planned, Confirmed, InProgress, Completed, Cancelled, Unknown)
   rawStatus: string;
   title?: string;
+  departmentRef?: string;           // [Assumption] map → Departments.BookingDepartmentRef → WorkOrders.DepartmentId (DL38)
   teamRef?: string;                 // [Assumption] map → Teams.BookingTeamRef
   leaderRef?: string;               // [Assumption] map → Employees.BookingEmployeeRef
   scheduledDate?: string;           // 'YYYY-MM-DD' Asia/Bangkok — fallback เมื่อไม่มีเวลาตามแผน
@@ -101,14 +127,10 @@ export interface BookingProvider {
   fetchChangedSince(cursor: string | undefined, signal: AbortSignal): Promise<BookingPage>;
   /** full reconcile: งานในช่วงเวลา */
   fetchWindow(from: Date, to: Date, cursor: string | undefined, signal: AbortSignal): Promise<BookingPage>;
-  /** ดึงงานเดียว (webhook → fetch, ปุ่ม refresh) */
+  /** ดึงงานเดียว (ปุ่ม refresh) */
   fetchJob(externalJobId: string, signal: AbortSignal): Promise<BookingJobSnapshot | null>;
   /** กล้องประจำทีม (optional — ถ้า Booking มี) → upsert DeviceAssignments (Source = BookingSync) */
   fetchCameraAssignments?(cursor: string | undefined, signal: AbortSignal): Promise<{ items: { deviceRef: string; teamRef: string; validFrom: Date; validTo?: Date }[]; nextCursor?: string }>;
-  /** write-back (optional — ไม่ implement = ไม่ส่ง) */
-  pushEvent?(event: BookingOutboundEvent, idempotencyKey: string, signal: AbortSignal): Promise<void>;
-  /** ตรวจ webhook (optional) */
-  verifyWebhook?(headers: Record<string, string>, rawBody: Buffer): WebhookVerdict;
 }
 ```
 
@@ -123,8 +145,8 @@ export interface BookingProvider {
 | ทิศทาง | วิธีที่รองรับ | หมายเหตุ |
 |---|---|---|
 | เรา → Booking | OAuth2 client credentials (แนะนำ) · API key header · mTLS | token cache ใน memory + refresh ก่อนหมดอายุ 60s · secret ใน Kubernetes Secret · ไม่ log header |
-| Booking → เรา (webhook) | HMAC-SHA256 `X-Booking-Timestamp` + `X-Booking-Signature` บน `${ts}.${rawBody}` · skew ±5 นาที · IP allowlist (ทางเลือก) | port `server/src/modules/tracking/webhook-auth.ts` (ใช้ `rawBody: true` แบบ reference) · รองรับ 2 secret พร้อมกันช่วง rotate |
-| Rate limit ขาเข้า | `@RateLimit('booking-webhook')` 240/นาที | port `rate-limit-specs.ts` |
+
+ทิศทางเดียว — Booking ไม่เรียกเข้าระบบเรา (DL31) จึงไม่มี endpoint สาธารณะหรือ secret ขาเข้า
 
 ---
 
@@ -161,18 +183,19 @@ RETURNING "Id", (xmax = 0) AS inserted;
 ```
 
 - ไม่มีแถวคืน ⇒ ข้อมูลเก่ากว่า ⇒ inbox `Ignored`
+- **upsert `WorkOrders` 1:1** ใน transaction เดียวกัน (`INSERT … ON CONFLICT ("BookingJobId") DO UPDATE`): งานใหม่ ⇒ สร้าง WO · งานเดิม ⇒ อัปเดตข้อมูลที่แสดง + สถานะตาม Booking (§7.6) · **เป็นทางเดียวที่สร้างใบงานในระบบ** (DL33) · emit `workorder:changed` หลัง commit
 - `PayloadHash` เปลี่ยน ⇒ enqueue `matching.rematch` (`jobId = team:{TeamId}:{yyyyMMdd}` dedupe) ของทั้งทีมเก่าและทีมใหม่ถ้าย้ายทีม
 - resolve `TeamId` / `LeaderEmployeeId` ตอน upsert · map ไม่ได้ ⇒ บันทึก `MappingIssues` (ไม่ fail ข้อความ) และแสดงในหน้า Integration
 
-### 7.5.3 Webhook (ถ้ามี) [Assumption]
+### 7.5.3 Refresh รายใบ
 
-`POST /api/integration/booking/webhooks` (`@Public`, HMAC) → ตรวจ signature → `INSERT IntegrationInbox` (`ExternalEventId` = event id ของ Booking) → ตอบ **202** ทันที → processor เรียก `fetchJob(externalJobId)` เพื่อได้ข้อมูลล่าสุด (ไม่เชื่อ payload ว่าครบหรือเรียงลำดับ)
+ปุ่ม refresh (`POST /api/booking-jobs/:id/refresh`, `booking:refresh`) → `fetchJob(externalJobId)` (timeout 5s) → `INSERT IntegrationInbox` (`ExternalEventId` = `{externalJobId}:{version ?? updatedAt}`) → processor ตามปกติ · Booking ล่ม ⇒ ตอบ 503 และใช้ข้อมูลเดิม
 
 ### 7.5.4 Full reconcile
 
 - รายคืน 02:00 และทันทีที่ breaker ปิดหลังเปิด: `fetchWindow(now − 7 วัน, now + 14 วัน)`
-- งานที่มีใน DB (ช่วงเดียวกัน) แต่ไม่อยู่ในผล ⇒ `SourceMissingSince = now()` (**ไม่ลบ**) · ถ้ามี WO ⇒ `NeedsReview` (ReviewReasons 5 SourceMissing)
-- จบแล้ว re-match WO ที่ `Pending` / `Unlinked` / `Suggested` ในช่วงนั้น
+- งานที่มีใน DB (ช่วงเดียวกัน) แต่ไม่อยู่ในผล ⇒ `SourceMissingSince = now()` (**ไม่ลบ**) · WO ของงานนั้นได้ badge `NeedsReview` (ReviewReasons 5 SourceMissing) + alert Admin (ไม่มีคิวตรวจสอบ — DL33)
+- จบแล้ว rematch session `AwaitingMatch` / `NoTeam` ในช่วงนั้น (ภายใน `booking.rematch-horizon-hours`)
 
 ### 7.5.5 Source of truth ต่อข้อมูล
 
@@ -181,7 +204,7 @@ RETURNING "Id", (xmax = 0) AS inserted;
 | รายละเอียดงาน, ลูกค้า, สถานที่, แผนเวลา, สถานะงาน | Booking | projection บางส่วน + `Raw` (read-only) |
 | ทีม, หัวหน้าทีม, สมาชิก | ระบบเรา (map ref กับ Booking) | เต็ม |
 | อุปกรณ์, สถานะ, GPS, session, recording index | ระบบเรา / DSS | เต็ม |
-| Work Order (การปฏิบัติงานจริงที่มีหลักฐานกล้อง) | ระบบเรา | เต็ม — แจ้ง Booking ผ่าน outbox ถ้าเปิด write-back |
+| Work Order (ใบงาน + หลักฐานกล้องที่ผูก) | Booking — ระบบเราสร้าง/อัปเดต 1:1 จาก `BookingJobs` เท่านั้น (DL33) | เต็ม + session / หลักฐานที่ผูก · Booking เปิดดูผ่าน deep link (§7.9) |
 
 ---
 
@@ -198,7 +221,8 @@ RETURNING "Id", (xmax = 0) AS inserted;
 
 - ตาราง map อยู่ในโค้ดของ adapter (versioned + unit test) และ override ได้ด้วย setting `booking.status-map` (JSON) โดยไม่ต้อง deploy
 - **กล้อง**: `BookingJobSnapshot.deviceRefs` → เทียบ `Devices.DeviceCode` / `VendorDeviceId` / `SerialNo` — matching key อันดับ 1 (Part 3 §3.3.1) · ref ที่ map ไม่ได้บันทึกเป็น `MappingIssues` 5 UnknownDeviceRef
-- **check-in / check-out**: upsert แล้ว apply สถานะใบงานทันทีใน inbox processor (check-out ⇒ Closed `BookingCheckout`, check-in หลังปิด ⇒ reopen) — ไม่ต้องรอ sweep
+- **ใบงาน**: ทุกแถว `BookingJobs` มี `WorkOrders` 1 แถว (upsert ใน processor §7.5.2) · ไม่มีใบงานที่ไม่ผูก Booking (DL33)
+- **check-in / check-out / ยกเลิก**: upsert แล้ว apply สถานะใบงานทันทีใน inbox processor (ยังไม่ check-in ⇒ Planned (DL37), check-in ⇒ Open, check-out / Completed ⇒ Closed `BookingCheckout`, check-in หลังปิด ⇒ reopen, Booking ยกเลิก ⇒ Cancelled) — ไม่ต้องรอ sweep
 - **Matching key คือ ref ดิบ** (`BookingJobs.BookingTeamRef`, `BookingLeaderRef`) — matcher เทียบกับ `Teams.BookingTeamRef` และ `Employees.BookingEmployeeRef` ของหัวหน้าทีม **ณ เวลาเริ่ม session** (Part 3 §3.3.1) · `BookingJobs.TeamId` / `LeaderEmployeeId` เป็น cache สำหรับแสดงผล
 - admin แก้ ref ของทีม/พนักงาน หรือเปลี่ยนหัวหน้าทีม ⇒ job `re-resolve` อัปเดต cache + ล้าง `MappingIssues` ที่แก้แล้ว + enqueue re-match ของทีมนั้น (ไม่ต้องรอ `PayloadHash` เปลี่ยน)
 - ถ้า Booking ใช้ "ทะเบียนรถ" เป็นตัวระบุทีม (หัวหน้าทีม = คนขับ) ⇒ ใส่ทะเบียนรถใน `Teams.BookingTeamRef` ได้ทันทีโดยไม่ต้องมีตารางรถ
@@ -210,14 +234,13 @@ RETURNING "Id", (xmax = 0) AS inserted;
 | Operation | Timeout | Retry | หลังล้มเหลวครบ |
 |---|---|---|---|
 | sync หน้า (fetchChangedSince/Window) | 8s | BullMQ 5 ครั้ง: 30s, 1m, 2m, 4m, 8m + jitter ±20% | job fail · รอบถัดไปเริ่มจาก cursor เดิม |
-| fetchJob (webhook/refresh) | 5s | 3 ครั้ง | inbox `Failed` → retry sweep ทุก 5 นาที → `Dead` หลัง 10 ครั้ง |
-| pushEvent (write-back) | 8s | 8 ครั้ง ถึง ~2 ชม. | outbox `Dead` + alert `INTEGRATION_DEAD_LETTER` |
+| inbox processing | — | retry sweep ทุก 5 นาที | `Dead` หลัง 10 ครั้ง + alert `INTEGRATION_DEAD_LETTER` |
 | ปุ่ม refresh จากหน้าจอ (sync call ใน API) | 5s | ไม่ retry | ตอบ 503 พร้อมข้อความว่าใช้ข้อมูลเดิม |
 
 **Circuit breaker** (state ใน Redis key `breaker:booking` ใช้ร่วม API + worker, mirror ลง `IntegrationSyncState.BreakerOpenUntil` เพื่อแสดงผล):
 - CLOSED → OPEN เมื่อ fail ติดกัน 5 ครั้ง (timeout/5xx/network — 4xx ไม่นับ ยกเว้น 401/429)
 - OPEN 2 นาที (ทวีคูณถึงสูงสุด 15 นาทีถ้าเปิดซ้ำ) → HALF_OPEN ปล่อย probe 1 request → สำเร็จ = CLOSED + trigger full reconcile
-- ระหว่าง OPEN: sync job **ข้าม** (ไม่ queue สะสม) · outbox รอ
+- ระหว่าง OPEN: sync job **ข้าม** (ไม่ queue สะสม)
 - `429` เคารพ `Retry-After`
 
 ---
@@ -226,27 +249,27 @@ RETURNING "Id", (xmax = 0) AS inserted;
 
 | จุด | กลไก |
 |---|---|
-| ข้อความเข้า (webhook/poll) | `UQ_Inbox_Event (Source, ExternalEventId)` |
+| ข้อมูลที่ดึงมา (poll / refresh) | `UQ_Inbox_Event (Source, ExternalEventId)` |
 | อัปเดต projection | version guard (`ExternalUpdatedAt`) + `PayloadHash` |
-| สร้าง WO จาก Booking job | `UQ_WO_BookingJob` + `INSERT … ON CONFLICT ("BookingJobId") WHERE "BookingJobId" IS NOT NULL DO UPDATE SET "LastActivityAt" = GREATEST(...) RETURNING "Id"` |
-| WO ที่ยังไม่มี Booking ต่อทีม (ใบรวม) | `UQ_WO_OpenUnlinkedPerTeam` + get-or-create (กติกา Part 3 §3.3.4) |
-| Push FCM | ไม่ผ่าน outbox — `Notifications` เขียนใน transaction แล้ว enqueue `notification-push` หลัง commit · enqueue ล้มเหลว ⇒ `Notifications.Status = Pending` และ sweep ส่งซ้ำ (pattern reference) |
+| สร้าง/อัปเดต WO จาก Booking job | `UQ_WO_BookingJob` (unique ธรรมดา · `BookingJobId` NOT NULL) + `INSERT … ON CONFLICT ("BookingJobId") DO UPDATE SET … RETURNING "Id"` ใน inbox processor เท่านั้น (DL33) |
+| Push FCM | `Notifications` เขียนใน transaction แล้ว enqueue `notification-push` หลัง commit · enqueue ล้มเหลว ⇒ `Notifications.Status = Pending` และ sweep ส่งซ้ำ (pattern reference) |
 | Session | `UQ_TS_OpenPerDevice` + `EX_TS_NoOverlap` + compare-and-set ตอนปิด |
 | Rematch job | BullMQ `jobId` deterministic (`team:{id}:{date}`) |
-| ข้อความออก | `IntegrationOutbox.IdempotencyKey` = `{eventType}:{aggregateId}:{aggregateVersion}` ส่งเป็น header `Idempotency-Key` · ส่งตามลำดับต่อ aggregate (ข้อความถัดไปรอจนข้อความก่อนหน้า Sent/Dead) |
 | คำสั่งจากผู้ใช้ | `If-Match: RowVersion` (412 เมื่อชน) · `Idempotency-Key` header สำหรับ POST ที่เปลี่ยนสถานะ (เก็บผลใน Redis 24 ชม.) |
 
 ---
 
-## 7.9 Outbound write-back (optional, ปิดเป็นค่าเริ่มต้น) [Assumption]
+## 7.9 Deep link จาก Booking (แทน write-back) [Assumption]
 
-Feature flag `booking.writeback-enabled` (false) — เปิดเมื่อ Booking มี endpoint รองรับ
+ไม่มีการส่งข้อมูลกลับ Booking (DL31) · Booking app ใส่ลิงก์ไปที่ใบงานของเราแทน:
 
-| Event | เมื่อไร | Payload ตัวอย่าง |
-|---|---|---|
-| `WorkOrderLinked` | WO link กับงาน (auto/manual) | `{ externalJobId, workOrderNo, linkedAt, linkSource }` |
-| `WorkOrderActivity` | session แรกเริ่ม / session สุดท้ายจบ | `{ externalJobId, firstActivityAt, lastActivityAt, deviceCodes[] }` |
-| `EvidenceAvailable` | recording index เสร็จ | `{ externalJobId, workOrderNo, recordedSeconds, evidenceUrl }` (deep link เข้าระบบเรา — ไม่ส่งไฟล์) |
+```
+https://{host}/work-orders/by-booking/{externalJobId}
+```
+
+- SPA เรียก `GET /api/work-orders/by-booking/:externalJobId` → ได้ `{ id }` แล้ว redirect ไป `/work-orders/:id` (Part 5 §5.2, Part 6 §6.3)
+- ผู้เปิดต้อง login และมีบัญชีในระบบนี้ (`ADMIN` / `OPERATOR` / `VIEWER`) + data scope ตามปกติ · ไม่พบหรือนอก scope = 404 · หัวหน้าทีมไม่มีบัญชี (DL16) จึงเปิดไม่ได้
+- ระบบเราไม่ต้องรู้ URL ของ Booking และไม่ต้องเก็บ token ขาออกเพิ่ม
 
 ---
 
@@ -256,22 +279,21 @@ Feature flag `booking.writeback-enabled` (false) — เปิดเมื่อ
 |---|---|---|---|
 | Incremental sync | 2 นาที | 7.5.1 | `LastSuccessAt` |
 | Full reconcile | รายคืน + หลัง breaker ปิด | 7.5.4 | จำนวน upsert / missing |
-| Rematch pending | ทุก sync สำเร็จ | WO `Pending` → re-run | `MatchAttempts` Trigger = Reconcile |
+| Rematch session ที่ค้าง | ทุก sync สำเร็จ | session `AwaitingMatch` / `NoTeam` ภายใน `booking.rematch-horizon-hours` → re-run | `MatchAttempts` Trigger = Reconcile |
 | Inbox retry | 5 นาที | `Failed` → ลองใหม่ | ไป `Processed` หรือ `Dead` |
-| Outbox dispatcher | 10 วินาที | ส่ง `Pending`/`Failed` ที่ถึงเวลา | `Sent` / `Dead` |
-| Mapping report | รายวัน | สรุป teamRef/leaderRef ที่ map ไม่ได้ | alert ให้ admin เติม `BookingTeamRef` |
+| Mapping report | รายวัน | สรุป departmentRef / teamRef / leaderRef ที่ map ไม่ได้ | alert ให้ admin เติม `BookingDepartmentRef` / `BookingTeamRef` |
 
 ---
 
 ## 7.11 Integration Monitoring
 
 **หน้า `/integration`** (permission `integration:view`):
-- การ์ดสถานะ: breaker state · `LastSuccessAt` · lag (now − LastSuccessAt) · ConsecutiveFailures · ข้อความ Pending/Failed/Dead ใน inbox/outbox
+- การ์ดสถานะ: breaker state · `LastSuccessAt` · lag (now − LastSuccessAt) · ConsecutiveFailures · ข้อความ Pending/Failed/Dead ใน inbox
 - ตาราง call logs (filter outcome / operation / ช่วงเวลา) — ไม่มี secret
 - รายการ `MappingIssues` (teamRef/leaderRef/status ที่ map ไม่ได้)
 - ปุ่ม: retry ข้อความ Dead · สั่ง incremental/full sync · refresh งานเดียว (`integration:manage`)
 
-**Metrics (Prometheus)**: `booking_sync_lag_seconds`, `booking_sync_failures_total`, `booking_breaker_state`, `booking_inbox_pending`, `booking_outbox_dead`, `booking_http_latency_seconds{op}`, `matching_results_total{result}`
+**Metrics (Prometheus)**: `booking_sync_lag_seconds`, `booking_sync_failures_total`, `booking_breaker_state`, `booking_inbox_pending`, `booking_inbox_dead`, `booking_http_latency_seconds{op}`, `matching_results_total{result}`
 
 **Alerts**: `BOOKING_SYNC_STALE` (lag > 15 นาที, Warning; > 60 นาที, Critical) · `INTEGRATION_DEAD_LETTER` · `BOOKING_MAPPING_ISSUES` (รายวัน)
 
@@ -281,7 +303,7 @@ Feature flag `booking.writeback-enabled` (false) — เปิดเมื่อ
 
 - **Eventual consistency** ระหว่าง Booking กับระบบเรา (ปกติ ≤ 2 นาที, ระหว่างล่ม = จนกว่า reconcile สำเร็จ)
 - **Strong consistency ภายในระบบเรา** สำหรับ invariant หลัก (DB constraint)
-- การตัดสินใจ matching ทุกครั้งบันทึก "ข้อมูลที่รู้ ณ ตอนนั้น" (`MatchAttempts.ProjectionSyncedAt`, `Candidates`) ⇒ อธิบายย้อนหลังได้ว่าทำไม link แบบนั้น
+- การตัดสินใจ matching ทุกครั้งบันทึก "ข้อมูลที่รู้ ณ ตอนนั้น" (`MatchAttempts.ProjectionSyncedAt`, `Candidates`) ⇒ อธิบายย้อนหลังได้ว่าทำไม session ถูก attach หรือค้าง `AwaitingMatch`
 
 ---
 
@@ -290,4 +312,4 @@ Feature flag `booking.writeback-enabled` (false) — เปิดเมื่อ
 1. ได้ spec จริง ⇒ เขียน `http` adapter + mapper + fixture จาก response จริง (redact)
 2. Contract test: adapter test กับ fixture · consumer contract (เช่น Pact หรือ JSON schema) ส่งให้ทีม Booking
 3. Sandbox ของ Booking ⇒ run `mock`-scenario เดียวกันกับ sandbox
-4. Pilot: เปิด `BOOKING_PROVIDER_DRIVER=http` ใน staging + `booking.writeback-enabled=false` · ดู match rate (Linked/total) ≥ 90% ก่อนเปิดใช้งานจริง
+4. Pilot: เปิด `BOOKING_PROVIDER_DRIVER=http` ใน staging · ดู match rate (session `Attached` / session ที่ไม่ใช่ `IdleOrCharging`) ≥ 90% ก่อนเปิดใช้งานจริง

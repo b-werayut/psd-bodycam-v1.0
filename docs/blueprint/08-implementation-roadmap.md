@@ -9,13 +9,15 @@
 ```mermaid
 flowchart LR
   P0["P0 Foundation"] --> P1["P1 Devices and Tracking"]
-  P1 --> P2["P2 Sessions and Work Orders"]
-  P0 --> P3A["P3a Booking port, mock, projection"]
-  P2 --> P3B["P3b Matching, review queue, UI"]
+  P1 --> P2["P2 Sessions and WO read model"]
+  P0 --> P3A["P3a Booking port, mock, projection, WO sync"]
+  P3A -- "mock" --> P2
+  P2 --> P3B["P3b Matching and Booking UI"]
   P3A --> P3B
   GATE{{"Booking spec gate"}} --> P3C["P3c http adapter + pilot"]
   P3B --> P3C
-  P1 --> P4["P4 Media"]
+  P1 --> P4["P4 Media and Evidence"]
+  P2 -. "/evidence" .-> P4
   P2 --> P5["P5 Mobile API and Notifications"]
   P3C --> P6["P6 Hardening and Go-live"]
   P4 --> P6
@@ -24,17 +26,18 @@ flowchart LR
 
 - **Critical path**: P0 → P1 → P2 → P3b → P3c → P6
 - **Booking spec gate** = ได้คำตอบครบตาม checklist ใน [Part 9 §9.4](09-risks-open-questions.md#94-booking-information-checklist) ก่อนเขียน `http` adapter
-- P2 ออกแบบให้ **ใช้งานได้เต็มโดยไม่มี Booking** (WO แบบ Unlinked) ⇒ ถ้า Booking ล่าช้า ระบบยังขึ้น production ได้ในโหมด tracking + evidence
+- **ใบงานมาจาก Booking sync เท่านั้น (DL33)** ⇒ การสร้างใบงานอยู่ใน P3a (inbox processor upsert `WorkOrders` 1:1) · P2 พัฒนาและทดสอบ session engine + WO read model กับใบงานจาก `mock` adapter
+- ถ้า Booking จริงล่าช้า ระบบยังขึ้น production ได้ในโหมด tracking + evidence: session ถูกบันทึกครบ (ค้าง `AwaitingMatch` / `NoTeam`) และดูหลักฐานรายกล้องได้ที่ `/recordings` — ยังไม่มีใบงานจนกว่าจะต่อ Booking จริง แล้ว session ในช่วง `booking.rematch-horizon-hours` จะ match อัตโนมัติ
 
 | Phase | Priority | ขนาด (สัปดาห์) | ขึ้นกับ | ทำขนานได้กับ |
 |---|---|---|---|---|
 | P0 Foundation | Must | 3 | — | — |
 | P1 Devices & Tracking | Must | 4 | P0 | P3a |
-| P2 Sessions & Work Orders | Must | 4 | P1 | P3a, P4 |
-| P3a Booking port + mock + projection | Must | 2 | P0 | P1, P2 |
-| P3b Matching + review queue + UI | Must | 3 | P2, P3a | P4, P5 |
+| P2 Sessions & WO read model | Must | 3 | P1, P3a (`mock`) | P4 |
+| P3a Booking port + mock + projection + WO sync | Must | 3 | P0 | P1 |
+| P3b Matching + Booking UI | Must | 3 | P2, P3a | P4, P5 |
 | P3c http adapter + pilot | Must | 2–3 | P3b + **Booking spec** | P5 |
-| P4 Media (live, playback, export, live wall, talk) | Must (live/playback) · Should (export/live wall/talk) | 3 | P1 | P2, P3 |
+| P4 Media & Evidence (live, live wall, talk, playback, export, `/evidence`) | Must (เมนูหลัก Live + หลักฐาน — DL36) | 3 | P1 (`/evidence` ต้องใช้ WO read model จาก P2) | P2, P3 |
 | P5 Mobile API & Notifications | Should | 2 | P2 | P3, P4 |
 | P6 Hardening & Go-live | Must | 3 | P3c, P4, P5 | — |
 
@@ -62,66 +65,71 @@ flowchart LR
 
 **Deliverables**
 - Devices CRUD + vendor sync (`device-sync.plan.ts` ตัด dashcam) · Teams + TeamMembers · Depots (หลายจุด · dev ใช้พิกัด mock — Q22)
-- `device-status` module: StatusPoll (DSS device list), port GpsPoll + `ingestLocations`, BRMS MQ (ไม่ล้าง state) · `DeviceState` + `DeviceStatusHistory`
+- `device-status` module: port GpsPoll + `ingestLocations` (`/location` ให้ทั้ง GPS และ online/offline — DL32) (ไม่ล้าง state เมื่อ restart) · `DeviceState` + `DeviceStatusHistory`
 - `GpsLocations` partitioned + `PartitionMaintenance` job
 - Realtime gateway + rooms ใหม่ (ตัด company)
-- Client: Live map (cluster, 3 สถานะ), Devices list/detail, Teams, Tracking history
+- Client: Live map (cluster · ตำแหน่งสดผ่าน `gps:batch`), Devices list/detail (สถานะกล้องถาม DSS ตอนเปิดหน้า — ไม่มี push `device:status` DL35), Teams, Tracking history
 
 **Acceptance criteria**
-- simulator 300 อุปกรณ์: สถานะเปลี่ยนสะท้อนบนแผนที่ ≤ 60s (poll 30s) · ไม่มีอุปกรณ์ถูกข้ามในรอบ poll/sweep
-- MQ reconnect / worker restart **ไม่เปลี่ยน `StateSince`** ของอุปกรณ์ที่สถานะไม่เปลี่ยน
+- simulator 300 อุปกรณ์: ตำแหน่งบนแผนที่อัปเดตผ่าน `gps:batch` ทุกรอบ GpsPoll · หน้ารายการ/รายละเอียดอุปกรณ์แสดงสถานะที่ได้จาก DSS ตอนเปิด · ไม่มีอุปกรณ์ถูกข้ามในรอบ poll/sweep
+- DSS หลุดแล้วกลับมา / worker restart **ไม่เปลี่ยน `StateSince`** ของอุปกรณ์ที่สถานะไม่เปลี่ยน
 - GPS ซ้ำ/เก่า/drift ถูกจัดการตาม pipeline เดิม (port test ของ reference)
 - history 24 ชม. ต่ออุปกรณ์ตอบ < 2s ที่ 10M แถว
 
-### P2 — Sessions & Work Orders (ไม่มี Booking)
+### P2 — Sessions & WO read model (ใบงานจาก `mock`)
 
 **Deliverables**
-- Session engine: pure `decide()` + sweep (ทุกอุปกรณ์, row lock, DB clock) + split rules ครบตาราง Part 3 §3.4.3
-- WO module: auto create (Unlinked), `WorkOrderCounters`, void/edit note, events, idle close ใบรวม, auto-void ไม่มี recording, `availableActions` (สถานะ Closed จาก Booking มาใน P3)
-- Recording index job (ใช้ DSS recording search) · alerts 1, 4, 6, 9, 15 (alert 5 ต้องใช้ช่วงเวลางานจาก Booking ⇒ ย้ายไป P3b)
-- Client: Active sessions, WO list/detail (ยังไม่มี Booking panel), Review queue (Unlinked/NeedsReview)
+- Session engine: pure `decide()` + sweep (ทุกอุปกรณ์, row lock, DB clock) + split rules ครบตาราง Part 3 §3.4.3 · ไม่มีการสร้างใบงานในเส้นทาง session (DL33)
+- กล้องชาร์จที่ฐาน (`Depots` + fix ล่าสุด) ⇒ ระบบตั้ง session เป็น `Classified` + `IdleOrCharging` เอง
+- WO read model: list/detail API + `availableActions` + `WorkOrderEvents` timeline · pass ระดับ WO ใน `SessionSweep` (alert ไม่มี check-out 36 ชม. · ปิด `SafetyTimeout` 7 วัน) · ใบงานใน P2 มาจาก `mock` adapter ผ่าน Booking sync ของ P3a
+- Recording index job (ใช้ DSS recording search) · alerts `CAMERA_ACTIVE_NO_TEAM`, `RECORDING_OUTSIDE_WORK`, `WORK_ORDER_NO_CHECKOUT`, `WORK_ORDER_AUTO_CLOSED` (alert ที่ต้องใช้ matching / ช่วงเวลางานจาก Booking ⇒ P3b)
+- Client: Active sessions (รวม session ที่ยังไม่มีใบงาน — อ่านอย่างเดียว), WO list/detail (อ่านอย่างเดียว · ยังไม่มี Booking panel)
 
 **Acceptance criteria**
-- unit test ของ `decide()` ครอบทุกแถวใน decision table + scenario: battery swap < / ≥ merge gap, สลับกล้องสำรอง, Booking check-out ขณะกล้องเปิด (**ไม่เกิด loop**), กล้องชาร์จที่ฐาน, max segment, MQ flap, unknown ยาว, worker restart กลางคัน
-- รัน 2 worker พร้อมกัน 1,000 รอบ ⇒ ไม่มี session ซ้อน/WO ซ้ำ (constraint ไม่ถูกละเมิด, ไม่มี error ค้าง)
-- เลข WO ไม่ซ้ำภายใต้ concurrent create
-- กล้องชาร์จ/อยู่ฐาน ไม่เปิดใบงาน (ทดสอบด้วย Depots) · ใบรวมไม่มี recording ถูก auto-void
-- WO ถูกปิด (ใน P2 จำลองด้วย mock check-out) ⇒ session split ภายใน 1 รอบ sweep และเวลาจบ = `ClosedAt`
+- unit test ของ `decide()` ครอบทุกแถวใน decision table + scenario: battery swap < / ≥ merge gap, สลับกล้องสำรอง, Booking check-out ขณะกล้องเปิด (**ไม่เกิด loop**), กล้องชาร์จที่ฐาน, max segment, status flap, unknown ยาว, worker restart กลางคัน
+- รัน 2 worker พร้อมกัน 1,000 รอบ ⇒ ไม่มี session ซ้อน (constraint ไม่ถูกละเมิด, ไม่มี error ค้าง)
+- sweep ไม่สร้างแถว `WorkOrders` เลย — จำนวนใบงาน = จำนวน `BookingJobs` ที่ sync มาเสมอ
+- กล้องชาร์จ/อยู่ฐาน (ทดสอบด้วย Depots) ⇒ session `IdleOrCharging` ไม่นับเป็นงาน
+- ใบงานจาก mock ที่ไม่มี check-out ⇒ alert เมื่อครบ 36 ชม. และปิด `SafetyTimeout` เมื่อครบ 7 วัน (ใช้เวลา DB)
 
-### P3a — Booking port, mock, projection
+### P3a — Booking port, mock, projection, WO sync
 
-**Deliverables**: `BookingProvider` port · `mock` adapter + scenarios (check-in/check-out, DeviceRefs, กล้องประจำทีม — พัฒนาบน mock ก่อนตาม Q14) · sync `DeviceAssignments` จาก Booking (ถ้ามีข้อมูล) · `BookingJobs`, inbox, outbox, sync state, call logs · sync jobs (incremental/full) · circuit breaker · webhook endpoint (HMAC) · mapping (`BookingTeamRef`, `BookingEmployeeRef`, status map)
+**Deliverables**: `BookingProvider` port · `mock` adapter + scenarios (check-in/check-out/ยกเลิก, DeviceRefs, กล้องประจำทีม — พัฒนาบน mock ก่อนตาม Q14) · sync `DeviceAssignments` จาก Booking (ถ้ามีข้อมูล) · `BookingJobs`, inbox, sync state, call logs · sync jobs แบบ pull (incremental/full/refresh รายใบ — DL31) · circuit breaker · mapping (`BookingTeamRef`, `BookingEmployeeRef`, status map) · **WO sync (DL33)**: inbox processor upsert `WorkOrders` 1:1 กับ `BookingJobs` ใน transaction เดียวกับ projection (`UQ_WO_BookingJob`, `WorkOrderCounters`) + สถานะตาม check-in / check-out / ยกเลิก
 
-**Acceptance**: inbox dedupe + version guard (ส่งซ้ำ/สลับลำดับ ⇒ projection ถูก) · breaker เปิด/ปิดตามกติกา · Booking mock ล่ม 30 นาที ⇒ tracking/session ไม่ได้รับผลกระทบ (วัด sweep duration และ GPS lag เท่าเดิม)
+**Acceptance**: inbox dedupe + version guard (ส่งซ้ำ/สลับลำดับ ⇒ projection ถูก) · ทุก Booking job ที่ sync มามีใบงาน 1 ใบพอดี (ส่งซ้ำ/สลับลำดับไม่เกิดใบซ้ำ) · เลข WO ไม่ซ้ำภายใต้ concurrent upsert · check-out ⇒ Closed (`BookingCheckout`), check-in ใหม่ ⇒ Open, Booking ยกเลิก ⇒ Cancelled · breaker เปิด/ปิดตามกติกา · Booking mock ล่ม 30 นาที ⇒ tracking/session ไม่ได้รับผลกระทบ (วัด sweep duration และ GPS lag เท่าเดิม)
 
-### P3b — Matching, review queue, UI
+### P3b — Matching & Booking UI
 
-**Deliverables**: matcher (`AlgoVersion` 1) + `MatchAttempts` · get-or-create linked WO · **apply Booking check-in/check-out ⇒ สถานะใบงาน** · DeviceRefs matching · link/unlink/merge · re-match triggers · Booking panel + `/booking-jobs` + Review queue เต็ม + `/integration` · alerts 2, 3, 5, 7, 8, 10–12, 14, 16 (SLA คิว 36 ชม.) · job `re-resolve` เมื่อ ref ของทีม/พนักงานเปลี่ยน
+**Deliverables**: matcher อัตโนมัติ (`AlgoVersion` 1) + `MatchAttempts` · attach session เข้า WO ของ Booking job ตามลำดับ `DeviceRefs` → team ref → team-leader ref · ไม่มีหรือหลาย candidate ⇒ session ค้าง `AwaitingMatch` · re-match triggers (`matching.rematch` ภายใน `booking.rematch-horizon-hours`) · Booking panel + `/booking-jobs` + `/integration` · badge `NeedsReview` ในหน้าใบงาน (ข้อมูลเท่านั้น ไม่มีคิว — DL33) · alerts `DEVICE_OFFLINE_DURING_JOB`, `WORK_ORDER_CANCELLED_WITH_EVIDENCE`, `BOOKING_JOB_CHANGED_AFTER_CLOSE`, `BOOKING_SYNC_STALE`, `INTEGRATION_DEAD_LETTER`, `BOOKING_MAPPING_ISSUES` · job `re-resolve` เมื่อ ref ของทีม/พนักงานเปลี่ยน
 
-**Acceptance**: ทุก scenario ใน Part 3 §3.3 ผ่านด้วย mock · manual link ไม่ถูก auto แก้ · reconcile หลัง Booking กลับมา link WO `Pending` ได้ถูก · ทุก WO ที่ link อัตโนมัติอธิบายได้จาก `MatchAttempts`
+**Acceptance**: ทุก scenario ใน Part 3 §3.3 ผ่านด้วย mock · ไม่มี/หลาย candidate ⇒ ไม่เกิดใบงานใหม่ และ session match เองเมื่อ Booking เปลี่ยน · WO ถูกปิดด้วย check-out (mock) ⇒ session split ภายใน 1 รอบ sweep และเวลาจบ = `ClosedAt` · Booking mock ล่มแล้วกลับมา ⇒ session ที่ค้าง `AwaitingMatch` match ได้ถูก · ทุก attach อธิบายได้จาก `MatchAttempts`
 
 ### P3c — http adapter + pilot
 
-**Deliverables**: `http` adapter + mapper จาก spec จริง · contract test + fixture · sandbox run · pilot กับ 1–2 แผนก (`booking.writeback-enabled=false`)
+**Deliverables**: `http` adapter + mapper จาก spec จริง · contract test + fixture · sandbox run · pilot กับ 1–2 แผนก · deep link จาก Booking app
 
-**Acceptance**: match rate อัตโนมัติ (Linked/WO ทั้งหมดที่มี Booking จริง) ≥ 90% ช่วง pilot 2 สัปดาห์ · ไม่มี WO ซ้ำต่อ Booking · lag เฉลี่ย ≤ 3 นาที
+**Acceptance**: match rate อัตโนมัติ (session ในช่วงงานของ Booking ที่ attach ได้เอง) ≥ 90% ช่วง pilot 2 สัปดาห์ · ใบงาน 1:1 กับ Booking job (ไม่ซ้ำ ไม่ขาด) · lag เฉลี่ย ≤ 3 นาที
 
-### P4 — Media
+### P4 — Media & Evidence
 
-**Deliverables**: port streaming (live, playback, proxy, quota, role/device access) · recordings page · evidence export (BullMQ + ffmpeg) · live wall · talk
+**Deliverables**
+- port streaming (live, playback, proxy, quota, role/device access) · live wall · talk
+- เมนูหลัก (DL36): **Live** (`/live-wall` + ดูสดจากรายการอุปกรณ์ + talk) และ **หลักฐาน** `/evidence` (port `client/src/features/evidence`): ตารางใบงานจาก Booking → เลือกกล้อง + ช่วงเวลาจาก session ของใบงาน → playback / ดาวน์โหลด MP4
+- `/recordings` ค้นหาวิดีโอรายกล้อง (ใช้กับ session ที่ไม่มีใบงาน)
+- evidence export (BullMQ + ffmpeg) · reuse job เดิมเมื่อ device + channel + start/end ตรงกันและยัง queued / processing / ready ไม่หมดอายุ · ไฟล์บน Local disk PVC ที่ `api` + `worker-media` mount ร่วม · ลบไฟล์หลัง 24 ชม. (DL34)
 
-**Acceptance**: เท่ากับพฤติกรรม reference (live/playback/export/talk) · export มี checksum + audit · ดู playback จาก WO detail ได้ตรงช่วงเวลา session
+**Acceptance**: เท่ากับพฤติกรรม reference (live/playback/export/talk) · export มี checksum + audit · `/evidence`: เลือกใบงานแล้ว playback / ดาวน์โหลดได้ตรงช่วงเวลา session · ขอ export ช่วงเดิมซ้ำได้ job เดิม ไม่สร้างใหม่ · `api` ทุก pod stream ไฟล์ที่ `worker-media` เขียนได้ (ทดสอบ PVC access mode ใน staging — Part 9 R16) · สั่ง export พร้อมกันเกิน `EVIDENCE_EXPORT_CONCURRENCY` แล้วงานที่เกินรอคิว และ latency ของ `api` (REST / live / แผนที่) ไม่เพิ่มอย่างมีนัย (DL39)
 
 ### P5 — Mobile API & Notifications
 
 **Deliverables**: `/mobile/overview` + ใช้ API ชุดเดียวกับ web สำหรับ Operator (monitoring, ใบงาน, หลักฐาน, live/playback) · ทะเบียนเครื่อง (ไม่มี PIN) · push tokens + FCM queue · notifications inbox · เอกสาร mobile contract ฉบับใหม่ (ปรับจาก `docs/MOBILE-API-CONTRACT.md` ของ reference)
 
-**Acceptance**: ทีม mobile เชื่อมต่อได้ครบ · push ถึงเครื่องจริงเมื่อเกิด WO Suggested/Unlinked ของทีม · ระงับบัญชี ⇒ refresh + push token ถูก revoke
+**Acceptance**: ทีม mobile เชื่อมต่อได้ครบ · push ถึงเครื่องจริงเมื่อเกิด alert ของแผนก (เช่น `CAMERA_ACTIVE_NO_TEAM`) · ระงับบัญชี ⇒ refresh + push token ถูก revoke
 
 ### P6 — Hardening & Go-live
 
 **Deliverables**
-- Retention + archive (`DETACH` → object storage → `DROP PARTITION`) · cleanup jobs
+- Retention ไม่มี archive (`DETACH` → `DROP PARTITION`) · cleanup jobs (รวม `EvidenceCleanup` ไฟล์ export บน PVC)
 - Observability: Prometheus metrics + dashboard + alert rules (sweep duration, poll lag, booking lag, queue depth, dead letters)
 - Security review (OWASP ASVS L2 checklist, secret scan, dependency audit) · penetration test เบื้องต้น · PDPA review
 - Load test: 300 อุปกรณ์ + 50 ผู้ใช้พร้อมกัน + 16 stream · backup/restore drill
@@ -137,8 +145,8 @@ flowchart LR
 | Milestone | หลัง Phase | ผลที่ใช้งานได้ |
 |---|---|---|
 | M1 Tracking ready | P1 | แผนที่สด + สถานะกล้อง + ประวัติเส้นทาง แทนส่วน bodycam ของระบบเดิม |
-| M2 Evidence-ready | P2 + P4 | ทุกการใช้กล้องมี WO + ดูย้อนหลัง/export ได้ (ยังไม่ link Booking) |
-| M3 Booking-linked | P3c | WO link กับ Booking อัตโนมัติ + review queue |
+| M2 Evidence-ready | P2 + P4 | ทุกการใช้กล้องมี session + ดูย้อนหลัง/export รายกล้องได้ (`/recordings`) · เมนู Live พร้อม (ใบงานยังมาจาก `mock`) |
+| M3 Booking-linked | P3c | ใบงานจาก Booking จริง + session match อัตโนมัติ + หน้า หลักฐาน `/evidence` ตามใบงาน |
 | M4 Production | P6 | go-live |
 
 ---

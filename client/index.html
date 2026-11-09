@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/src/assets/logo/psd-sentinel-favicon.png" />
+    <title>PSD — Body Worn Camera</title>
+    <script>
+      (() => {
+        const storageKey = 'bodycam.theme';
+        let savedTheme = null;
+
+        try {
+          savedTheme = window.localStorage.getItem(storageKey);
+        } catch {
+          savedTheme = null;
+        }
+
+        const theme =
+          savedTheme === 'light' || savedTheme === 'dark'
+            ? savedTheme
+            : window.matchMedia?.('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
+        const root = document.documentElement;
+
+        root.classList.toggle('dark', theme === 'dark');
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

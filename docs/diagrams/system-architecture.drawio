@@ -1,0 +1,787 @@
+<mxfile host="Electron" agent="Claude Code generator" compressed="false" pages="3">
+  <diagram id="overview" name="1. ภาพรวมระบบ (System Overview)">
+    <mxGraphModel dx="1221" dy="841" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1670" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p1_title" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:22px&quot;&gt;&lt;b&gt;psd-bodycam-v1.0 — System Diagram&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot; color=&quot;#555555&quot;&gt;ระบบติดตาม Bodycam + ใบงานจาก Booking · ที่มา: docs/blueprint Part 2 · ฉบับ 2026-11-09&lt;/font&gt;" vertex="1">
+          <mxGeometry height="56" width="1100" x="40" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="u_web" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Web browser&lt;/b&gt;&lt;br&gt;ADMIN · OPERATOR · VIEWER&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;เมนูหลัก: live · หลักฐาน (playback) · แผนที่&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="300" x="400" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="u_mob" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Mobile app&lt;/b&gt;&lt;br&gt;OPERATOR · ADMIN · VIEWER&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;monitoring + ตรวจหลักฐาน&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="300" x="760" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="x_fcm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Firebase Cloud Messaging&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;push notification&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="1120" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="x_tl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;หัวหน้าทีม / Admin ฝั่ง Booking&lt;/b&gt;&lt;br&gt;Booking app&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;check-in / check-out ใบงาน&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="260" x="1600" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="plat" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFFFFF;strokeColor=#999999;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;align=right;spacingRight=14;dashed=1;dashPattern=8 4;fillColor=#FAFAFA;strokeColor=#6B7280;strokeWidth=2;" value="Bodycam Tracking System (psd-bodycam-v1.0) · NestJS modular monolith · Kubernetes" vertex="1">
+          <mxGeometry height="1050" width="1180" x="360" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ing" parent="plat" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fillColor=#ECEFF1;strokeColor=#78909C;" value="&lt;b&gt;Ingress / LB&lt;/b&gt; — TLS termination · ทุก path → container &lt;b&gt;web&lt;/b&gt; (DL29)" vertex="1">
+          <mxGeometry height="56" width="1100" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="spa" parent="plat" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E6F0FA;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;web — nginx + React 18 SPA&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;proxy &lt;b&gt;/api/ · /api/talk/ws · /socket.io/&lt;/b&gt; → api (BACKEND_URL)&lt;br&gt;Vite · Tailwind · shadcn · OKLCH tokens · i18n th/en&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;&lt;b&gt;เมนูหลัก: Live streaming · หลักฐาน (playback)&lt;/b&gt;&lt;br&gt;หลักฐาน: ตารางใบงาน (จาก Booking) → เลือกกล้อง + ช่วงเวลา&lt;br&gt;→ playback · ดาวน์โหลด MP4&lt;br&gt;&lt;br&gt;ใบงาน · แผนที่ / live wall · อุปกรณ์ · ทีม&lt;br&gt;integration · notifications · audit-logs · settings&lt;/font&gt;" vertex="1">
+          <mxGeometry height="200" width="420" x="40" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="api" parent="plat" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#DAE8FC;strokeColor=#6C8EBF;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;" value="api pod × N — main.api.ts" vertex="1">
+          <mxGeometry height="200" width="640" x="500" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="api_rest" parent="api" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#6C8EBF;" value="&lt;b&gt;REST controllers&lt;/b&gt;&lt;br&gt;/api/* · envelope · RBAC + scope" vertex="1">
+          <mxGeometry height="64" width="190" x="20" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="api_gw" parent="api" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#6C8EBF;" value="&lt;b&gt;RealtimeGateway&lt;/b&gt;&lt;br&gt;Socket.IO /realtime · rooms" vertex="1">
+          <mxGeometry height="64" width="190" x="225" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="api_wh" parent="api" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#6C8EBF;" value="&lt;b&gt;Deep link จาก Booking&lt;/b&gt;&lt;br&gt;/work-orders/by-booking/:jobId" vertex="1">
+          <mxGeometry height="64" width="190" x="430" y="36" as="geometry" />
+        </mxCell>
+        <mxCell id="api_talk" parent="api" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#6C8EBF;" value="&lt;b&gt;Talk WebSocket&lt;/b&gt;&lt;br&gt;two-way talk" vertex="1">
+          <mxGeometry height="64" width="190" x="20" y="116" as="geometry" />
+        </mxCell>
+        <mxCell id="api_stream" parent="api" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#6C8EBF;" value="&lt;b&gt;Stream proxy (HLS)&lt;/b&gt;&lt;br&gt;sealed URL AES-256-GCM" vertex="1">
+          <mxGeometry height="64" width="190" x="225" y="116" as="geometry" />
+        </mxCell>
+        <mxCell id="api_guard" parent="api" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;&lt;b&gt;Guard chain&lt;/b&gt;&lt;br&gt;JwtAuth → RateLimit → Permissions&lt;br&gt;+ @Audit · health · /api/metrics&lt;/font&gt;" vertex="1">
+          <mxGeometry height="64" width="200" x="430" y="118" as="geometry" />
+        </mxCell>
+        <mxCell id="data" parent="plat" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFFFFF;strokeColor=#999999;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;fillColor=#FFFBEA;strokeColor=#D6B656;" value="Data tier" vertex="1">
+          <mxGeometry height="140" width="1100" x="40" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="db_obj" parent="data" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;fillColor=#F5F5F5;strokeColor=#666666;" value="&lt;b&gt;Local disk (PVC)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ไฟล์ MP4 export ชั่วคราว&lt;br&gt;worker-media แปลงไฟล์ · api ส่งให้ดาวน์โหลด&lt;br&gt;STORAGE_DRIVER=local&lt;/font&gt;" vertex="1">
+          <mxGeometry height="104" width="220" x="20" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="db_pg" parent="data" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" value="&lt;b&gt;PostgreSQL 16 + btree_gist&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;&lt;b&gt;ข้อมูลจาก Booking: BookingJobs · WorkOrders · IntegrationInbox&lt;/b&gt;&lt;br&gt;DeviceState · TrackingSessions · MatchAttempts · RecordingSegments · EvidenceExports&lt;br&gt;master: Devices · Teams · Users · Depots · Settings&lt;br&gt;GpsLocations · AuditLogs (partition รายเดือน)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="104" width="580" x="280" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="db_redis" parent="data" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;fillColor=#F8CECC;strokeColor=#B85450;" value="&lt;b&gt;Redis 7 (AOF)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;adapter / emitter · locks&lt;br&gt;rate-limit · BullMQ&lt;br&gt;circuit breaker&lt;/font&gt;" vertex="1">
+          <mxGeometry height="104" width="180" x="900" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="w_trk" parent="plat" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#D5E8D4;strokeColor=#82B366;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;" value="worker-tracking × 1 (active) · WORKER_ROLES=tracking" vertex="1">
+          <mxGeometry height="360" width="420" x="40" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="j_gp" parent="w_trk" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#82B366;strokeWidth=2;fillColor=#F1F8E9;" value="&lt;b&gt;GpsPoll 15s&lt;/b&gt; — DSS /location&lt;br&gt;GPS + online/offline (ชุดเดียวกัน)" vertex="1">
+          <mxGeometry height="52" width="390" x="15" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="j_sw" parent="w_trk" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#82B366;strokeWidth=2;fillColor=#F1F8E9;" value="&lt;b&gt;SessionSweep 30s&lt;/b&gt;&lt;br&gt;FOR UPDATE + decide()" vertex="1">
+          <mxGeometry height="52" width="190" x="15" y="102" as="geometry" />
+        </mxCell>
+        <mxCell id="j_as" parent="w_trk" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#82B366;" value="&lt;b&gt;AlertSweep 60s&lt;/b&gt;&lt;br&gt;offline ระหว่างงาน · stale" vertex="1">
+          <mxGeometry height="52" width="190" x="215" y="102" as="geometry" />
+        </mxCell>
+        <mxCell id="j_ret" parent="w_trk" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#82B366;" value="&lt;b&gt;Partition / Retention&lt;/b&gt; รายวัน&lt;br&gt;GPS 3 เดือน · ใบงาน 3 เดือน · audit 12 เดือน" vertex="1">
+          <mxGeometry height="52" width="390" x="15" y="164" as="geometry" />
+        </mxCell>
+        <mxCell id="t_trk" parent="w_trk" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;modules: device-status · tracking · sessions&lt;br&gt;writer เดียวของ session lifecycle · lock order DeviceState → WorkOrders → TrackingSessions&lt;br&gt;&lt;b&gt;ข้อมูลกล้องจาก DSS polling&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="395" x="15" y="226" as="geometry" />
+        </mxCell>
+        <mxCell id="w_med" parent="plat" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#E1D5E7;strokeColor=#9673A6;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;" value="worker-media × 1..N" vertex="1">
+          <mxGeometry height="360" width="280" x="500" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="j_ev" parent="w_med" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#9673A6;" value="&lt;b&gt;evidence-export&lt;/b&gt;&lt;br&gt;DSS segment → ffmpeg → MP4" vertex="1">
+          <mxGeometry height="52" width="250" x="15" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="j_ri" parent="w_med" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#9673A6;" value="&lt;b&gt;recording-index&lt;/b&gt;&lt;br&gt;DSS recording search" vertex="1">
+          <mxGeometry height="52" width="250" x="15" y="102" as="geometry" />
+        </mxCell>
+        <mxCell id="j_idle" parent="w_med" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#9673A6;" value="&lt;b&gt;StreamIdle · TalkIdle&lt;/b&gt;&lt;br&gt;EvidenceCleanup 60s" vertex="1">
+          <mxGeometry height="52" width="250" x="15" y="164" as="geometry" />
+        </mxCell>
+        <mxCell id="t_med" parent="w_med" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;modules: streaming · evidence · talk&lt;br&gt;หลักฐาน = ภาพจาก DSS ตามช่วงของใบงาน&lt;/font&gt;" vertex="1">
+          <mxGeometry height="40" width="250" x="15" y="226" as="geometry" />
+        </mxCell>
+        <mxCell id="w_int" parent="plat" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFE6CC;strokeColor=#D79B00;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;" value="worker-integration × 1..N" vertex="1">
+          <mxGeometry height="360" width="320" x="820" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="j_bs" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;" value="&lt;b&gt;booking-sync&lt;/b&gt; (pull)&lt;br&gt;change feed 2m · full 02:00" vertex="1">
+          <mxGeometry height="52" width="145" x="12" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="j_bi" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;" value="&lt;b&gt;booking-inbox&lt;/b&gt;&lt;br&gt;upsert ใบงาน 1:1" vertex="1">
+          <mxGeometry height="52" width="145" x="163" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="j_mt" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;strokeWidth=2;fillColor=#FFF3E0;" value="&lt;b&gt;matching&lt;/b&gt;&lt;br&gt;session → ใบงาน Booking" vertex="1">
+          <mxGeometry height="52" width="145" x="12" y="102" as="geometry" />
+        </mxCell>
+        <mxCell id="j_np" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;" value="&lt;b&gt;notification-push&lt;/b&gt;&lt;br&gt;FCM" vertex="1">
+          <mxGeometry height="52" width="145" x="163" y="102" as="geometry" />
+        </mxCell>
+        <mxCell id="j_port" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;dashed=1;" value="&lt;b&gt;BookingProvider port&lt;/b&gt; — mock | http | csv&lt;br&gt;fetchChangedSince · fetchWindow · fetchJob" vertex="1">
+          <mxGeometry height="52" width="296" x="12" y="164" as="geometry" />
+        </mxCell>
+        <mxCell id="t_int" parent="w_int" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;modules: booking-integration · work-orders (matcher) · notifications&lt;br&gt;booking-integration ส่งงานผ่าน queue &lt;b&gt;matching&lt;/b&gt;&lt;br&gt;เชื่อม Booking แบบ pull อย่างเดียว (DL31)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="300" x="12" y="226" as="geometry" />
+        </mxCell>
+        <mxCell id="x_dss" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;DSS middleware&lt;/b&gt; (psd-bwc-dss-services · FastAPI)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;/api/v1: location (GPS + online/offline) · devices · stream · playback · recording/search · talk WS · /proxy HLS&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="800" x="400" y="1290" as="geometry" />
+        </mxCell>
+        <mxCell id="x_dsssrv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#E0E0E0;strokeColor=#424242;strokeWidth=2;" value="&lt;b&gt;Dahua DSS server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ทะเบียนอุปกรณ์ · media server (live / record) · RTSP talk&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="800" x="400" y="1430" as="geometry" />
+        </mxCell>
+        <mxCell id="x_cam" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#EEEEEE;" value="&lt;b&gt;Bodycam devices&lt;/b&gt; (4G) — &lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ลงทะเบียนกับ Dahua DSS server · ส่งภาพ / GPS / สถานะ&lt;/font&gt;" vertex="1">
+          <mxGeometry height="56" width="800" x="400" y="1570" as="geometry" />
+        </mxCell>
+        <mxCell id="x_book" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;Booking System&lt;/b&gt;&lt;br&gt;ต้นทางใบงานเดียว · check-in / check-out&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;&lt;i&gt;[Assumption] API spec รอทีม Booking&lt;/i&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="140" width="260" x="1600" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="x_entra" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Microsoft Entra ID&lt;/b&gt;&lt;br&gt;SSO (OIDC)" vertex="1">
+          <mxGeometry height="80" width="240" x="60" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="n_rules" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=8;fontSize=11;arcSize=4;" value="&lt;b&gt;กติกาสำคัญ&lt;/b&gt;&lt;br&gt;• สถานะใบงานตาม Booking: sync = รอเริ่ม (Planned) · check-in = เปิด · check-out = ปิด&lt;br&gt;• &lt;b&gt;ใบงานมาจาก Booking sync&lt;/b&gt; · 1 Booking job = 1 WO · 1 WO มีหลาย session&lt;br&gt;• session ผูกเข้าใบงานด้วย matching · rematch เมื่อ Booking sync มา&lt;br&gt;• สถานะกล้องบนหน้าจอ: ดึงจาก DSS ตอนเปิดดู&lt;br&gt;• Invariant อยู่ใน DB: UQ_TS_OpenPerDevice · EX_TS_NoOverlap · UQ_WO_BookingJob&lt;br&gt;• Emit realtime หลัง commit เท่านั้น" vertex="1">
+          <mxGeometry height="230" width="290" x="40" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFFFFF;strokeColor=#999999;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;fillColor=#FFFFFF;strokeColor=#BDBDBD;" value="Legend (สีเส้น)" vertex="1">
+          <mxGeometry height="330" width="290" x="40" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_t0" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;ผู้ใช้ HTTPS REST + Socket.IO&lt;/font&gt;" vertex="1">
+          <mxGeometry height="24" width="200" x="85" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_t1" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;Tracking path (GPS · online/offline · session)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="24" width="200" x="85" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_t2" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;Booking path (pull sync · change feed)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="24" width="200" x="85" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_t3" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;Media / หลักฐาน (live · playback · export)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="24" width="200" x="85" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_t4" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;Push notification&lt;/font&gt;" vertex="1">
+          <mxGeometry height="24" width="200" x="85" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_t5" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;Authentication (SSO / verify)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="24" width="200" x="85" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_note" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;&lt;b&gt;หัวลูกศรชี้ไปฝั่งที่ถูกเรียก&lt;/b&gt; (request / poll)&lt;br&gt;ทุก process ใช้ Redis: lock · emitter · BullMQ&lt;br&gt;worker emit ผ่าน redis-emitter → api Socket.IO&lt;/font&gt;" vertex="1">
+          <mxGeometry height="52" width="270" x="15" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_l0" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6B7280;fontColor=#6B7280;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="55" y="840" as="sourcePoint" />
+            <mxPoint x="115" y="840" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg_l1" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="55" y="880" as="sourcePoint" />
+            <mxPoint x="115" y="880" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg_l2" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="55" y="920" as="sourcePoint" />
+            <mxPoint x="115" y="920" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg_l3" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="55" y="960" as="sourcePoint" />
+            <mxPoint x="115" y="960" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg_l4" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#15803D;fontColor=#15803D;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="55" y="1000" as="sourcePoint" />
+            <mxPoint x="115" y="1000" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg_l5" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;fontColor=#374151;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;dashed=1;dashPattern=6 4;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="55" y="1040" as="sourcePoint" />
+            <mxPoint x="115" y="1040" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_web_ing" edge="1" parent="1" source="u_web" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6B7280;fontColor=#6B7280;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.1364;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="ing" value="HTTPS REST + Socket.IO">
+          <mxGeometry relative="1" x="-0.5" as="geometry" />
+        </mxCell>
+        <mxCell id="e_mob_ing" edge="1" parent="1" source="u_mob" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6B7280;fontColor=#6B7280;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.4636;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="ing" value="HTTPS REST + Socket.IO&lt;br&gt;(+ push token)">
+          <mxGeometry relative="1" x="-0.5" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ing_spa" edge="1" parent="1" source="ing" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6B7280;fontColor=#6B7280;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.1909;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="spa" value="ทุก path">
+          <mxGeometry relative="1" x="-0.6" as="geometry" />
+        </mxCell>
+        <mxCell id="e_spa_api" edge="1" parent="1" source="spa" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6B7280;fontColor=#6B7280;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" target="api" value="proxy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_pg" edge="1" parent="1" source="api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.2188;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5517;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="db_pg" value="SQL (Drizzle)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_redis" edge="1" parent="1" source="api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.8281;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="db_redis" value="adapter · rate-limit&lt;br&gt;enqueue export (BullMQ)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_obj" edge="1" parent="1" source="api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0312;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="db_obj" value="download MP4">
+          <mxGeometry relative="1" x="-0.05" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="570" />
+              <mxPoint x="530" y="570" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_trk_pg" edge="1" parent="1" source="w_trk" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.8571;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.1379;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="db_pg" value="DeviceState · GpsLocations&lt;br&gt;TrackingSessions">
+          <mxGeometry relative="1" x="0.5" as="geometry" />
+        </mxCell>
+        <mxCell id="e_med_pg" edge="1" parent="1" source="w_med" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5517;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="db_pg" value="RecordingSegments&lt;br&gt;EvidenceExports">
+          <mxGeometry relative="1" x="0.5" as="geometry" />
+        </mxCell>
+        <mxCell id="e_int_pg" edge="1" parent="1" source="w_int" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.1250;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.9310;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="db_pg" value="BookingJobs · WorkOrders&lt;br&gt;IntegrationInbox">
+          <mxGeometry relative="1" x="0.5" as="geometry" />
+        </mxCell>
+        <mxCell id="e_int_redis" edge="1" parent="1" source="w_int" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.6562;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="db_redis" value="queue matching&lt;br&gt;breaker">
+          <mxGeometry relative="1" x="0.5" as="geometry" />
+        </mxCell>
+        <mxCell id="e_trk_dss" edge="1" parent="1" source="w_trk" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.2625;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_dss" value="poll /location ทุก 15s&lt;br&gt;ได้ GPS + online/offline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_med_dss" edge="1" parent="1" source="w_med" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.7500;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_dss" value="recording search · ดึง segment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_dss" edge="1" parent="1" source="api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.9000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_dss" value="live / playback / talk URL&lt;br&gt;สถานะกล้อง (ตอนเปิดดู) · device sync">
+          <mxGeometry relative="1" x="0.7" as="geometry">
+            <Array as="points">
+              <mxPoint x="1525" y="520" />
+              <mxPoint x="1525" y="1325" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_mid_srv" edge="1" parent="1" source="x_dss" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.3750;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.3750;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_dsssrv" value="DSS API · RTSP talk · HLS&lt;br&gt;(token DSS อยู่ใน middleware)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cam_dss" edge="1" parent="1" source="x_cam" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.6250;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.6250;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_dsssrv" value="4G video · GPS · status">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_tl_book" edge="1" parent="1" source="x_tl" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.6923;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.6923;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_book" value="check-in / check-out">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_int_book" edge="1" parent="1" source="w_int" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.1111;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.3846;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_book" value="pull: change feed ทุก 2m&lt;br&gt;full reconcile 02:00 · fetchJob&lt;br&gt;HTTP · circuit breaker · timeout 8s">
+          <mxGeometry relative="1" x="0.55" as="geometry">
+            <Array as="points">
+              <mxPoint x="1700" y="880" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_int_fcm" edge="1" parent="1" source="w_int" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#15803D;fontColor=#15803D;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.8889;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_fcm" value="push">
+          <mxGeometry relative="1" x="0.6" as="geometry">
+            <Array as="points">
+              <mxPoint x="1565" y="1160" />
+              <mxPoint x="1565" y="120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_fcm_mob" edge="1" parent="1" source="x_fcm" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#15803D;fontColor=#15803D;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" target="u_mob" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_web_entra" edge="1" parent="1" source="u_web" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;fontColor=#374151;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;dashed=1;dashPattern=6 4;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_entra" value="SSO login (OIDC)&lt;br&gt;web + mobile">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="180" y="120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_api_entra" edge="1" parent="1" source="api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#374151;fontColor=#374151;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;dashed=1;dashPattern=6 4;exitX=0.0312;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.6250;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_entra" value="verify id_token">
+          <mxGeometry relative="1" x="0.3" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="318" />
+              <mxPoint x="335" y="318" />
+              <mxPoint x="335" y="410" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_med_obj" edge="1" parent="1" source="w_med" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0714;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="db_obj" value="แปลงไฟล์ MP4 (ffmpeg)">
+          <mxGeometry relative="1" x="-0.1" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="810" />
+              <mxPoint x="530" y="810" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_med_redis" edge="1" parent="1" source="w_med" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.9286;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.8889;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="db_redis" value="รับงาน evidence-export&lt;br&gt;(BullMQ)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1120" y="800" />
+              <mxPoint x="1460" y="800" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="modules" name="2. Module Map">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p2_title" value="&lt;font style=&quot;font-size:22px&quot;&gt;&lt;b&gt;Module Map — dependency ระหว่าง module&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot; color=&quot;#555555&quot;&gt;ที่มา: Part 2 §2.4 · เส้นทึบ = import ได้ · เส้นประ = ผ่าน read model / queue&lt;/font&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="10" width="1200" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc" value="Interface layer (api process)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#DAE8FC;strokeColor=#6C8EBF;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="1420" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="i_rest" value="&lt;b&gt;REST controllers&lt;/b&gt;&lt;br&gt;@RequirePermission + @Audit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;strokeColor=#6C8EBF;" vertex="1" parent="ifc">
+          <mxGeometry x="20" y="40" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="i_gw" value="&lt;b&gt;RealtimeGateway&lt;/b&gt;&lt;br&gt;Socket.IO /realtime · ใช้ realtime-bus" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;strokeColor=#6C8EBF;" vertex="1" parent="ifc">
+          <mxGeometry x="320" y="40" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="i_talk" value="&lt;b&gt;Talk WebSocket&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;strokeColor=#6C8EBF;" vertex="1" parent="ifc">
+          <mxGeometry x="620" y="40" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="dom" value="Domain modules" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFFFFF;strokeColor=#999999;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;fillColor=#FAFAFA;strokeColor=#9E9E9E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="260" width="1420" height="460" as="geometry" />
+        </mxCell>
+        <mxCell id="m_auth" value="&lt;b&gt;auth&lt;/b&gt;&lt;br&gt;password + Entra SSO · refresh · lockout" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="20" y="40" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="m_users" value="&lt;b&gt;users + roles&lt;/b&gt;&lt;br&gt;role-permission · cutAllSessions" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="260" y="40" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="m_org" value="&lt;b&gt;org&lt;/b&gt;&lt;br&gt;departments (tree) · employees" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="500" y="40" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="m_dash" value="&lt;b&gt;dashboard&lt;/b&gt;&lt;br&gt;overview cards" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="790" y="40" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="m_media" value="&lt;b&gt;streaming + evidence + talk&lt;/b&gt;&lt;br&gt;หลักฐาน: playback · MP4 export" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="1120" y="40" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="m_dstat" value="&lt;b&gt;device-status&lt;/b&gt;&lt;br&gt;online/offline จาก GPS polling → DeviceState&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;worker: tracking&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="20" y="180" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="m_trk" value="&lt;b&gt;tracking&lt;/b&gt;&lt;br&gt;GPS pipeline · route history&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;worker: tracking&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="260" y="180" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="m_ses" value="&lt;b&gt;sessions&lt;/b&gt;&lt;br&gt;session engine · sweep · decide()&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;worker: tracking&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="dom">
+          <mxGeometry x="500" y="180" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="m_wo" value="&lt;b&gt;work-orders&lt;/b&gt;&lt;br&gt;สร้างจาก Booking job เท่านั้น · matching" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="dom">
+          <mxGeometry x="790" y="180" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="m_bkg" value="&lt;b&gt;booking-integration&lt;/b&gt;&lt;br&gt;adapter · projection · inbox · pull sync&lt;br&gt;+ upsert WorkOrders (writer · tx เดียว)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;worker: integration&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="dom">
+          <mxGeometry x="1120" y="180" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="m_dev" value="&lt;b&gt;devices + device-assignments&lt;/b&gt;&lt;br&gt;ทะเบียน bodycam · Depots · vendor sync&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;การผูกกล้อง→ทีม อ่านจาก Booking เท่านั้น&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="20" y="350" width="440" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="m_teams" value="&lt;b&gt;teams&lt;/b&gt;&lt;br&gt;สมาชิก · หัวหน้าทีม · BookingTeamRef" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="560" y="350" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="m_noti" value="&lt;b&gt;notifications + alerts&lt;/b&gt;&lt;br&gt;alert engine (dedupe) · inbox · FCM" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
+          <mxGeometry x="820" y="350" width="400" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="com" value="common (global)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFFFFF;strokeColor=#999999;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;fillColor=#ECEFF1;strokeColor=#78909C;" vertex="1" parent="1">
+          <mxGeometry x="40" y="780" width="1420" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="c_0" value="db (Drizzle)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="20" y="40" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_1" value="scope" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="245" y="40" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_2" value="settings" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="470" y="40" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_3" value="lock" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="695" y="40" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_4" value="queue (BullMQ)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="920" y="40" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_5" value="rate-limit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="1145" y="40" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_6" value="audit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="20" y="100" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_7" value="context (correlationId)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="245" y="100" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_8" value="storage (local disk)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="470" y="100" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_9" value="push" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="695" y="100" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_10" value="realtime-bus" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="920" y="100" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c_11" value="vendor client (DSS middleware)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#78909C;" vertex="1" parent="com">
+          <mxGeometry x="1145" y="100" width="205" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="rules" value="&lt;b&gt;กติกา dependency&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(บังคับด้วย lint no-restricted-imports / dependency-cruiser)&lt;/font&gt;&lt;br&gt;&lt;br&gt;1. &lt;b&gt;booking-integration ส่งงาน match ให้ sessions / work-orders ผ่าน BullMQ queue matching&lt;/b&gt; · ข้อยกเว้นเดียว: inbox processor เรียก writer ของ work-orders เพื่อ upsert WorkOrders 1:1 ใน transaction เดียวกับ projection (DL33)&lt;br&gt;&lt;br&gt;2. work-orders อ่าน BookingJobs ผ่าน &lt;b&gt;BookingReadModel&lt;/b&gt; (read-only projection)&lt;br&gt;&lt;br&gt;3. tracking / device-status / sessions &lt;b&gt;เรียกเฉพาะ vendor กล้อง&lt;/b&gt; (DSS middleware)&lt;br&gt;&lt;br&gt;4. ทุก write ที่แตะ session ต้องถือ row lock DeviceState (lock order: DeviceId ↑ → WorkOrders → TrackingSessions)&lt;br&gt;&lt;br&gt;5. Worker-only modules (scheduler timers, BullMQ processors) อยู่ใน worker process (main.worker.ts)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=10;fontSize=12;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="80" width="360" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="d_rest_dom" value="→ ทุก domain module" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.1056;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="i_rest" target="dom">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d_dstat_dev" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.2273;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_dstat" target="m_dev">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d_trk_dev" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.7727;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_trk" target="m_dev">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d_ses_dev" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.1000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.7500;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_ses" target="m_dev">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="670" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="d_ses_teams" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.6000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.3333;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_ses" target="m_teams">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d_ses_wo" value="attach&lt;br&gt;(ถ้า match)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.2500;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.2500;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_ses" target="m_wo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d_wo_teams" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.1111;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_wo" target="m_teams">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="850" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="d_wo_noti" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.6111;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.2000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_wo" target="m_noti">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d_ses_noti" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.9000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.8500;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_ses" target="m_noti">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="720" y="570" />
+              <mxPoint x="1200" y="570" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="d_wo_bkg" value="read model BookingJobs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;dashed=1;dashPattern=6 4;exitX=1.0000;exitY=0.2750;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.2750;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_wo" target="m_bkg">
+          <mxGeometry relative="1" as="geometry" x="0">
+            <mxPoint x="0" y="-14" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="d_bkg_wo" value="queue: matching.rematch" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;dashed=1;dashPattern=6 4;exitX=0.0000;exitY=0.8125;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.8125;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="m_bkg" target="m_wo">
+          <mxGeometry relative="1" as="geometry" x="0">
+            <mxPoint x="0" y="14" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="d_dom_com" value="ทุก module ใช้ common" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#475569;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.4859;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.4859;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="dom" target="com">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="flows" name="3. Data Flows">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p3_title" value="&lt;font style=&quot;font-size:22px&quot;&gt;&lt;b&gt;Data Flows — 4 เส้นทางหลัก&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot; color=&quot;#555555&quot;&gt;ที่มา: Part 2 §2.5 · (A) tracking แยกจาก (C) Booking — Booking ล่ม แผนที่ / session / live / playback ยังทำงาน · ทรงกระบอกสีเหลือง = ตารางใน PostgreSQL&lt;/font&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="0" width="1300" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="laneA" value="(A) Tracking — DSS polling → แผนที่" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;startSize=40;fillColor=#D5E8D4;strokeColor=#82B366;swimlaneFillColor=#FFFFFF;fontStyle=1;fontSize=14;collapsible=0;rounded=1;arcSize=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="1820" height="400" as="geometry" />
+        </mxCell>
+        <mxCell id="a_dss" value="&lt;b&gt;DSS middleware&lt;/b&gt;&lt;br&gt;(FastAPI)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" vertex="1" parent="laneA">
+          <mxGeometry x="70" y="130" width="170" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="a_srv" value="&lt;b&gt;Dahua DSS server&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#E0E0E0;strokeColor=#424242;strokeWidth=2;" vertex="1" parent="laneA">
+          <mxGeometry x="70" y="280" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="a_gp" value="&lt;b&gt;GpsPoll 15s&lt;/b&gt;&lt;br&gt;/location ต่ออุปกรณ์&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;GPS + online/offline&lt;br&gt;ชุดเดียวกัน&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="laneA">
+          <mxGeometry x="300" y="130" width="190" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="a_trk" value="&lt;b&gt;tracking&lt;/b&gt;&lt;br&gt;ingestLocations" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneA">
+          <mxGeometry x="560" y="45" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="a_gps" value="&lt;b&gt;GpsLocations&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;partition รายเดือน&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneA">
+          <mxGeometry x="570" y="150" width="160" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="a_ds" value="&lt;b&gt;device-status&lt;/b&gt; applyObservation&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;online/offline → DeviceState · UNKNOWN = คำนวณจากอายุข้อมูล&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneA">
+          <mxGeometry x="560" y="270" width="300" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="a_dsdb" value="&lt;b&gt;DeviceState&lt;/b&gt;&lt;br&gt;DeviceStatusHistory" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneA">
+          <mxGeometry x="940" y="270" width="190" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="a_dsnote" value="&lt;b&gt;ใช้ DeviceState&lt;/b&gt;&lt;br&gt;• SessionSweep (lane B) เปิด / ปิด / split session&lt;br&gt;• หน้าจอดึงสถานะจาก DSS ตอนเปิดดู (lane D)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=8;fontSize=11;arcSize=4;" vertex="1" parent="laneA">
+          <mxGeometry x="1210" y="260" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a_bus" value="&lt;b&gt;Redis emitter&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;@socket.io/redis-emitter&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;verticalAlign=middle;fillColor=#F8CECC;strokeColor=#B85450;fontSize=11;" vertex="1" parent="laneA">
+          <mxGeometry x="1060" y="45" width="190" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="a_gw" value="&lt;b&gt;Socket.IO&lt;/b&gt;&lt;br&gt;/realtime (api)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneA">
+          <mxGeometry x="1320" y="45" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="a_web" value="&lt;b&gt;แผนที่ realtime&lt;/b&gt;&lt;br&gt;web + mobile" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneA">
+          <mxGeometry x="1540" y="45" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="fa1" value="poll /location" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_gp" target="a_dss">
+          <mxGeometry relative="1" as="geometry" x="0">
+            <mxPoint x="0" y="-14" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fa2" value="GPS" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.2000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_gp" target="a_trk">
+          <mxGeometry relative="1" as="geometry" x="0.6">
+            <Array as="points">
+              <mxPoint x="565" y="210" />
+              <mxPoint x="565" y="135" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fa3" value="online/offline" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.8000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_gp" target="a_ds">
+          <mxGeometry relative="1" as="geometry" x="0.6">
+            <Array as="points">
+              <mxPoint x="565" y="270" />
+              <mxPoint x="565" y="365" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fa_srv" value="DSS API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_dss" target="a_srv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fa4" value="ON CONFLICT DO NOTHING" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_trk" target="a_gps">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fa5" value="gps:batch" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_trk" target="a_bus">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fa6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_ds" target="a_dsdb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fa7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_bus" target="a_gw">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fa8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_gw" target="a_web">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="laneB" value="(B) Session → ผูกใบงานจาก Booking" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;startSize=40;fillColor=#FFF2CC;strokeColor=#D6B656;swimlaneFillColor=#FFFFFF;fontStyle=1;fontSize=14;collapsible=0;rounded=1;arcSize=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="490" width="1820" height="330" as="geometry" />
+        </mxCell>
+        <mxCell id="b_ts" value="&lt;b&gt;TrackingSessions&lt;/b&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneB">
+          <mxGeometry x="80" y="20" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b_sw" value="&lt;b&gt;SessionSweep 30s&lt;/b&gt;&lt;br&gt;อ่าน DeviceState · FOR UPDATE&lt;br&gt;pure decide()" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="laneB">
+          <mxGeometry x="70" y="130" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b_bj" value="&lt;b&gt;BookingJobs&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;projection (read-only)&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneB">
+          <mxGeometry x="390" y="20" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b_m" value="&lt;b&gt;Matcher&lt;/b&gt; (work-orders)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;DeviceRefs → team ref → team-leader ref&lt;br&gt;ผูกอัตโนมัติเมื่อได้ใบเดียว&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="laneB">
+          <mxGeometry x="380" y="130" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b_ma" value="&lt;b&gt;MatchAttempts&lt;/b&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneB">
+          <mxGeometry x="390" y="240" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b_wo" value="&lt;b&gt;WorkOrders&lt;/b&gt;&lt;br&gt;+ WorkOrderEvents&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;มาจาก Booking เท่านั้น&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneB">
+          <mxGeometry x="700" y="130" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b_rt" value="&lt;b&gt;Realtime + Alerts + Push&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;หลัง commit เท่านั้น&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneB">
+          <mxGeometry x="690" y="240" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b_note" value="&lt;b&gt;ใบงานจาก Booking&lt;/b&gt;&lt;br&gt;• ใบงานมาจาก Booking sync เท่านั้น (lane C) · 1 Booking job = 1 WO&lt;br&gt;• session ผูกใบงานผ่าน Matcher อัตโนมัติ (DL33)&lt;br&gt;• match ไม่ได้ / หลายใบ → session รอ (AwaitingMatch) แล้ว rematch เมื่อข้อมูล Booking มา&lt;br&gt;• sync ยังไม่ check-in = Planned (รอเริ่ม) · check-in = Open · check-out = Closed&lt;br&gt;• ค้าง check-out: alert 36 ชม. · ปิด SafetyTimeout 7 วัน" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=10;fontSize=11;arcSize=3;" vertex="1" parent="laneB">
+          <mxGeometry x="1300" y="20" width="500" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="fb1" value="decide(): open / close / split" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#B45309;fontColor=#B45309;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="b_sw" target="b_ts">
+          <mxGeometry relative="1" as="geometry" x="0">
+            <mxPoint x="80" y="0" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fb2" value="attach" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#B45309;fontColor=#B45309;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="b_sw" target="b_m">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fb3" value="read" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#B45309;fontColor=#B45309;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="b_m" target="b_bj">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fb4" value="attach" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#B45309;fontColor=#B45309;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="b_m" target="b_wo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fb5" value="record" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#B45309;fontColor=#B45309;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="b_m" target="b_ma">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fb7" value="workorder:changed" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#B45309;fontColor=#B45309;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="b_wo" target="b_rt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="laneC" value="(C) Booking sync → ใบงาน · pull อย่างเดียว · เก็บใน PostgreSQL" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;startSize=40;fillColor=#FFE6CC;strokeColor=#D79B00;swimlaneFillColor=#FFFFFF;fontStyle=1;fontSize=14;collapsible=0;rounded=1;arcSize=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="840" width="1820" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="c_book" value="&lt;b&gt;Booking System&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;[Assumption]&lt;br&gt;API ตาม Part 7 §7.2.1&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;strokeWidth=2;" vertex="1" parent="laneC">
+          <mxGeometry x="70" y="40" width="180" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ref" value="&lt;b&gt;api: ปุ่ม refresh รายใบ&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;POST /booking-jobs/:id/refresh → fetchJob&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
+          <mxGeometry x="350" y="50" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sync" value="&lt;b&gt;booking-sync worker&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;fetchChangedSince · fetchWindow&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
+          <mxGeometry x="350" y="160" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sch" value="&lt;b&gt;repeatable job&lt;/b&gt;&lt;br&gt;change feed ทุก 2m · full reconcile 02:00" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
+          <mxGeometry x="350" y="250" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_in" value="&lt;b&gt;IntegrationInbox&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;PostgreSQL · ข้อมูลดิบที่ดึงมา&lt;br&gt;unique {jobId}:{version}&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneC">
+          <mxGeometry x="680" y="65" width="200" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="c_proc" value="&lt;b&gt;inbox processor&lt;/b&gt;&lt;br&gt;(booking-inbox)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
+          <mxGeometry x="960" y="105" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_bj" value="&lt;b&gt;BookingJobs + WorkOrders&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;PostgreSQL · upsert 1:1 tx เดียว&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneC">
+          <mxGeometry x="1300" y="35" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_q" value="&lt;b&gt;queue: matching&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;BullMQ · jobId dedupe ต่อทีม+ช่วงเวลา&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;verticalAlign=middle;fillColor=#F8CECC;strokeColor=#B85450;fontSize=11;" vertex="1" parent="laneC">
+          <mxGeometry x="1300" y="165" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_wom" value="&lt;b&gt;work-orders matcher&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;rematch session (HIGH / MEDIUM attach)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
+          <mxGeometry x="1570" y="165" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_dl" value="&lt;b&gt;Deep link จาก Booking app&lt;/b&gt;&lt;br&gt;Booking app → https://{host}/work-orders/by-booking/{externalJobId} → หน้าใบงาน + หลักฐาน&lt;br&gt;ผู้เปิดต้องมีบัญชีในระบบนี้ (ADMIN / OPERATOR / VIEWER) + data scope ตามปกติ" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=10;fontSize=11;arcSize=3;" vertex="1" parent="laneC">
+          <mxGeometry x="70" y="330" width="810" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_note" value="&lt;b&gt;Booking ล่ม / ช้า&lt;/b&gt;&lt;br&gt;• breaker: 5 failures → เปิด 2 นาที → half-open 1 probe · timeout 8s&lt;br&gt;• retry 30s → 1m → 2m → 4m → 8m · max 5 → Dead + alert&lt;br&gt;• sync หยุด · tracking / session / หลักฐานยังทำงาน (match กับ projection เดิม · ที่เหลือ rematch เมื่อ Booking กลับมา)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=10;fontSize=11;arcSize=3;" vertex="1" parent="laneC">
+          <mxGeometry x="1300" y="270" width="500" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="fc1" value="fetchJob" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.1481;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_ref" target="c_book">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fc2" value="change feed&lt;br&gt;(via breaker)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5556;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sync" target="c_book">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fc3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sch" target="c_sync">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fc4" value="INSERT dedupe" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.1071;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_ref" target="c_in">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fc5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.8929;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sync" target="c_in">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fc6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_in" target="c_proc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fc7" value="upsert +&lt;br&gt;version guard" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.2500;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_proc" target="c_bj">
+          <mxGeometry relative="1" as="geometry" x="0.42">
+            <mxPoint x="0" y="-20" as="offset" />
+            <Array as="points">
+              <mxPoint x="1230" y="960" />
+              <mxPoint x="1230" y="910" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fc8" value="enqueue&lt;br&gt;rematch" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.7500;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_proc" target="c_q">
+          <mxGeometry relative="1" as="geometry" x="0.42">
+            <mxPoint x="0" y="20" as="offset" />
+            <Array as="points">
+              <mxPoint x="1230" y="990" />
+              <mxPoint x="1230" y="1035" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fc9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_q" target="c_wom">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="laneD" value="(D) Live streaming + หลักฐาน — เมนูหลัก" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;startSize=40;fillColor=#E1D5E7;strokeColor=#9673A6;swimlaneFillColor=#FFFFFF;fontStyle=1;fontSize=14;collapsible=0;rounded=1;arcSize=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1300" width="1820" height="460" as="geometry" />
+        </mxCell>
+        <mxCell id="d_user" value="&lt;b&gt;ผู้ใช้&lt;/b&gt;&lt;br&gt;web + mobile&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;Live · Live wall&lt;br&gt;หลักฐาน&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;" vertex="1" parent="laneD">
+          <mxGeometry x="70" y="30" width="170" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="d_lcam" value="&lt;b&gt;เลือกกล้อง&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;รายการอุปกรณ์ · live wall&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+          <mxGeometry x="300" y="30" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d_lstat" value="&lt;b&gt;สถานะกล้อง&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;api ดึงจาก DSS ตอนเปิดดู&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+          <mxGeometry x="580" y="30" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d_live" value="&lt;b&gt;Live streaming + talk&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;POST /streams/live · สิทธิ์สด + quota&lt;br&gt;seal URL → HLS proxy&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+          <mxGeometry x="880" y="30" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d_list" value="&lt;b&gt;ตารางใบงาน&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;GET /work-orders&lt;br&gt;sync มาจาก Booking&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+          <mxGeometry x="300" y="140" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d_pick" value="&lt;b&gt;เลือกกล้อง + ช่วงเวลา&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;จาก TrackingSessions ของใบงาน&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+          <mxGeometry x="580" y="140" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d_play" value="&lt;b&gt;Playback&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;POST /streams/playback · สิทธิ์สด + scope&lt;br&gt;seal URL → HLS proxy&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+          <mxGeometry x="880" y="140" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d_exp" value="&lt;b&gt;① ขอ export MP4&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;POST /evidence-exports&lt;br&gt;ดู progress: GET /evidence-exports/:id&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+          <mxGeometry x="580" y="250" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d_reuse" value="&lt;b&gt;มีงานเดิมไหม?&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;กล้อง + ช่วงเวลาเดียวกันเป๊ะ&lt;br&gt;รอคิว / กำลังแปลง / พร้อม&lt;br&gt;และยังไม่หมดอายุ&lt;/font&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;" vertex="1" parent="laneD">
+          <mxGeometry x="850" y="225" width="230" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="d_wm" value="&lt;b&gt;② worker-media&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ขอ playback URL → ดึง segment&lt;br&gt;→ ffmpeg (copy video · AAC)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+          <mxGeometry x="1180" y="250" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d_disk" value="&lt;b&gt;③ Local disk (PVC)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;MP4 ชั่วคราว · ลบโดย EvidenceCleanup&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;fillColor=#F5F5F5;strokeColor=#666666;" vertex="1" parent="laneD">
+          <mxGeometry x="1170" y="350" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="d_dss" value="&lt;b&gt;DSS middleware&lt;/b&gt;&lt;br&gt;(FastAPI)&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;device status · live&lt;br&gt;recording search · playback&lt;br&gt;talk WS · /proxy HLS&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" vertex="1" parent="laneD">
+          <mxGeometry x="1430" y="30" width="190" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="d_srv" value="&lt;b&gt;Dahua DSS server&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ภาพ live / record&lt;br&gt;ภาพหลักฐานอยู่ที่นี่&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#E0E0E0;strokeColor=#424242;strokeWidth=2;" vertex="1" parent="laneD">
+          <mxGeometry x="1690" y="30" width="110" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="fd_srv" value="DSS API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_dss" target="d_srv">
+          <mxGeometry relative="1" as="geometry" x="0">
+            <mxPoint x="0" y="-14" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fd1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.1071;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_user" target="d_lcam">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_lcam" target="d_lstat">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd3" value="เปิด live" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_lstat" target="d_live">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd4" value="status + live URL (sealed AES-GCM)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.1071;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_live" target="d_dss">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_user" target="d_list">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd6" value="เลือกใบ" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_list" target="d_pick">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd7" value="ดูย้อนหลัง" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_pick" target="d_play">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd8" value="playback URL (sealed AES-GCM)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_play" target="d_dss">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd9" value="export" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_pick" target="d_exp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_exp" target="d_reuse">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd10b" value="ไม่มี → enqueue&lt;br&gt;evidence-export" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_reuse" target="d_wm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fd10c" value="มี → ใช้งานเดิม (ไม่แปลงซ้ำ)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.1364;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_reuse" target="d_disk">
+          <mxGeometry relative="1" as="geometry" x="0.1">
+            <Array as="points">
+              <mxPoint x="1005" y="1640" />
+              <mxPoint x="1240" y="1640" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fd11" value="segments" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.8929;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_wm" target="d_dss">
+          <mxGeometry relative="1" as="geometry" x="0">
+            <mxPoint x="0" y="-14" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fd12" value="เขียนไฟล์" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.4545;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_wm" target="d_disk">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d_dl" value="&lt;b&gt;④ ดาวน์โหลดไฟล์&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;POST /evidence-exports/:id/download-ticket&lt;br&gt;→ GET /evidence-exports/download?ticket=&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+          <mxGeometry x="580" y="350" width="300" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="fd13" value="กดดาวน์โหลด" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_user" target="d_dl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="195" y="1685" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fd14" value="อ่านไฟล์ (stream)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;fontColor=#7C3AED;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="d_dl" target="d_disk">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

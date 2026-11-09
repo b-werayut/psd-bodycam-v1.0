@@ -1,0 +1,689 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /*
+     * Operational Precision — ระบบสีของการออกแบบรอบใหม่ (`new_client/DESIGN.md`)
+     *
+     * นิยาม: หน้าจอปฏิบัติการที่ความ "พรีเมียม" มาจากตัวอักษร ระยะ ลำดับชั้น และ
+     * การสื่อสารสถานะที่แม่นยำ — ไม่ใช่จากสีสันหรือเอฟเฟกต์ · neutral อมฟ้าเป็นตัวหลัก
+     * cobalt ใช้ไม่เกิน ~10% ของหน้าจอ (ปุ่มหลัก เมนูที่เลือกอยู่ ลิงก์ โฟกัส)
+     * ส่วนเขียว/เหลือง/แดงสงวนไว้เป็น "สถานะ" เท่านั้น ห้ามหยิบไปตกแต่ง
+     *
+     * ⚠️ ทั้ง 2 ธีมเป็นพลเมืองชั้นหนึ่ง โหมดมืดไม่ใช่การกลับสีของโหมดสว่าง
+     * ค่าทุกตัวผ่านการวัด contrast จริง (ดู `operations-theme.test.ts` ที่ล็อกไว้)
+     */
+    --font-sans: 'Noto Sans Thai Variable', ui-sans-serif, system-ui, sans-serif;
+
+    /* Operational Precision role tokens — light */
+    --canvas: 0.985 0.004 255;
+    --surface: 0.995 0.003 255;
+    --surface-raised: 0.955 0.012 255;
+    --text-primary: 0.2 0.03 258;
+    --text-secondary: 0.46 0.03 255;
+    --hairline: 0.89 0.014 255;
+    --structural: 0.2 0.03 258;
+    --brand-primary: 0.52 0.2 258;
+    /* สีส้มจาก wordmark PSD (#f46313) — ใช้ยืนยันตัวตนแบรนด์ในพื้นที่เล็กเท่านั้น
+       ไม่ใช้แทน primary action หรือสถานะ warning */
+    --brand-accent: 0.676 0.194 43;
+    /* CTA หน้าเข้าสู่ระบบยึดสีน้ำเงินกรมท่าจากไฟล์โลโก้โดยตรง
+       แยกจาก cobalt ของหน้าปฏิบัติการเพื่อไม่ให้กระทบ primary action หน้าอื่น */
+    --auth-action: #04478b;
+    --auth-action-tonal: #0b5ea8;
+    --auth-action-hover: #033d78;
+    --auth-action-active: #033469;
+    --auth-muted-copy: 0.43 0.03 255;
+    /* สีแบรนด์สำหรับ **ตัวหนังสือ** แยกจาก `--brand-primary` ที่เป็นสีพื้นของปุ่ม
+       ⚠️ ต่างจาก `--color-accent` ของ DESIGN.md (0.62 0.16 248) โดยเจตนา — ค่านั้น
+       ได้ contrast บนพื้นขาวแค่ 3.63 ซึ่งต่ำกว่าเกณฑ์ตัวอักษร 4.5 · ลดความสว่างลง
+       เหลือ 0.55 ที่ hue ใกล้เคียงได้ 4.87 โดยยังอ่านเป็นสีเดียวกัน */
+    --brand-link: 0.55 0.17 250;
+    --focus-ring: 0.63 0.18 258;
+    /* ⚠️ เข้มกว่า `--color-info` ของ DESIGN.md (0.56) เพราะที่ค่านั้นสีข้อความบน
+       **ป้ายสถานะที่มีพื้นอ่อน 10%** ได้ contrast แค่ 3.98 (วัดจริงในเบราว์เซอร์)
+       — บนพื้นขาวล้วนผ่านหวุดหวิดที่ 4.57 แต่ของจริงไม่เคยอยู่บนขาวล้วน */
+    --status-info: 0.5 0.16 246;
+    --status-success: 0.5 0.14 148;
+    --status-warning: 0.73 0.16 82;
+    --status-danger: 0.54 0.2 27;
+    /* "ไม่ทราบสถานะ" มีสีของตัวเอง ไม่ยืมสีเทาของข้อความรอง — ผู้ใช้ต้องแยกออกว่า
+       อุปกรณ์ *ยังไม่เคยรายงาน* ต่างจาก *รายงานว่าออฟไลน์* */
+    --status-unknown: 0.58 0.03 255;
+
+    /* Graphite navigation rail keeps the operational workspace visually dominant. */
+    --sidebar: 0.18 0.035 258;
+    --sidebar-foreground: 0.82 0.02 255;
+    --sidebar-group: 0.7 0.025 255;
+    --sidebar-icon: 0.68 0.025 255;
+    --sidebar-hover: 0.23 0.045 258;
+    --sidebar-hover-foreground: 0.96 0.01 255;
+    /* ป้ายหน้าที่เลือกตอน sidebar ย่อ = เทาสว่างกว่า hover ไม่ใช่สีฟ้าแบรนด์ (user instruction 2026-10-21) */
+    --sidebar-active: 0.3 0.02 258;
+    --sidebar-active-foreground: 0.99 0 0;
+    --sidebar-indicator: 0.99 0 0;
+    --sidebar-disabled: 0.48 0.025 255;
+
+    /* shadcn roles map to the Operational Precision source of truth */
+    --background: var(--canvas);
+    --foreground: var(--text-primary);
+    --card: var(--surface);
+    --card-foreground: var(--text-primary);
+    --popover: var(--surface);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--brand-primary);
+    --primary-foreground: 0.99 0 0;
+    --secondary: var(--surface-raised);
+    --secondary-foreground: var(--text-primary);
+    --muted: var(--surface-raised);
+    --muted-foreground: var(--text-secondary);
+    --skeleton-highlight: 0.995 0.003 255;
+    --accent: 0.95 0.035 258;
+    --accent-foreground: var(--brand-primary);
+    --destructive: var(--status-danger);
+    --destructive-foreground: 0.99 0 0;
+    --border: var(--hairline);
+    --input: var(--hairline);
+    --ring: var(--focus-ring);
+    --info: var(--status-info);
+    --info-foreground: 0.99 0 0;
+    --success: var(--status-success);
+    --success-foreground: 0.99 0 0;
+    --warning: var(--status-warning);
+    /* ⚠️ ในโค้ดนี้ `warning-foreground` ถูกใช้เป็น **สีตัวอักษรโทนเตือนบนพื้นปกติ**
+       (ดู `text-warning-foreground` ทั่วแอป) ไม่ใช่สีตัวอักษรบนพื้นสีเหลือง
+       สีเหลืองดิบได้ contrast บนพื้นขาวแค่ 2.43 จึงต้องมีขั้นเข้มของตัวเอง */
+    --warning-foreground: 0.52 0.13 78;
+    /*
+     * สีกราฟ — ฟ้าแบรนด์ / เขียวสำเร็จ / เหลืองเตือน ห่างกันทั้ง hue และความสว่าง
+     * จึงพล็อตร่วมกันได้ (ชุดเดิมมี teal 2 ตัวที่ ΔE ต่ำกว่าเกณฑ์จนใช้ร่วมกันไม่ได้)
+     */
+    --chart-1: var(--brand-primary);
+    --chart-2: var(--status-success);
+    --chart-3: var(--status-warning);
+    /* Foundations: shared geometry and elevation for every surface. */
+    --space-unit: 0.25rem;
+    --space-inline: calc(var(--space-unit) * 2);
+    --space-control: calc(var(--space-unit) * 3);
+    --space-panel: calc(var(--space-unit) * 4);
+    --space-section: calc(var(--space-unit) * 6);
+    --space-page: calc(var(--space-unit) * 8);
+    --radius: 0.5rem;
+    --radius-small: calc(var(--radius) / 2);
+    --radius-medium: calc(var(--radius) * 0.75);
+    --radius-panel: calc(var(--radius) * 1.5);
+    --radius-large: calc(var(--radius) * 2);
+    --elevation-ink: 0.2 0.03 258;
+    --elevation-opacity: 0.12;
+    --shadow-low: 0 1px 2px oklch(var(--elevation-ink) / var(--elevation-opacity));
+    --shadow-medium: 0 4px 8px -2px oklch(var(--elevation-ink) / var(--elevation-opacity));
+    --shadow-high: 0 8px 8px -4px oklch(var(--elevation-ink) / var(--elevation-opacity));
+  }
+
+  /*
+   * ตระกูลเดียวรับใช้ทั้งไทยและอังกฤษ — สองตระกูลทำให้ metrics ไม่ตรงกัน
+   * แล้วป้ายที่ผสมสองภาษา (ซึ่งมีเกือบทุกหน้า) เส้นฐานเหลื่อมและตัวถูกตัด
+   */
+  html[lang='th'],
+  html[lang='en'] {
+    --font-sans: 'Noto Sans Thai Variable', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .operations-theme {
+    font-family: var(--font-sans);
+  }
+
+  .dark {
+    --elevation-ink: 0.06 0.015 258;
+    --elevation-opacity: 0.48;
+    /* Operational Precision role tokens — dark */
+    --canvas: 0.13 0.025 258;
+    --surface: 0.17 0.028 258;
+    --surface-raised: 0.22 0.035 258;
+    --text-primary: 0.94 0.012 255;
+    --text-secondary: 0.72 0.025 255;
+    --hairline: 0.3 0.035 258;
+    --structural: 0.13 0.025 258;
+    --brand-primary: 0.55 0.2 258;
+    --brand-accent: 0.676 0.194 43;
+    --brand-link: 0.7 0.14 248;
+    --focus-ring: 0.74 0.15 258;
+    --auth-action-tonal: #1269b8;
+    --auth-muted-copy: 0.78 0.025 255;
+    --status-info: 0.7 0.13 246;
+    --status-success: 0.7 0.13 148;
+    --status-warning: 0.8 0.15 82;
+    --status-danger: 0.69 0.18 27;
+    --status-unknown: 0.68 0.035 255;
+
+    --sidebar: 0.1 0.025 258;
+    --sidebar-foreground: 0.82 0.02 255;
+    --sidebar-group: 0.68 0.025 255;
+    --sidebar-icon: 0.66 0.025 255;
+    --sidebar-hover: 0.17 0.04 258;
+    --sidebar-hover-foreground: 0.96 0.01 255;
+    --sidebar-active: 0.26 0.02 258;
+    --sidebar-active-foreground: 0.99 0 0;
+    --sidebar-indicator: 0.99 0 0;
+    --sidebar-disabled: 0.45 0.027 258;
+
+    --secondary: var(--surface-raised);
+    --muted: var(--surface-raised);
+    --skeleton-highlight: 0.28 0.04 258;
+    --accent: 0.25 0.06 258;
+    /* ⚠️ ในโหมดมืด `--brand-primary` (0.55) บนพื้นการ์ดได้แค่ 3.83 จึงใช้เป็น
+       ตัวหนังสือไม่ได้ — ขั้นที่สว่างกว่านี้เท่านั้นที่อ่านออก */
+    --accent-foreground: 0.82 0.11 258;
+    --primary-foreground: 0.99 0 0;
+    --destructive-foreground: 0.99 0 0;
+    --warning-foreground: 0.8 0.15 82;
+    --chart-1: var(--brand-link);
+  }
+}
+
+@layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    .animate-spin {
+      animation: none;
+    }
+  }
+}
+
+@layer components {
+  .auth-glass-panel.auth-glass-panel--clear.auth-login-card--thin-glass {
+    --muted-foreground: var(--auth-muted-copy);
+    background: oklch(0.985 0.009 245 / 0.46);
+    border-color: rgb(255 255 255 / 0.62);
+    box-shadow:
+      0 32px 82px -48px rgb(7 31 58 / 0.52),
+      0 12px 30px -24px rgb(23 79 126 / 0.28),
+      inset 0 1px 0 rgb(255 255 255 / 0.86),
+      inset 1px 0 0 rgb(206 236 255 / 0.24);
+    -webkit-backdrop-filter: blur(28px) saturate(1.16) brightness(1.03);
+    backdrop-filter: blur(28px) saturate(1.16) brightness(1.03);
+  }
+
+  .auth-security-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .auth-security-backdrop--theme-responsive {
+    filter: saturate(0.84) contrast(0.9);
+    transition: filter 320ms ease;
+  }
+
+  .auth-security-gradient {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        ellipse at 50% 47%,
+        rgb(226 247 255 / 0.26) 0%,
+        rgb(203 235 250 / 0.09) 34%,
+        transparent 60%
+      ),
+      linear-gradient(
+        180deg,
+        rgb(8 52 96 / 0.1) 0%,
+        transparent 40%,
+        rgb(248 251 255 / 0.16) 100%
+      );
+  }
+
+  .auth-utility-dock {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.1875rem;
+    border: 1px solid rgb(255 255 255 / 0.62);
+    border-radius: 9999px;
+    background: oklch(var(--background) / 0.5);
+    box-shadow:
+      0 14px 36px -24px rgb(15 42 61 / 0.44),
+      inset 0 1px 0 rgb(255 255 255 / 0.46);
+    -webkit-backdrop-filter: blur(18px) saturate(1.16);
+    backdrop-filter: blur(18px) saturate(1.16);
+  }
+
+  .auth-utility-dock__language > [role='group'] {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .auth-utility-dock__language
+    [data-slot='language-indicator'][data-surface='glass'] {
+    border: 1px solid rgb(255 255 255 / 0.72);
+    background: oklch(var(--background) / 0.68);
+    box-shadow:
+      0 7px 18px -11px rgb(15 42 61 / 0.42),
+      inset 0 1px 0 rgb(255 255 255 / 0.5);
+    -webkit-backdrop-filter: blur(10px) saturate(1.14);
+    backdrop-filter: blur(10px) saturate(1.14);
+  }
+
+  .auth-utility-dock__separator {
+    background: oklch(var(--border) / 0.72);
+  }
+
+  .auth-utility-dock__theme > button {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .auth-utility-dock__theme > button:hover:not(:disabled),
+  .auth-utility-dock__theme > button:focus-visible {
+    background: oklch(var(--background) / 0.46);
+  }
+
+  .auth-utility-dock__theme > button:active:not(:disabled) {
+    background: oklch(var(--background) / 0.58);
+  }
+
+  .dark .auth-utility-dock {
+    border-color: rgb(255 255 255 / 0.16);
+    background: oklch(var(--background) / 0.44);
+    box-shadow:
+      0 14px 36px -24px rgb(6 16 28 / 0.58),
+      inset 0 1px 0 rgb(255 255 255 / 0.12);
+  }
+
+  .dark .auth-utility-dock__separator {
+    background: rgb(255 255 255 / 0.18);
+  }
+
+  .dark
+    .auth-utility-dock__language
+    [data-slot='language-indicator'][data-surface='glass'] {
+    border-color: rgb(255 255 255 / 0.2);
+    background: oklch(var(--background) / 0.58);
+    box-shadow:
+      0 7px 18px -11px rgb(6 16 28 / 0.56),
+      inset 0 1px 0 rgb(255 255 255 / 0.12);
+  }
+
+  .dark .auth-utility-dock__theme > button:hover:not(:disabled),
+  .dark .auth-utility-dock__theme > button:focus-visible {
+    background: oklch(var(--background) / 0.54);
+  }
+
+  .dark .auth-utility-dock__theme > button:active:not(:disabled) {
+    background: oklch(var(--background) / 0.64);
+  }
+
+  .auth-login-page {
+    padding-block: 1.25rem;
+  }
+
+  .auth-login-stage {
+    padding-block: 1.5rem;
+  }
+
+  .auth-login-card-body {
+    padding-block: 2rem 1.75rem;
+  }
+
+  .auth-login-card-header {
+    margin-bottom: 1.75rem;
+  }
+
+  .auth-login-title {
+    font-size: 1.125rem;
+    line-height: 1.5rem;
+    letter-spacing: -0.01em;
+  }
+
+  .auth-login-description {
+    max-width: 100%;
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .auth-login-content,
+  .auth-login-password-form {
+    gap: 1.25rem;
+  }
+
+  .auth-login-card-footer {
+    padding-block: 1rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .auth-login-card {
+      --auth-card-ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --auth-card-reflection: rgb(255 255 255 / 0.28);
+      position: relative;
+      isolation: isolate;
+      animation: auth-card-arrive 640ms var(--auth-card-ease) backwards;
+    }
+
+    .dark .auth-login-card {
+      --auth-card-reflection: rgb(183 224 255 / 0.1);
+    }
+
+    /* A single reflection brings out the glass as the card settles. */
+    .auth-login-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: linear-gradient(
+        112deg,
+        transparent 20%,
+        var(--auth-card-reflection) 48%,
+        transparent 76%
+      );
+      opacity: 0;
+      animation: auth-card-reflect 1000ms var(--auth-card-ease) 160ms backwards;
+    }
+
+    .auth-login-card-body,
+    .auth-login-card-footer {
+      position: relative;
+      z-index: 1;
+    }
+
+    .auth-login-card-header {
+      animation: auth-card-content-arrive 420ms var(--auth-card-ease) 60ms backwards;
+    }
+
+    .auth-login-content > * {
+      animation: auth-card-content-arrive 360ms var(--auth-card-ease) 100ms backwards;
+    }
+
+    .auth-login-content > :nth-child(2) {
+      animation-delay: 150ms;
+    }
+
+    .auth-login-content > :nth-child(n + 3) {
+      animation-delay: 200ms;
+    }
+
+    .auth-login-card-footer {
+      animation: auth-card-content-arrive 420ms var(--auth-card-ease) 200ms backwards;
+    }
+
+    /* Keep the form steady as soon as someone starts using it. */
+    .auth-login-card:focus-within::before,
+    .auth-login-card:focus-within .auth-login-content > * {
+      animation: none;
+    }
+
+    .auth-login-card .auth-login-primary-action > [data-icon='inline-end'] {
+      transition: transform 180ms var(--auth-card-ease);
+    }
+
+    .auth-login-card .auth-login-primary-action:is(:hover, :focus-visible):not(:disabled)
+      > [data-icon='inline-end'] {
+      transform: translateX(3px);
+    }
+
+    @keyframes auth-card-arrive {
+      from {
+        opacity: 0.6;
+        transform: translateY(20px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    @keyframes auth-card-content-arrive {
+      from {
+        opacity: 0.65;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    @keyframes auth-card-reflect {
+      0% {
+        opacity: 0;
+        transform: translateX(-100%);
+      }
+      20% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: translateX(100%);
+      }
+    }
+  }
+
+  .auth-config-alert {
+    border-color: oklch(var(--border) / 0.82);
+    background: oklch(var(--background) / 0.42);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24);
+    -webkit-backdrop-filter: blur(14px) saturate(1.08);
+    backdrop-filter: blur(14px) saturate(1.08);
+  }
+
+  .auth-login-primary-action {
+    background: linear-gradient(135deg, var(--auth-action), var(--auth-action-tonal));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      0 12px 24px -20px rgb(1 43 88 / 0.74);
+  }
+
+  .auth-login-primary-action:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--auth-action-hover), var(--auth-action-tonal));
+  }
+
+  .auth-login-primary-action:active:not(:disabled) {
+    background: linear-gradient(135deg, var(--auth-action-active), var(--auth-action-hover));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  }
+
+  @media (min-width: 640px) {
+    .auth-login-page {
+      padding-block: 1.5rem;
+    }
+
+    .auth-login-stage {
+      padding-block: 2rem;
+    }
+
+    .auth-login-card-body {
+      padding-block: 2.25rem 2rem;
+    }
+  }
+
+  @media (max-width: 639px) {
+    .auth-login-page {
+      padding-block: 1rem;
+    }
+
+    .auth-login-stage {
+      padding-block: 1.25rem;
+    }
+
+    .auth-login-card-body {
+      padding-block: 1.5rem 1.25rem;
+    }
+
+    .auth-login-card-header {
+      margin-bottom: 1.5rem;
+    }
+
+    .auth-login-content,
+    .auth-login-password-form {
+      gap: 1rem;
+    }
+
+    .auth-login-card-footer {
+      padding-block: 0.75rem;
+    }
+  }
+
+  @media (max-height: 780px) {
+    .auth-login-page,
+    .auth-login-stage {
+      padding-block: 0.75rem;
+    }
+
+    .auth-login-stage {
+      align-items: flex-start;
+    }
+
+    .auth-login-card-body {
+      padding-block: 1.5rem 1.25rem;
+    }
+
+    .auth-login-card-header {
+      margin-bottom: 1rem;
+    }
+
+    .auth-login-content,
+    .auth-login-password-form {
+      gap: 1rem;
+    }
+
+    .auth-login-card-footer {
+      padding-block: 0.75rem;
+    }
+  }
+
+  .dark .auth-security-backdrop--theme-responsive {
+    filter: saturate(0.68) contrast(0.92) brightness(0.38);
+  }
+
+  .dark .auth-security-gradient {
+    background:
+      radial-gradient(
+        ellipse at 50% 47%,
+        rgb(59 135 197 / 0.12) 0%,
+        rgb(17 61 105 / 0.07) 36%,
+        transparent 62%
+      ),
+      linear-gradient(
+        180deg,
+        rgb(1 13 31 / 0.26) 0%,
+        rgb(2 21 45 / 0.08) 46%,
+        rgb(1 10 25 / 0.3) 100%
+      );
+  }
+
+  .dark .auth-login-card-footer {
+    border-color: rgb(183 224 255 / 0.12);
+  }
+
+  .dark .auth-glass-panel.auth-glass-panel--clear.auth-login-card--thin-glass {
+    background: oklch(var(--card) / 0.54);
+    border-color: rgb(183 224 255 / 0.18);
+    box-shadow:
+      0 32px 82px -48px rgb(1 8 20 / 0.76),
+      0 12px 30px -24px rgb(1 15 34 / 0.62),
+      inset 0 1px 0 rgb(255 255 255 / 0.18),
+      inset 1px 0 0 rgb(120 196 255 / 0.1);
+    -webkit-backdrop-filter: blur(28px) saturate(1.08) brightness(0.84);
+    backdrop-filter: blur(28px) saturate(1.08) brightness(0.84);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auth-security-backdrop--theme-responsive {
+      transition: none;
+    }
+  }
+
+  .auth-glass-panel .auth-glass-field {
+    background: oklch(var(--background) / 0.52);
+    border-color: rgb(137 165 185 / 0.48);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    backdrop-filter: blur(14px) saturate(1.2);
+  }
+
+  .auth-glass-panel .auth-glass-field:hover:not(:disabled) {
+    background: oklch(var(--background) / 0.6);
+    border-color: rgb(106 145 175 / 0.64);
+  }
+
+  .auth-glass-panel .auth-glass-field:focus {
+    background: oklch(var(--background) / 0.68);
+    border-color: oklch(var(--primary) / 0.66);
+    box-shadow:
+      0 0 0 2px oklch(var(--background) / 0.82),
+      0 0 0 5px oklch(var(--focus-ring) / 0.5),
+      inset 0 1px 0 rgb(255 255 255 / 0.42);
+  }
+
+  .auth-glass-panel .auth-glass-field[aria-invalid='true'] {
+    background: oklch(var(--destructive) / 0.08);
+    border-color: oklch(var(--destructive) / 0.64);
+  }
+
+  .auth-glass-panel .auth-glass-field:disabled {
+    background: oklch(var(--muted) / 0.46);
+  }
+
+  .dark .auth-glass-panel .auth-glass-field {
+    background: oklch(var(--background) / 0.46);
+    border-color: rgb(255 255 255 / 0.2);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1);
+  }
+
+  .dark .auth-glass-panel .auth-glass-field:hover:not(:disabled) {
+    background: oklch(var(--background) / 0.54);
+    border-color: rgb(255 255 255 / 0.28);
+  }
+
+  .dark .auth-glass-panel .auth-glass-field:focus {
+    background: oklch(var(--background) / 0.62);
+    border-color: oklch(var(--primary) / 0.78);
+    box-shadow:
+      0 0 0 2px oklch(var(--background) / 0.94),
+      0 0 0 5px oklch(var(--focus-ring) / 0.72),
+      inset 0 1px 0 rgb(255 255 255 / 0.14);
+  }
+
+  .auth-glass-panel .auth-glass-secondary-action {
+    background: oklch(var(--background) / 0.42);
+    border-color: rgb(255 255 255 / 0.68);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.38);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    backdrop-filter: blur(14px) saturate(1.2);
+  }
+
+  .auth-glass-panel .auth-glass-secondary-action:hover:not(:disabled) {
+    background: oklch(var(--background) / 0.54);
+    border-color: rgb(255 255 255 / 0.82);
+  }
+
+  .auth-glass-panel .auth-glass-secondary-action:active:not(:disabled),
+  .auth-glass-panel .auth-glass-secondary-action:focus-visible {
+    background: oklch(var(--background) / 0.62);
+    border-color: oklch(var(--primary) / 0.62);
+  }
+
+  .dark .auth-glass-panel .auth-glass-secondary-action {
+    background: oklch(var(--background) / 0.34);
+    border-color: rgb(255 255 255 / 0.2);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1);
+  }
+
+  .dark .auth-glass-panel .auth-glass-secondary-action:hover:not(:disabled) {
+    background: oklch(var(--background) / 0.44);
+    border-color: rgb(255 255 255 / 0.3);
+  }
+
+  .dark .auth-glass-panel .auth-glass-secondary-action:active:not(:disabled),
+  .dark .auth-glass-panel .auth-glass-secondary-action:focus-visible {
+    background: oklch(var(--background) / 0.52);
+    border-color: oklch(var(--primary) / 0.76);
+  }
+}

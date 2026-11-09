@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "prisma/seed.ts",
+    "**/*spec.ts",
+    // ชุด test ใช้ชื่อ *.test.ts / *.int-test.ts — กันไม่ให้ dist มีไฟล์ที่ import vitest (devDependency)
+    "**/*.test.ts",
+    "**/*.int-test.ts",
+    "src/test/**",
+    "scripts/**",
+    "vitest.config.ts",
+    "vitest.integration.config.ts"
+  ]
+}

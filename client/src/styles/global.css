@@ -1,0 +1,306 @@
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: oklch(var(--background));
+  color: oklch(var(--foreground));
+  font-family: var(--font-sans);
+  /*
+   * ขั้น body ของสเกล (14/20) — ไม่ตั้งไว้ ข้อความที่ไม่ได้ใส่คลาสขนาดจะตกไปที่
+   * ค่า default ของเบราว์เซอร์ (16px) ซึ่ง **ใหญ่กว่าทุกขั้นในสเกลยกเว้น field**
+   * เลยเห็นเป็นตัวใหญ่โดดขึ้นมาเป็นจุด ๆ ทั้งที่คลาสที่เขียนไว้ถูกหมดแล้ว
+   *
+   * ตั้งที่ body ไม่ใช่ html เพราะ rem ของ spacing/ขนาดไอคอนอิงจาก html
+   * ถ้าย้ายไปตั้งที่ html ระยะห่างทั้งแอปจะหดตามไปด้วย
+   */
+  font-size: 14px;
+  line-height: 20px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: oklch(var(--primary) / 0.18);
+  color: oklch(var(--foreground));
+}
+
+* {
+  scrollbar-color: oklch(var(--muted-foreground) / 0.35) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background: oklch(var(--muted-foreground) / 0.35);
+  background-clip: padding-box;
+}
+
+/*
+ * ข้อมูลเชิงเทคนิค (serial พิกัด เวลา จำนวน) — แยกด้วย **ตัวเลขความกว้างเท่ากัน**
+ * ไม่ใช่ด้วยตระกูลฟอนต์ที่สอง: ตัวเลขที่เต้นไปมาระหว่างรีเฟรชคือปัญหาที่ต้องแก้จริง
+ * ส่วนการมีสองตระกูลทำให้ป้ายที่ผสมภาษาเส้นฐานเหลื่อมกัน
+ */
+.nwl-mono {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.015em;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Facebook-style loading sweep shared by every shadcn Skeleton instance. */
+.nwl-skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.nwl-skeleton-shimmer::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    oklch(var(--skeleton-highlight)),
+    transparent
+  );
+  content: '';
+  transform: translateX(-100%);
+  animation: nwl-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes nwl-skeleton-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .nwl-skeleton-shimmer::after {
+    animation: none;
+    content: none;
+  }
+}
+
+/*
+ * เมนูหลักแบบ branched menu (BranchedNav ใน AppSidebar ตอนกาง)
+ * port จาก React Bits "Branched Menu" (reactbits.dev/micro/branched-menu) — สีมาจาก token ของ sidebar:
+ * เมนูที่ไม่ได้เลือก (ตัวอักษร + ไอคอน) = เทา sidebar-icon · หน้าที่เลือก/hover = ขาว hover-foreground
+ * เส้นกิ่ง = sidebar-foreground ผสมพื้น (สีทึบ จุดต่อเส้นจึงไม่เข้ม)
+ * เส้นเน้น/ขีดหัวกลุ่ม/ไอคอนหน้าที่เลือก = ขาว (sidebar-indicator) ไม่ใช้สีฟ้าแบรนด์ (user instruction 2026-10-21)
+ */
+.branched-nav {
+  --bn-row: 40px;
+  --bn-indent: 40px;
+  --bn-line-w: 1.5;
+  --bn-draw: 400ms;
+  --bn-fold: 300ms;
+  --bn-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --bn-ink: oklch(var(--sidebar-hover-foreground));
+  --bn-muted: oklch(var(--sidebar-icon));
+  --bn-line: color-mix(in oklch, oklch(var(--sidebar-foreground)) 24%, oklch(var(--sidebar)));
+  --bn-accent: oklch(var(--sidebar-indicator));
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding-left: 14px;
+  color: var(--bn-muted);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+/* ราวซ้ายสุดที่จางลงด้านล่าง */
+.branched-nav::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: linear-gradient(to bottom, var(--bn-line) 0%, var(--bn-line) 55%, transparent 100%);
+}
+
+.branched-nav__marker {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  z-index: 1;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--bn-accent);
+  opacity: 0;
+  transition:
+    top 220ms var(--bn-ease-out),
+    opacity 150ms ease;
+}
+
+.branched-nav__marker[data-on] {
+  opacity: 1;
+}
+
+.branched-nav__section {
+  display: flex;
+  flex-direction: column;
+}
+
+.branched-nav__head {
+  display: block;
+  margin: 0;
+  padding: 9px 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: oklch(var(--sidebar-group));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 200ms ease;
+}
+
+.branched-nav__section[data-open] .branched-nav__head {
+  color: var(--bn-ink);
+}
+
+.branched-nav__head:focus-visible,
+.branched-nav__item:focus-visible {
+  outline: 2px solid oklch(var(--ring));
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .branched-nav__head:hover {
+    color: var(--bn-ink);
+  }
+}
+
+.branched-nav__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--bn-fold) var(--bn-ease-out);
+}
+
+.branched-nav__section[data-open] .branched-nav__body {
+  grid-template-rows: 1fr;
+}
+
+.branched-nav__fold {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.branched-nav__tree {
+  position: relative;
+  padding: 6px 0;
+  box-sizing: border-box;
+}
+
+.branched-nav__lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.branched-nav__section[data-open] .branched-nav__lines {
+  opacity: 1;
+  transition: opacity 250ms ease 100ms;
+}
+
+.branched-nav__base,
+.branched-nav__reach {
+  fill: none;
+  stroke-width: var(--bn-line-w);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.branched-nav__base {
+  stroke: var(--bn-line);
+}
+
+.branched-nav__reach {
+  stroke: var(--bn-accent);
+  transition: stroke-dashoffset var(--bn-draw) var(--bn-ease-out);
+}
+
+/* แถวเริ่มก่อนปลายกิ่ง 8px เพื่อให้พื้น hover เป็นแคปซูลที่กิ่งชี้เข้าหา ไม่ทับเส้น */
+.branched-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--bn-row);
+  margin: 0 0 0 calc(var(--bn-indent) - 8px);
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--bn-muted);
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color 200ms ease,
+    background-color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .branched-nav__item:not([data-disabled]):hover {
+    background: oklch(var(--sidebar-hover));
+    color: var(--bn-ink);
+  }
+}
+
+.branched-nav__item[aria-current='page'] {
+  color: var(--bn-ink);
+  font-weight: 600;
+}
+
+.branched-nav__item[aria-current='page'] .branched-nav__icon {
+  color: var(--bn-accent);
+}
+
+.branched-nav__item[data-disabled] {
+  color: oklch(var(--sidebar-disabled));
+  cursor: not-allowed;
+}
+
+.branched-nav__icon {
+  display: inline-flex;
+  flex: none;
+  color: oklch(var(--sidebar-icon));
+  transition: color 200ms ease;
+}
+
+.branched-nav__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,8 @@
+node_modules
+dist
+dist-erd
+.env
+coverage
+test-results
+*.log
+*.tsbuildinfo

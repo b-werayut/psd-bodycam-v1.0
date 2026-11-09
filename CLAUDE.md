@@ -26,9 +26,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `04-database-design.md` | **Canonical names** for tables, columns, enums, constraints and indexes, plus retention and migration strategy |
 | `05-api-design.md` | REST endpoints, error codes, mobile API, Socket.IO events, alert types, permission matrix |
 | `06-frontend-architecture.md` | Folder structure, routes, screens, component reuse, status→tone mapping |
-| `07-integration-strategy.md` | Booking port/adapters, sync, inbox/outbox, retry, idempotency, Confirmed vs Assumption |
+| `07-integration-strategy.md` | Booking port/adapters, pull-only sync, the API we ask Booking for, inbox, retry, idempotency, Confirmed vs Assumption |
 | `08-implementation-roadmap.md` | Phases P0–P6 with dependencies and acceptance criteria |
-| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL28) |
+| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL39) |
 
 - Implement in roadmap order.
 - P3c (the real Booking `http` adapter) is blocked until the Booking team provides a spec. Until then, build on the `mock` adapter (DL25).
@@ -40,8 +40,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Its `CLAUDE.md` is about 400KB. Read it by offset or grep, never whole.
 - Its code is more reliable than its docs.
 - Main things to port (details and paths in Part 1 §1.5):
-  - Server: `server/src/common/*`, `modules/auth`, `modules/realtime`, the GPS pipeline (`modules/tracking/tracking.service.ts`, `modules/scheduler/gps-poll.service.ts`), DSS providers, `modules/device-status-mq/brms-mq.service.ts`, `modules/streaming` and `modules/talk`, webhook HMAC (`modules/tracking/webhook-auth.ts`).
-  - Client: `client/src/styles/tailwind.css` (OKLCH tokens), `client/DESIGN.md`, `components/ui`, `components/command-center`, the app shell, `lib/apiClient.ts`.
+  - Server: `server/src/common/*`, `modules/auth`, `modules/realtime`, the GPS pipeline (`modules/tracking/tracking.service.ts`, `modules/scheduler/gps-poll.service.ts`), DSS providers, `modules/streaming` and `modules/talk`.
+  - Client: `client/src/styles/tailwind.css` (OKLCH tokens), `client/DESIGN.md`, `components/ui`, `components/command-center`, the app shell, `lib/apiClient.ts`, `features/evidence` (DL36).
 - Its `scheduler/camera-session.service.ts` is the **anti-pattern** being replaced: a pseudo work order plus reserved seed rows, `.limit(100)` with no `ORDER BY`, and a reopen loop.
 
 ## Planned commands (mirror the reference scripts in P0)
@@ -66,14 +66,16 @@ Client (Vite):
 - Redis provides the Socket.IO adapter/emitter, locks, rate limiting, BullMQ queues and the circuit-breaker state.
 
 **Two paths that must stay isolated**
-- *Real-time path*: DSS / BRMS → `device-status` → `DeviceState` → Socket.IO. It **never calls Booking**.
-- *Booking path* (worker `integration` role): `BookingProvider` port (`mock` | `http` | `csv`) → `IntegrationInbox` → `BookingJobs` (local projection) → queue `matching` → `WorkOrders`.
+- *Real-time path*: DSS (GpsPoll) → `device-status` → `DeviceState` (internal, feeds the session engine) and `gps:batch` → Socket.IO. It **never calls Booking**.
+  - No `device:status` push (DL35): screens that show camera status fetch it from DSS on open (`api` → DSS middleware). Other events (`gps:batch`, `session:*`, `workorder:changed`, `alert:new`, …) stay.
+- *Booking path* (worker `integration` role): `BookingProvider` port (`mock` | `http` | `csv`) → `IntegrationInbox` → `BookingJobs` (local projection) + its `WorkOrders` row (1:1 upsert by the inbox processor, DL33) → queue `matching` attaches sessions.
   - Matching reads only the projection; it never calls the Booking API live.
-  - `booking-integration` must not import `sessions` or `work-orders`. It hands work over through the queue only.
+  - **Pull only (DL31)**: change feed every 2 min + nightly full reconcile + per-job refresh. No inbound Booking webhook, no write-back, no `IntegrationOutbox`. Booking links to us via `/work-orders/by-booking/{externalJobId}`.
+  - `booking-integration` must not import `sessions` or the `work-orders` matcher; matching is handed over through the queue `matching` only. Single exception (Part 2 §2.4 rule 1): the inbox processor calls the `work-orders` writer to upsert the `WorkOrders` row in the same transaction as the projection.
 
 **Core domain**
-- `TrackingSessions` record observed camera use. `WorkOrders` are business records linked to 0..1 Booking job. **There are no pseudo work orders.**
-- A session is one camera continuously on and attached to one work order. One work order holds many sessions; one Booking job maps to one work order.
+- `TrackingSessions` record observed camera use. `WorkOrders` come **only from Booking** (DL33): one per `BookingJobs` row, `BookingJobId` NOT NULL. **This system never creates a work order**, and there are no pseudo work orders.
+- A session is one camera continuously on, attached to 0..1 work order. One work order holds many sessions; one Booking job maps to one work order.
 
 **Session engine** (`sessions` module, worker `tracking` role)
 - Runs as a level-triggered sweep every 30s over **all** devices, ordered by `Id`.
@@ -82,38 +84,39 @@ Client (Vite):
 - Global lock order: `DeviceState` (by `DeviceId` ascending) → `WorkOrders` (by `Id` ascending) → `TrackingSessions`.
 
 **Device status**
-- UNKNOWN is computed from how stale `LastObservedAt` is. **Never write null on an MQ reset.**
-- Source priority: BRMS MQ > DSS device list > `/location` > webhook.
+- UNKNOWN is computed from how stale `LastObservedAt` is. **Never write null on a reconnect or worker restart.**
+- Camera status comes only from GpsPoll: DSS `/location` returns GPS + online/offline in one call (DL32). No StatusPoll, no BRMS MQ (DL30), no device webhook. `StateSource` values 1, 3 and 4 stay reserved.
 - "Camera on" comes from platform status, not GPS: most cameras have no GPS fix indoors.
+- DSS middleware = `psd-bwc-dss-services` (FastAPI). It calls the Dahua DSS server and keeps the DSS tokens; HLS goes through its `/proxy`.
 
 **Work order status follows Booking**
-- Check-out closes the work order (`BookingCheckout`); a new check-in reopens it.
-- There is **no human close or reopen** in this system.
-- Void is `ADMIN`-only and only for work orders not linked to Booking.
+- A work order's department (data scope) comes from Booking (`departmentRef` → `Departments.BookingDepartmentRef`, DL38); unmapped ⇒ root department + `MappingIssues`.
+- Statuses: `Planned` (synced, no check-in yet, DL37) → `Open` (check-in) → `Closed` (check-out, `BookingCheckout`); a new check-in reopens; a Booking cancel sets `Cancelled`.
+- There is **no human close, reopen, link, unlink, merge or void** in this system.
+- Open work orders with no check-out raise an alert 36h after check-in and close after 7 days (`SafetyTimeout`). `Planned` ones close only when Booking says so.
+- `NeedsReview` is only an info badge + Admin alert. There is no review queue and no SLA.
 
-**Work orders not linked to Booking (Part 3 §3.3.4)**
-- They collect into one open work order per team, or per device when the team is unknown.
-- If no Booking data matches within 240 minutes, the system closes it (`NoBookingData`) and it goes to the review queue.
-- Linked work orders with no check-out raise an alert after 36h and close after 7 days (`SafetyTimeout`).
-- The review queue SLA is 36h.
+**Unmatched sessions (DL33)**
+- No candidate, or several candidates ⇒ the session stays `AwaitingMatch` (or `NoTeam`). No work order is created.
+- It re-matches automatically when Booking data changes (`matching.rematch`, within `booking.rematch-horizon-hours`).
+- No manual link, no human classify, no review queue. Sessions without a work order are viewed per camera in `/recordings`.
 
-**Matching**
-- Order: `BookingJobs.DeviceRefs` first, then the team ref, then the team-leader ref.
+**Matching** (automatic only)
+- Order: `BookingJobs.DeviceRefs` first, then the team ref, then the team-leader ref. Exactly one winning candidate ⇒ attach.
 - **Camera↔job/team binding comes only from Booking.** There is no screen to bind cameras in this system.
-- A manual link always wins over an automatic one.
 - Every decision is recorded in `MatchAttempts`.
 
 **Charging at base**
-- A camera charging at a depot creates no work order. Detection uses the `Depots` radius plus the latest GPS fix.
-- Work orders not linked to Booking that have no recordings at all are auto-voided.
+- A camera at a depot is not work: the system sets `Classification = IdleOrCharging` on its session. Detection uses the `Depots` radius plus the latest GPS fix.
 - The vendor has no charging state.
+
+**Evidence storage (DL34)**: exported MP4 files go to a local-disk PVC (`STORAGE_DRIVER=local`) shared by `api` and `worker-media`, and are deleted after 24h (`EvidenceCleanup`). No MinIO / object storage. Source video stays on the Dahua DSS server.
 
 **Invariants live in the DB** (partial uniques, exclusion constraints, CHECKs):
 - `UQ_TS_OpenPerDevice` and `EX_TS_NoOverlap`
-- `UQ_WO_BookingJob`
-- `UQ_WO_OpenUnlinkedPerTeam` and `UQ_WO_OpenUnlinkedPerDevice`
-- `CK_WO_LinkConsistency`
+- `UQ_WO_BookingJob` (plain unique; `BookingJobId` NOT NULL)
 - The exclusion constraints need `btree_gist`.
+- Removed enum values (e.g. WO `Voided` / `Merged`, `NoBookingData`) stay reserved: never reuse their numbers.
 
 Emit realtime events **only after commit**.
 
@@ -140,7 +143,7 @@ Emit realtime events **only after commit**.
 
 **Access**
 - Roles are `ADMIN`, `OPERATOR` and `VIEWER`.
-  - `OPERATOR` replaces the reference's Supervisor and Dispatcher roles.
+  - `OPERATOR` replaces the reference's Supervisor and Dispatcher roles. It monitors (map, live, live wall, talk), plays back / exports evidence, manages teams and acks alerts. It has no link, classify or review duties (DL33).
   - There is no team-leader role: team leaders use the Booking app.
   - The mobile app is for Operator, Admin and Viewer.
 - Scope levels are `all` and `department` (subtree).
@@ -153,6 +156,7 @@ Emit realtime events **only after commit**.
 **Retention**: GPS 3 months · work orders 3 months · audit log 12 months · no archive.
 
 **Frontend**: keep the reference design system (OKLCH tokens and the `client/DESIGN.md` rules). Use a real `/work-orders/:id` route, not the reference's `?open=` dialog.
+- Main menus (DL36): **Live** (`/live-wall` + live from the device list) and **หลักฐาน** `/evidence` (work order → camera + time range from its sessions → playback / MP4 download; reuse an export with the same device + channel + exact start/end that is queued, processing or ready and unexpired). `/recordings` stays for per-camera search.
 
 ## Editing the blueprint
 

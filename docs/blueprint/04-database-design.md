@@ -12,11 +12,11 @@
 | D1 | คง convention ของ reference: ตาราง/คอลัมน์ **PascalCase (quoted)**, PK `bigint GENERATED ALWAYS AS IDENTITY`, `timestamptz` (UTC), enum = `smallint` append-only | port โค้ดจาก reference ได้ตรง (`server/src/db/schema.ts`, `scope.predicates.ts`) · ทีมคุ้นเคย |
 | D2 | **JSON ใช้ `jsonb`** (reference ใช้ `text`) | query/index ได้, validate ได้ |
 | D3 | **แยก observed fact ออกจาก business record**: `TrackingSessions` = กล้องถูกใช้งานจริง · `WorkOrders` = ใบงานธุรกิจ | แก้ design smell pseudo work order (`WorkType = 5` + `CAM-AUTO`/`SITE-CAM`) ของ reference |
-| D4 | **Booking เป็น external reference**: `WorkOrders.BookingJobId` → `BookingJobs` (projection ที่ sync มา) · nullable · partial unique = 1 Booking ↔ 1 WO | WO มี PK ของตัวเอง · รองรับ WO ที่ยัง link ไม่ได้ · matching ไม่ต้องเรียก API สด |
+| D4 | **ใบงานมาจาก Booking เท่านั้น**: `WorkOrders.BookingJobId` → `BookingJobs` (projection ที่ sync มา) · **NOT NULL** · unique = 1 Booking ↔ 1 WO · WO สร้าง/อัปเดตโดย Booking sync เท่านั้น (DL33) | WO มี PK / เลขใบงาน / timeline ของตัวเอง · matching ไม่ต้องเรียก API สด · session ที่ match ไม่ได้รอข้อมูล Booking โดยไม่สร้างใบงาน |
 | D5 | เก็บข้อมูล Booking **เท่าที่ต้องใช้ match + แสดงผล** + `Raw jsonb` สำหรับ audit/debug | หลีกเลี่ยง duplicate ข้อมูล Booking โดยไม่จำเป็น · ลด PDPA exposure |
 | D6 | **Invariant บังคับที่ DB**: partial unique, exclusion constraint (`btree_gist`), CHECK | race condition ระหว่าง API/worker ไม่สามารถสร้างข้อมูลผิด invariant ได้ แม้ logic มี bug |
 | D7 | Hot state แยกตาราง: `DeviceState` (อัปเดตทุก poll) ออกจาก `Devices` (master) | ลด row churn / lock contention บน master |
-| D8 | Soft delete เฉพาะ **master data** (Users, Employees, Teams, Devices, Departments) · fact/log tables **ไม่มี soft delete** (ใช้ status เช่น `Voided`) | ประวัติหลักฐานต้องไม่หาย |
+| D8 | Soft delete เฉพาะ **master data** (Users, Employees, Teams, Devices, Departments) · fact/log tables **ไม่มี soft delete** (ใช้ status เช่น `Cancelled`) | ประวัติหลักฐานต้องไม่หาย |
 | D9 | ไม่มี `CompanyId` (บริษัทเดียว) · scope ผ่าน `DepartmentId` (subtree) หรือ `all` (ไม่มีผู้ใช้ภาคสนาม — DL14, DL16) | ตัดปัญหา `CompanyId = null` 3 ความหมายของ reference |
 | D10 | `GpsLocations` และ `AuditLogs` **partition รายเดือน** · retention = `DROP PARTITION` | แทน batched ctid DELETE ของ reference (`retention.service.ts`) |
 | D11 | เลขใบงานจาก **counter table** (`WorkOrderCounters`) แบบ atomic upsert | แทน `SELECT max + 1` + retry ของ reference |
@@ -133,9 +133,8 @@ erDiagram
   WorkOrders ||--o{ TrackingSessions : contains
   TrackingSessions ||--o| TrackingSessions : "split from"
   Teams ||--o{ WorkOrders : performs
-  BookingJobs ||--o| WorkOrders : "linked (1:1)"
+  BookingJobs ||--|| WorkOrders : "1:1 created by sync"
   WorkOrders ||--o{ WorkOrderEvents : history
-  WorkOrders ||--o| WorkOrders : "merged into"
   TrackingSessions ||--o{ MatchAttempts : evaluated
   BookingJobs ||--o{ MatchAttempts : "chosen in"
   Teams ||--o{ BookingJobs : "resolved team"
@@ -156,8 +155,7 @@ erDiagram
     bigint Id PK
     varchar WorkOrderNo UK
     smallint Status
-    smallint LinkStatus
-    bigint BookingJobId FK "nullable, unique"
+    bigint BookingJobId FK "not null, unique"
     bigint TeamId FK
     bigint DepartmentId FK
     timestamptz OpenedAt
@@ -168,6 +166,8 @@ erDiagram
     varchar SourceSystem
     varchar ExternalJobId UK
     smallint Status
+    varchar BookingDepartmentRef
+    bigint DepartmentId FK "resolved"
     varchar BookingTeamRef
     bigint TeamId FK "resolved"
     timestamptz PlannedStartAt
@@ -214,13 +214,6 @@ erDiagram
     varchar ExternalEventId
     smallint Status
     jsonb Payload
-  }
-  IntegrationOutbox {
-    bigint Id PK
-    varchar Destination
-    varchar IdempotencyKey UK
-    smallint Status
-    timestamptz NextAttemptAt
   }
   IntegrationSyncState {
     varchar Source PK
@@ -281,10 +274,8 @@ erDiagram
 | Team ↔ Primary camera (active) | 1 : 1 | `UQ_DevAsg_TeamActivePrimary` |
 | Device ↔ Team ณ เวลาใด ๆ | N : 1 (ไม่ซ้อนเวลา) | `EX_DevAsg_NoOverlap` |
 | Device ↔ Open session | 1 : 0..1 | `UQ_TS_OpenPerDevice` + `EX_TS_NoOverlap` |
-| WorkOrder ↔ TrackingSession | 1 : N | FK `TrackingSessions.WorkOrderId` |
-| BookingJob ↔ WorkOrder | 1 : 0..1 | `UQ_WO_BookingJob` |
-| Team ↔ Open WO ที่ยังไม่มี Booking (ใบรวม) | 1 : 0..1 | `UQ_WO_OpenUnlinkedPerTeam` |
-| กล้องที่ยังไม่รู้ทีม ↔ Open ใบรวม | 1 : 0..1 | `UQ_WO_OpenUnlinkedPerDevice` |
+| WorkOrder ↔ TrackingSession | 1 : N (session ที่ยังไม่มี WO ได้ — รอข้อมูล Booking) | FK `TrackingSessions.WorkOrderId` (nullable) |
+| BookingJob ↔ WorkOrder | 1 : 1 (Booking sync สร้าง WO ทันทีที่ได้งาน — DL33) | `BookingJobId` NOT NULL + `UQ_WO_BookingJob` |
 | Employee ↔ User | 0..1 : 0..1 | `UQ_Employees_User` |
 
 ---
@@ -299,28 +290,27 @@ erDiagram
 | `Devices.Kind` | 1 Primary · 2 Spare |
 | `Devices.Status` | 1 Active · 2 Inactive · 3 Maintenance · 4 Retired |
 | `DeviceState.PlatformState` | 1 Online · 2 Offline (UNKNOWN **ไม่เก็บ** — คำนวณจาก `LastObservedAt` เก่ากว่า `status.unknown-after-seconds`) |
-| `DeviceState.LastSource` / `StateSource` / `DeviceStatusHistory.Source` | 1 DssDeviceList · 2 DssLocation · 3 BrmsMq · 4 Webhook · 5 Manual · ลำดับความน่าเชื่อถือ (สูง→ต่ำ): BrmsMq > DssDeviceList > DssLocation > Webhook (Part 3 §3.1) |
+| `DeviceState.LastSource` / `StateSource` / `DeviceStatusHistory.Source` | 1 *(สงวน — เดิม DssDeviceList · เลิกใช้ DL32)* · 2 DssLocation · 3 *(สงวน — เดิม BrmsMq · เลิกใช้ DL30)* · 4 *(สงวน — เดิม Webhook · เลิกใช้ DL32)* · 5 Manual · ห้ามใช้เลขที่สงวนซ้ำ · แหล่งสถานะปกติคือ DssLocation อย่างเดียว (Part 3 §3.1) |
 | `DeviceAssignments.Kind` | 1 Primary · 2 Temporary (กล้องสำรอง) |
-| `TrackingSessions.MatchState` | 1 Attached (มี WO — รวม WO ที่ void) · 2 AwaitingMatch (ยังไม่มี WO รอ match) · 3 NoTeam (กล้องไม่ได้ผูกทีม) · 4 Classified (ไม่มี WO และ admin ระบุว่าไม่ใช่งาน) · `Classification` บันทึกได้ทั้งกรณี 1 และ 4 |
+| `TrackingSessions.MatchState` | 1 Attached (มี WO) · 2 AwaitingMatch (ยังไม่มี WO — รอข้อมูล Booking, re-match อัตโนมัติ) · 3 NoTeam (กล้องไม่ได้ผูกทีม) · 4 Classified (ไม่มี WO — **ระบบตั้งเองเท่านั้น** เมื่อชาร์จที่ฐาน, `Classification = 1`) · match ไม่ได้ ⇒ ไม่สร้าง WO · ไม่มีการตั้งค่าโดยคน (DL33) |
 | `TrackingSessions.StartInferred` | 1 Observed (StateSince) · 2 SplitBoundary · 3 PlannedBoundary (สลับงานอัตโนมัติ) |
-| `TrackingSessions.EndReason` | 1 DeviceOffline · 2 StatusUnknown · 3 WorkOrderClosed (Booking check-out/cancel) · 4 JobSwitched · 5 MaxSegment · 6 DeviceReassigned · 7 AdminSplit · 8 WorkOrderVoided · 9 AtBaseChanged |
-| `TrackingSessions.Classification` | 1 IdleOrCharging (ระบบตั้งเองเมื่ออยู่ในรัศมีฐาน หรือ auto-void) · 2 Test · 3 Training · 9 Other |
-| `WorkOrders.Status` | 1 Open · 2 Closed · 3 Cancelled (Booking ยกเลิก) · 4 Voided (admin หรือ auto-void: ไม่ใช่งานจริง) · 5 Merged |
-| `WorkOrders.CloseReason` | 1 BookingCheckout (check-out หรือ Completed จาก Booking — ทางปิดหลัก) · 2 NoBookingData (ใบรวมที่ไม่มีข้อมูล Booking ครบ 240 นาที) · 3 SafetyTimeout (ผูก Booking แต่ไม่ check-out ครบ 7 วัน) · **ไม่มีการปิดโดยคนในระบบนี้** |
-| `WorkOrders.LinkStatus` | 1 Pending (กำลัง match) · 2 Linked · 3 Suggested (MEDIUM รอยืนยัน) · 4 Ambiguous (หลาย candidate) · 5 Unlinked |
-| `WorkOrders.LinkSource` | 1 Auto · 2 Manual |
-| `WorkOrders.LinkConfidence` / `MatchAttempts.Confidence` | 1 High · 2 Medium · 3 Low |
-| `WorkOrderEvents.EventType` | 1 Created · 2 StatusChanged · 3 Linked · 4 Unlinked · 5 Relinked · 6 SessionAttached · 7 SessionDetached · 8 MergedInto · 9 NoteUpdated · 10 ReviewFlagged · 11 ReviewCleared |
+| `TrackingSessions.EndReason` | 1 DeviceOffline · 2 StatusUnknown · 3 WorkOrderClosed (Booking check-out/cancel) · 4 JobSwitched · 5 MaxSegment · 6 DeviceReassigned · 7 AdminSplit · 8 *(สงวน — เดิม WorkOrderVoided · เลิกใช้ DL33)* · 9 AtBaseChanged · ห้ามใช้เลขที่สงวนซ้ำ |
+| `TrackingSessions.Classification` | 1 IdleOrCharging (ระบบตั้งเองเมื่ออยู่ในรัศมีฐาน) · 2 *(สงวน — เดิม Test · เลิกใช้ DL33)* · 3 *(สงวน — เดิม Training · เลิกใช้ DL33)* · 9 *(สงวน — เดิม Other · เลิกใช้ DL33)* · ห้ามใช้เลขที่สงวนซ้ำ |
+| `WorkOrders.Status` | 1 Open (Booking check-in) · 2 Closed · 3 Cancelled (Booking ยกเลิก — ยังดูหลักฐานได้) · 4 *(สงวน — เดิม Voided · เลิกใช้ DL33)* · 5 *(สงวน — เดิม Merged · เลิกใช้ DL33)* · 6 Planned (รอเริ่ม — sync แล้วยังไม่ check-in · DL37) · ห้ามใช้เลขที่สงวนซ้ำ · **สถานะตาม Booking เท่านั้น** |
+| `WorkOrders.CloseReason` | 1 BookingCheckout (check-out หรือ Completed จาก Booking — ทางปิดหลัก) · 2 *(สงวน — เดิม NoBookingData · เลิกใช้ DL33)* · 3 SafetyTimeout (ไม่ check-out ครบ 7 วัน — `workorder.force-close-after-hours`) · ห้ามใช้เลขที่สงวนซ้ำ · **ไม่มีการปิดโดยคนในระบบนี้** |
+| `MatchAttempts.Confidence` | 1 High · 2 Medium · 3 Low |
+| `WorkOrderEvents.EventType` | 1 Created · 2 StatusChanged · 3 *(สงวน — เดิม Linked · เลิกใช้ DL33)* · 4 *(สงวน — เดิม Unlinked · เลิกใช้ DL33)* · 5 *(สงวน — เดิม Relinked · เลิกใช้ DL33)* · 6 SessionAttached · 7 SessionDetached · 8 *(สงวน — เดิม MergedInto · เลิกใช้ DL33)* · 9 NoteUpdated · 10 ReviewFlagged (ตั้ง badge `NeedsReview`) · 11 *(สงวน — เดิม ReviewCleared · เลิกใช้ DL33)* · ห้ามใช้เลขที่สงวนซ้ำ |
 | `WorkOrderEvents.Source` | 1 System · 2 Booking · 3 Operator · 4 Admin |
 | `BookingJobs.Status` (canonical) | 1 Planned · 2 Confirmed · 3 InProgress · 4 Completed · 5 Cancelled · 9 Unknown (raw status map ไม่ได้) |
-| `MatchAttempts.Trigger` | 1 SessionOpened · 2 Sweep · 3 BookingChanged · 4 AssignmentChanged · 5 Manual · 6 Reconcile |
-| `MatchAttempts.Result` | 1 Linked · 2 Suggested · 3 Ambiguous · 4 NoCandidate · 5 NoTeam · 6 SkippedManual · 7 ProjectionStale |
+| `MatchAttempts.Trigger` | 1 SessionOpened · 2 Sweep · 3 BookingChanged · 4 AssignmentChanged · 5 *(สงวน — เดิม Manual · เลิกใช้ DL33)* · 6 Reconcile · ห้ามใช้เลขที่สงวนซ้ำ |
+| `MatchAttempts.Result` | 1 Linked (attach เข้า WO ของ Booking job) · 2 *(สงวน — เดิม Suggested · เลิกใช้ DL33)* · 3 Ambiguous (หลาย candidate ⇒ `AwaitingMatch`) · 4 NoCandidate · 5 NoTeam · 6 *(สงวน — เดิม SkippedManual · เลิกใช้ DL33)* · 7 ProjectionStale · ห้ามใช้เลขที่สงวนซ้ำ |
 | `IntegrationInbox.Status` | 1 Pending · 2 Processed · 3 Failed · 4 Ignored (version เก่า/ซ้ำ) · 5 Dead |
-| `IntegrationOutbox.Status` | 1 Pending · 2 Sent · 3 Failed (รอ retry) · 4 Dead · 5 Skipped (destination ปิดอยู่) |
 | `IntegrationCallLogs.Outcome` | 1 Success · 2 HttpError · 3 Timeout · 4 NetworkError · 5 CircuitOpen · 6 InvalidResponse |
 | `Alerts.Severity` / `Alerts.Status` | 1 Info · 2 Warning · 3 Critical / 1 New · 2 Acknowledged · 3 Resolved · 4 Dismissed |
 | `Alerts.AlertType` | ดู [05-api-design.md §5.6](05-api-design.md#56-alert-types) |
 | Streaming / Talk / Evidence | คงค่าจาก reference (`server/src/modules/streaming/streaming-constants.ts`, `talk/talk-constants.ts`) · Protocol 1 HLS · SessionType 1 Live 2 Playback · Evidence 1 Queued 2 Processing 3 Ready 4 Failed 5 Expired |
+
+> `WorkOrders.LinkStatus` / `LinkSource` / `LinkConfidence` และ `TrackingSessions.LinkSource` ถูกตัดทั้งคอลัมน์พร้อม enum (DL33 — ยังไม่มีโค้ด จึงไม่ต้องสงวนเลข) · รายการที่ตัดทั้งหมดดู §4.4 E
 
 ---
 
@@ -339,6 +329,7 @@ erDiagram
 | Code | varchar(30) | NN | `UQ_Departments_Code` partial |
 | Name | varchar(200) | NN | |
 | ParentId | bigint | | FK → Departments.Id |
+| BookingDepartmentRef | varchar(64) | | รหัสแผนกใน Booking · `UQ_Departments_BookingRef` partial · ใช้ resolve แผนกของใบงาน (DL38) **[Assumption]** |
 | IsActive | boolean | NN | default true |
 | AUDIT, SOFT | | | |
 
@@ -515,67 +506,53 @@ PK `PK_GpsLocations (DeviceId, RecordedAt)` (รวม partition key ⇒ `ON CON
 | DeviceId | bigint | NN | FK → Devices |
 | TeamId | bigint | | FK → Teams (ทีม ณ เวลาเริ่ม · null = กล้องไม่ผูกทีม) |
 | DepartmentId | bigint | NN | FK → Departments (snapshot สำหรับ scope) |
-| WorkOrderId | bigint | | FK → WorkOrders |
+| WorkOrderId | bigint | | FK → WorkOrders · null = ยังไม่มีใบงาน (รอข้อมูล Booking — ดูหลักฐานได้จาก `/recordings`) |
 | StartedAt | timestamptz | NN | |
 | EndedAt | timestamptz | | null = เปิดอยู่ |
 | StartInferred | smallint | NN | |
 | EndReason | smallint | | |
-| MatchState | smallint | NN | |
-| LinkSource | smallint | | 1 Auto · 2 Manual (session ถูก attach โดยคน) |
-| Classification | smallint | | ใช้เมื่อ MatchState = 4 |
-| ClassifiedBy / ClassifiedAt | bigint / timestamptz | | |
+| MatchState | smallint | NN | attach โดย matching อัตโนมัติเท่านั้น (DL33) |
+| Classification | smallint | | ใช้เมื่อ MatchState = 4 · ระบบตั้งเท่านั้น |
+| ClassifiedAt | timestamptz | | เวลาที่ระบบจัดประเภท |
 | PrevSessionId | bigint | | FK self (session ก่อนหน้าที่ถูก split) |
 | RecordedSeconds | integer | | รวมความยาว recording ที่ index ได้ |
 | RecordingIndexedAt | timestamptz | | |
 | CreatedAt / UpdatedAt | timestamptz | NN | |
 
-Constraints: `CK_TS_Window` (`EndedAt IS NULL OR EndedAt > StartedAt`) · `CK_TS_Attached` (`(MatchState = 1) = (WorkOrderId IS NOT NULL)`) · **`UQ_TS_OpenPerDevice (DeviceId) WHERE EndedAt IS NULL`** · **`EX_TS_NoOverlap`** EXCLUDE gist (`DeviceId =`, `tstzrange(StartedAt, EndedAt, '[)') &&`) · IX `(WorkOrderId)`, `(DeviceId, StartedAt DESC)`, `(TeamId, StartedAt DESC)`, `IX_TS_Unresolved (StartedAt) WHERE MatchState IN (2,3)`
+Constraints: `CK_TS_Window` (`EndedAt IS NULL OR EndedAt > StartedAt`) · `CK_TS_Attached` (`(MatchState = 1) = (WorkOrderId IS NOT NULL)`) · **`UQ_TS_OpenPerDevice (DeviceId) WHERE EndedAt IS NULL`** · **`EX_TS_NoOverlap`** EXCLUDE gist (`DeviceId =`, `tstzrange(StartedAt, EndedAt, '[)') &&`) · IX `(WorkOrderId)`, `(DeviceId, StartedAt DESC)`, `(TeamId, StartedAt DESC)`, `IX_TS_Unresolved (StartedAt) WHERE MatchState IN (2,3)` (session ที่รอ re-match อัตโนมัติ)
 
 **RecordingSegments** — cache รายการไฟล์บันทึกจาก DSS recording search (แทน `PlaybackRecords`)
 `Id`, `DeviceId NN`, `Channel smallint NN default 1`, `VendorFileId varchar(128) NN`, `StartAt NN`, `EndAt NN`, `DurationSeconds integer`, `SourceType smallint`, `IndexedAt NN` · `UQ_RecSeg_File (DeviceId, Channel, VendorFileId)` (reference ลืม Channel) · IX `(DeviceId, StartAt)`
 
 ### E. Work Orders
 
-**WorkOrders**
+**WorkOrders** — ใบงาน 1:1 กับ `BookingJobs` · **สร้าง/อัปเดตโดย Booking sync เท่านั้น** (inbox processor, worker role `integration`) ทันทีที่ sync งานมา — ไม่มี code path อื่นสร้างใบงาน · ไม่มีการผูก/ยกเลิกผูก/รวม/void ด้วยมือ (DL33)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
 | WorkOrderNo | varchar(30) | NN | `WO-YYYYMM-NNNNN` · `UQ_WO_No` |
-| Title | varchar(300) | NN | จาก Booking เมื่อ link · ไม่ link = `ใบงานอัตโนมัติ {TeamCode} {DeviceCode}` |
-| Status | smallint | NN | default 1 |
+| Title | varchar(300) | NN | จาก Booking job · อัปเดตตาม sync |
+| Status | smallint | NN | default 6 Planned · ตาม Booking เท่านั้น (DL37) |
 | CloseReason | smallint | | |
-| LinkStatus | smallint | NN | default 1 Pending |
-| LinkSource | smallint | | null/1 Auto = ระบบจัดการได้ · 2 Manual = matcher ไม่แตะ (และ WO ที่ unlink ด้วยมือไม่เป็นใบรวมของทีม) |
-| LinkConfidence | smallint | | |
-| BookingJobId | bigint | | FK → BookingJobs |
-| SuggestedBookingJobId | bigint | | FK → BookingJobs · คำแนะนำ (MEDIUM) ของ session ล่าสุด — แสดงผลเท่านั้น |
-| LinkedAt / LinkedBy | timestamptz / bigint | | |
-| TeamId | bigint | | FK → Teams · ทีมของ session แรกที่ทำให้เกิด WO (ไม่เปลี่ยนตาม Booking) · **ว่างได้** เมื่อกล้องยังไม่มีข้อมูลทีมจาก Booking (ใบรวมของกล้อง) — เติมเมื่อ link กับงาน |
-| SourceDeviceId | bigint | NN | FK → Devices · กล้องของ session แรก (ใช้เป็น key ของใบรวมของกล้อง) |
-| DepartmentId | bigint | NN | FK → Departments (snapshot จากทีม หรือจาก `Devices.DepartmentId` ถ้าไม่มีทีม · ไม่เปลี่ยนภายหลัง) |
-| LeaderEmployeeId | bigint | | FK → Employees (snapshot หัวหน้าทีม ณ ตอนสร้าง) |
-| OpenedAt | timestamptz | NN | = `StartedAt` ของ session แรก |
-| LastActivityAt | timestamptz | NN | session ล่าสุดยังเปิด = now / ปิด = EndedAt (ใช้ idle timeout) |
-| ClosedAt / ClosedBy | timestamptz / bigint | | ClosedBy null = ระบบ |
-| CloseNote | varchar(1000) | | |
-| MergedIntoWorkOrderId | bigint | | FK self |
-| NeedsReview | boolean | NN | default false |
-| ReviewSince | timestamptz | | เวลาที่เข้าคิวตรวจสอบ (ใช้วัด SLA `review.sla-hours` = 36 — Q7) · null เมื่อออกจากคิว |
-| ReviewOverdueAlertedAt | timestamptz | | กัน alert SLA ซ้ำ |
-| ReviewReasons | smallint[] | | 1 BookingChangedAfterClose · 2 CancelledWithEvidence · 3 NoCheckout (ไม่มี check-out เกิน 36 ชม.) · 4 AutoSwitched · 5 SourceMissing · 6 SafetyTimeout · 7 NoBookingData (ใบรวมปิดโดยไม่มีข้อมูล Booking) |
+| BookingJobId | bigint | NN | FK → BookingJobs · `UQ_WO_BookingJob` (1 Booking ↔ 1 WO) |
+| TeamId | bigint | | FK → Teams · ทีมจาก Booking job (`BookingJobs.TeamId`) · ว่างได้เมื่อ ref ทีมยัง map ไม่ได้ (matching ผ่าน `DeviceRefs` ไม่ต้องรู้ทีม) |
+| DepartmentId | bigint | NN | FK → Departments · มาจากแผนกที่ Booking ส่งมา (`BookingJobs.DepartmentId` — DL38) · อัปเดตทุก sync · ใช้ data scope · map ไม่ได้ ⇒ แผนก root (เห็นเฉพาะ scope `all`) + `MappingIssues` 6 + alert `BOOKING_MAPPING_ISSUES` จนกว่า admin เติม `Departments.BookingDepartmentRef` |
+| LeaderEmployeeId | bigint | | FK → Employees (จาก Booking job — `BookingJobs.LeaderEmployeeId`) |
+| OpenedAt | timestamptz | | เวลา check-in ตาม Booking · null ขณะ `Planned` (DL37) · ใช้นับ `workorder.stale-open-hours` / `workorder.force-close-after-hours` |
+| LastActivityAt | timestamptz | | session ล่าสุดใน WO ยังเปิด = now / ปิด = EndedAt (แสดงผล/เรียงลำดับ) · null = ยังไม่มี session |
+| ClosedAt | timestamptz | | ปิดโดยระบบเท่านั้น (Booking check-out/cancel หรือ `SafetyTimeout`) |
+| NeedsReview | boolean | NN | default false · **badge ข้อมูล** แสดงในหน้าใบงาน + alert ถึง Admin — ไม่มีคิวตรวจสอบ / ปุ่มล้าง / SLA (DL33) |
+| ReviewReasons | smallint[] | | เหตุผลของ badge: 1 BookingChangedAfterClose · 2 CancelledWithEvidence · 3 NoCheckout (ไม่มี check-out เกิน 36 ชม.) · 4 AutoSwitched · 5 SourceMissing (งานหายจาก Booking) · 6 SafetyTimeout · 7 *(สงวน — เดิม NoBookingData · เลิกใช้ DL33)* · ห้ามใช้เลขที่สงวนซ้ำ |
 | Note | varchar(2000) | | หมายเหตุจากผู้ใช้ |
 | RowVersion | integer | NN | default 1 · optimistic concurrency (`If-Match`) |
 | CreatedAt / UpdatedAt | timestamptz | NN | |
 
 Constraints:
-- `CK_WO_LinkConsistency` — `(LinkStatus = 2) = (BookingJobId IS NOT NULL)`
-- `CK_WO_Merged` — `(Status = 5) = (MergedIntoWorkOrderId IS NOT NULL)`
 - `CK_WO_Closed` — `Status = 1 OR ClosedAt IS NOT NULL`
-- **`UQ_WO_BookingJob (BookingJobId) WHERE BookingJobId IS NOT NULL`** — 1 Booking ↔ 1 WO
-- **`UQ_WO_OpenUnlinkedPerTeam (TeamId) WHERE Status = 1 AND BookingJobId IS NULL AND TeamId IS NOT NULL AND LinkSource IS DISTINCT FROM 2`** — "ใบรวมของทีม" เปิดได้ใบเดียว (WO ที่ unlink ด้วยมือไม่นับ) — กติกาการใช้ดู Part 3 §3.3.4
-- **`UQ_WO_OpenUnlinkedPerDevice (SourceDeviceId) WHERE Status = 1 AND BookingJobId IS NULL AND TeamId IS NULL AND LinkSource IS DISTINCT FROM 2`** — ใบรวมของกล้องที่ยังไม่รู้ทีม
-- `CK_WO_LinkedHasTeam` — `BookingJobId IS NULL OR TeamId IS NOT NULL OR LinkSource = 2` (link อัตโนมัติต้องรู้ทีม — ถ้าจับคู่ผ่าน DeviceRefs ใช้ทีมจาก Booking job)
-- IX `(Status, OpenedAt DESC)`, `(TeamId, OpenedAt DESC)`, `(DepartmentId, OpenedAt DESC)`, `IX_WO_ReviewQueue (OpenedAt) WHERE (Status = 1 AND LinkStatus IN (1,3,4,5)) OR NeedsReview` — คิวตรวจสอบ = WO ที่ยังเปิดและยังไม่ Linked + ทุก WO ที่ `NeedsReview` (WO ใบรวมที่ปิดไปแล้วไม่ค้างในคิว — ค้นได้จาก list filter)
+- **`UQ_WO_BookingJob (BookingJobId)`** — unique ธรรมดา (ไม่มี `WHERE`) — 1 Booking ↔ 1 WO
+- IX `(Status, OpenedAt DESC)`, `(TeamId, OpenedAt DESC)`, `(DepartmentId, OpenedAt DESC)`
+
+> ตัดออกตาม DL33 (ยังไม่มีโค้ด จึงไม่ต้อง migrate): คอลัมน์ `LinkStatus`, `LinkSource`, `LinkConfidence`, `SuggestedBookingJobId`, `LinkedAt`, `LinkedBy`, `SourceDeviceId`, `ClosedBy`, `CloseNote`, `MergedIntoWorkOrderId`, `ReviewSince`, `ReviewOverdueAlertedAt` · constraint `CK_WO_LinkConsistency`, `CK_WO_Merged`, `CK_WO_LinkedHasTeam`, `UQ_WO_OpenUnlinkedPerTeam`, `UQ_WO_OpenUnlinkedPerDevice` · index `IX_WO_ReviewQueue` · `TrackingSessions.LinkSource`, `TrackingSessions.ClassifiedBy`
 
 **WorkOrderEvents** — timeline/audit ของใบงาน (append-only)
 `Id`, `WorkOrderId NN`, `EventType NN`, `FromStatus`, `ToStatus`, `Source NN`, `ActorUserId`, `TrackingSessionId`, `BookingJobId`, `Reason varchar(500)`, `Detail jsonb`, `OccurredAt NN` · IX `(WorkOrderId, OccurredAt)`
@@ -601,6 +578,8 @@ RETURNING "LastValue";
 | Status | smallint | NN | canonical |
 | RawStatus | varchar(50) | | ค่าดิบจาก Booking |
 | Title | varchar(300) | | |
+| BookingDepartmentRef | varchar(64) | | แผนกเจ้าของงานที่ Booking ส่งมา (DL38) **[Assumption]** |
+| DepartmentId | bigint | | FK → Departments · **cache** ที่ resolve จาก `Departments.BookingDepartmentRef` · map ไม่ได้ ⇒ `MappingIssues` 6 |
 | BookingTeamRef | varchar(64) | | **matching key** |
 | TeamId | bigint | | FK → Teams · **cache** ที่ resolve จาก `Teams.BookingTeamRef` (อัปเดตโดย job re-resolve เมื่อ ref เปลี่ยน) |
 | BookingLeaderRef | varchar(64) | | **matching key** |
@@ -614,7 +593,7 @@ RETURNING "LastValue";
 | SiteLat / SiteLng | double precision | | ใช้เป็น tie-breaker เท่านั้น |
 | Raw | jsonb | NN | payload ล่าสุด (redact ข้อมูลส่วนบุคคลที่ไม่จำเป็นก่อนเก็บ) |
 | PayloadHash | char(64) | NN | SHA-256 — ไม่เปลี่ยน = ไม่ต้อง re-match |
-| MappingIssues | smallint[] | | 1 UnknownTeamRef · 2 UnknownLeaderRef · 3 UnmappedStatus · 4 MissingWindow · 5 UnknownDeviceRef |
+| MappingIssues | smallint[] | | 1 UnknownTeamRef · 2 UnknownLeaderRef · 3 UnmappedStatus · 4 MissingWindow · 5 UnknownDeviceRef · 6 UnknownDepartmentRef (DL38) |
 | FirstSyncedAt / LastSyncedAt | timestamptz | NN | |
 | SourceMissingSince | timestamptz | | หายจาก full sync (ไม่ลบ) |
 
@@ -623,11 +602,8 @@ IX GIN `(DeviceRefs)`, `(BookingTeamRef, PlannedStartAt)`, `(BookingLeaderRef, P
 **MatchAttempts** — บันทึกการตัดสินใจ matching (เขียนเฉพาะเมื่อ `InputHash` เปลี่ยน)
 `Id`, `TrackingSessionId NN`, `WorkOrderId`, `Trigger NN`, `Result NN`, `Confidence`, `ChosenBookingJobId`, `Candidates jsonb` (`[{bookingJobId, tier, score, reasons[]}]`), `InputHash char(64) NN`, `AlgoVersion smallint NN`, `ProjectionSyncedAt`, `AttemptedAt NN` · IX `(TrackingSessionId, AttemptedAt DESC)`, `(WorkOrderId, AttemptedAt DESC)` · retention 180 วัน
 
-**IntegrationInbox** — ข้อความขาเข้า (webhook หรือ poll) — dedupe + process แบบ async
-`Id`, `Source varchar(30) NN`, `ExternalEventId varchar(200) NN` (webhook event id หรือ `{jobId}:{version}` ของ poll), `EventType varchar(50)`, `Payload jsonb NN`, `ReceivedAt NN`, `Status NN`, `Attempts smallint NN default 0`, `LastError text`, `ProcessedAt` · `UQ_Inbox_Event (Source, ExternalEventId)` · IX `(Status, ReceivedAt) WHERE Status IN (1,3)`
-
-**IntegrationOutbox** — ข้อความขาออก (เขียนใน transaction เดียวกับ domain change)
-`Id`, `Destination varchar(30) NN` (`BOOKING` — push FCM **ไม่ผ่าน outbox** แต่ใช้ `Notifications.Status` + queue `notification-push` แบบ reference), `AggregateType varchar(30) NN`, `AggregateId bigint NN`, `EventType varchar(50) NN`, `Payload jsonb NN`, `IdempotencyKey varchar(100) NN UQ`, `Status NN`, `Attempts smallint`, `NextAttemptAt NN`, `LastError text`, `CreatedAt`, `SentAt` · IX `(Status, NextAttemptAt) WHERE Status IN (1,3)`, `(AggregateType, AggregateId, Id)`
+**IntegrationInbox** — ข้อมูลที่ดึงจาก Booking (poll / refresh — pull อย่างเดียว DL31) — dedupe + process แบบ async
+`Id`, `Source varchar(30) NN`, `ExternalEventId varchar(200) NN` (`{jobId}:{version ?? updatedAt}`), `EventType varchar(50)`, `Payload jsonb NN`, `ReceivedAt NN`, `Status NN`, `Attempts smallint NN default 0`, `LastError text`, `ProcessedAt` · `UQ_Inbox_Event (Source, ExternalEventId)` · IX `(Status, ReceivedAt) WHERE Status IN (1,3)`
 
 **IntegrationSyncState** — สถานะ sync + circuit breaker snapshot
 PK `(Source, Resource)` · `Cursor text`, `LastAttemptAt`, `LastSuccessAt`, `LastFullSyncAt`, `LastErrorAt`, `LastError text`, `ConsecutiveFailures integer NN default 0`, `BreakerOpenUntil`
@@ -639,7 +615,7 @@ PK `(Source, Resource)` · `Cursor text`, `LastAttemptAt`, `LastSuccessAt`, `Las
 
 - **StreamingSessions** — `Id`, `DeviceId NN`, `Channel`, `UserId NN`, `SessionToken varchar(64) UQ`, `Protocol`, `SessionType`, `PlaybackStartAt`, `PlaybackEndAt`, `Status`, `VendorSessionId`, `StartedAt`, `LastAccessAt`, `EndedAt`, `EndReason` · IX `(UserId, Status)`, `(DeviceId, StartedAt DESC)`
 - **TalkSessions** — คงโครงสร้าง reference: `StreamingSessionId NN`, `DeviceId NN`, `VendorTalkId`, `TicketHash char(64) UQ`, `Status`, `EndReason`, … · `UX_Talk_Device_Open (DeviceId) WHERE Status IN (1,2)`
-- **EvidenceExports** — reference + `WorkOrderId FK`, `TrackingSessionId FK` (บริบท) · `Status`, `Progress`, `FilePath`, `Checksum char(64)`, `RequestedBy`, `ExpiresAt` · ไฟล์ลบหลัง 24 ชม. แถวเก็บไว้เป็นหลักฐานว่าใครดึงอะไร
+- **EvidenceExports** — reference + `WorkOrderId FK`, `TrackingSessionId FK` (บริบท) · `Status`, `Progress`, `FilePath`, `Checksum char(64)`, `RequestedBy`, `ExpiresAt` · `FilePath` = path บน **Local disk PVC** (`STORAGE_DRIVER=local`) ที่ `worker-media` เขียนและ `api` stream ให้ดาวน์โหลด (DL34) · ไฟล์ลบหลัง 24 ชม. (`EvidenceCleanup`) · แถวเก็บ 12 เดือนเป็นหลักฐานว่าใครดึงอะไร
 
 ### H. Notifications & System
 
@@ -648,7 +624,7 @@ PK `(Source, Resource)` · `Cursor text`, `LastAttemptAt`, `LastSuccessAt`, `Las
 - **AuditLogs** — partitioned รายเดือนตาม `OccurredAt` · คอลัมน์ตาม reference (`UserId`, `ActorUsername`, `ActorRole`, `Action`, `ResourceType`, `ResourceId`, `Changes jsonb`, `HttpMethod`, `RequestPath`, `Result`, `Ip`, `UserAgent`, `OccurredAt`) + `CorrelationId` · PK `(OccurredAt, Id)`
 - **Settings** — port ตรง (`SettingKey UQ`, `SettingValue text`, `ValueType`, `Category`, `IsSystem`) · bounds อยู่ในโค้ด (`setting-spec.ts`)
 
-รวม **35 ตาราง** (reference 33) — ตัด 11 ตารางที่ผูก dashcam/approval/company/site และเพิ่ม 15 ตารางสำหรับ team, depot, session, Booking integration
+รวม **34 ตาราง** (reference 33) — ตัดตารางที่ผูก dashcam/approval/company/site และเพิ่มตารางสำหรับ team, depot, session, Booking integration · ไม่มี `IntegrationOutbox` (DL31) · รายการครบอยู่ใน README (Recommended Database Schema)
 
 ---
 
@@ -664,9 +640,9 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 | BookingJobs | 3 เดือนหลังงานจบ (และไม่มี WO ที่ยังเก็บอยู่อ้างถึง) | DELETE batch | |
 | RecordingSegments | 3 เดือน (ตรงกับ DSS) | DELETE batch | วิดีโอจริงอยู่ที่ DSS — infra จัดการ retention |
 | AuditLogs | 12 เดือน | `DROP PARTITION` | |
-| StreamingSessions / TalkSessions / EvidenceExports (แถว) | 12 เดือน (ตาม audit) | DELETE batch | ใครดู/ดึงอะไรเมื่อไร · ไฟล์ MP4 ลบหลัง 24 ชม. |
+| StreamingSessions / TalkSessions / EvidenceExports (แถว) | 12 เดือน (ตาม audit) | DELETE batch | ใครดู/ดึงอะไรเมื่อไร · ไฟล์ MP4 บน Local disk PVC ลบหลัง 24 ชม. (`EvidenceCleanup` — DL34) |
 | Notifications / Alerts | 90 วัน | DELETE batch | |
-| IntegrationInbox / Outbox | 30 วัน (Dead เก็บจนกว่าจะ resolve) | DELETE batch | |
+| IntegrationInbox | 30 วัน (Dead เก็บจนกว่าจะ resolve) | DELETE batch | |
 | IntegrationCallLogs | 30 วัน | DELETE batch | |
 
 > หลักฐานที่ต้องเก็บนานกว่า 3 เดือน ให้ export MP4 ออกไปเก็บนอกระบบก่อนครบกำหนด — ระบบแสดงวันที่ข้อมูลจะถูกลบในหน้าใบงาน
@@ -678,7 +654,7 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 ## 4.6 Index & Constraint Strategy
 
 1. **ทุก query ของ list page มี index นำด้วยคอลัมน์ filter หลัก + เวลา DESC** (`(TeamId, OpenedAt DESC)` ฯลฯ) — pagination แบบ offset ได้ในเฟสแรก, เปลี่ยนเป็น keyset เมื่อเกิน 100k แถว
-2. **Partial index สำหรับ queue** (`IX_WO_ReviewQueue`, `IX_TS_Unresolved`, inbox/outbox pending) — เล็กและเร็ว
+2. **Partial index สำหรับงานค้างของ worker** (`IX_TS_Unresolved` — session รอ re-match, inbox pending) — เล็กและเร็ว
 3. **Exclusion constraint ต้องใช้ `btree_gist`** · Fallback ถ้าไม่ได้: คง partial unique "active ≤ 1" (`UQ_DevAsg_DeviceActive`, `UQ_TS_OpenPerDevice`) + ตรวจ overlap ใน service ภายใต้ `SELECT … FOR UPDATE` ของ `DeviceState` (lock order เดียวกันทั้งระบบ)
 4. **GpsLocations**: PK `(DeviceId, RecordedAt)` ตอบ query history ต่ออุปกรณ์ · BRIN `(RecordedAt)` สำหรับ scan ข้ามอุปกรณ์ · ไม่สร้าง index อื่น
 5. **ไม่สร้าง FK จาก `GpsLocations`** (insert volume) — ความถูกต้องของ `DeviceId` มาจาก ingestion pipeline
@@ -703,7 +679,7 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 import { sql } from 'drizzle-orm';
 import {
   pgTable, bigint, varchar, smallint, boolean, integer, jsonb, char,
-  doublePrecision, timestamp, date, uniqueIndex, index, check, type AnyPgColumn,
+  doublePrecision, timestamp, date, unique, uniqueIndex, index, check, type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 const id = () => bigint('Id', { mode: 'bigint' }).primaryKey().generatedAlwaysAsIdentity();
@@ -736,6 +712,8 @@ export const bookingJobs = pgTable('BookingJobs', {
   Status: smallint('Status').notNull(),
   RawStatus: varchar('RawStatus', { length: 50 }),
   Title: varchar('Title', { length: 300 }),
+  BookingDepartmentRef: varchar('BookingDepartmentRef', { length: 64 }), // DL38
+  DepartmentId: ref('DepartmentId').references(() => departments.Id),
   BookingTeamRef: varchar('BookingTeamRef', { length: 64 }),
   TeamId: ref('TeamId').references(() => teams.Id),
   BookingLeaderRef: varchar('BookingLeaderRef', { length: 64 }),
@@ -764,28 +742,16 @@ export const workOrders = pgTable('WorkOrders', {
   Id: id(),
   WorkOrderNo: varchar('WorkOrderNo', { length: 30 }).notNull(),
   Title: varchar('Title', { length: 300 }).notNull(),
-  Status: smallint('Status').notNull().default(1),
+  Status: smallint('Status').notNull().default(6), // 6 Planned (DL37)
   CloseReason: smallint('CloseReason'),
-  LinkStatus: smallint('LinkStatus').notNull().default(1),
-  LinkSource: smallint('LinkSource'),
-  LinkConfidence: smallint('LinkConfidence'),
-  BookingJobId: ref('BookingJobId').references(() => bookingJobs.Id),
-  SuggestedBookingJobId: ref('SuggestedBookingJobId').references(() => bookingJobs.Id),
-  LinkedAt: tstz('LinkedAt'),
-  LinkedBy: ref('LinkedBy').references(() => users.Id),
+  BookingJobId: ref('BookingJobId').notNull().references(() => bookingJobs.Id),
   TeamId: ref('TeamId').references(() => teams.Id),
-  SourceDeviceId: ref('SourceDeviceId').notNull().references(() => devices.Id),
   DepartmentId: ref('DepartmentId').notNull().references(() => departments.Id),
   LeaderEmployeeId: ref('LeaderEmployeeId').references(() => employees.Id),
-  OpenedAt: tstz('OpenedAt').notNull(),
-  LastActivityAt: tstz('LastActivityAt').notNull(),
+  OpenedAt: tstz('OpenedAt'),
+  LastActivityAt: tstz('LastActivityAt'),
   ClosedAt: tstz('ClosedAt'),
-  ClosedBy: ref('ClosedBy').references(() => users.Id),
-  CloseNote: varchar('CloseNote', { length: 1000 }),
-  MergedIntoWorkOrderId: ref('MergedIntoWorkOrderId').references((): AnyPgColumn => workOrders.Id),
   NeedsReview: boolean('NeedsReview').notNull().default(false),
-  ReviewSince: tstz('ReviewSince'),
-  ReviewOverdueAlertedAt: tstz('ReviewOverdueAlertedAt'),
   ReviewReasons: smallint('ReviewReasons').array(),
   Note: varchar('Note', { length: 2000 }),
   RowVersion: integer('RowVersion').notNull().default(1),
@@ -793,17 +759,9 @@ export const workOrders = pgTable('WorkOrders', {
   UpdatedAt: tstz('UpdatedAt').notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('UQ_WO_No').on(t.WorkOrderNo),
-  uniqueIndex('UQ_WO_BookingJob').on(t.BookingJobId).where(sql`"BookingJobId" IS NOT NULL`),
-  uniqueIndex('UQ_WO_OpenUnlinkedPerTeam').on(t.TeamId)
-    .where(sql`"Status" = 1 AND "BookingJobId" IS NULL AND "TeamId" IS NOT NULL AND "LinkSource" IS DISTINCT FROM 2`),
-  uniqueIndex('UQ_WO_OpenUnlinkedPerDevice').on(t.SourceDeviceId)
-    .where(sql`"Status" = 1 AND "BookingJobId" IS NULL AND "TeamId" IS NULL AND "LinkSource" IS DISTINCT FROM 2`),
+  unique('UQ_WO_BookingJob').on(t.BookingJobId),
   index('IX_WO_Team_Opened').on(t.TeamId, t.OpenedAt.desc()),
   index('IX_WO_Dept_Opened').on(t.DepartmentId, t.OpenedAt.desc()),
-  index('IX_WO_ReviewQueue').on(t.OpenedAt)
-    .where(sql`("Status" = 1 AND "LinkStatus" IN (1,3,4,5)) OR "NeedsReview" = true`),
-  check('CK_WO_LinkConsistency', sql`("LinkStatus" = 2) = ("BookingJobId" IS NOT NULL)`),
-  check('CK_WO_Merged', sql`("Status" = 5) = ("MergedIntoWorkOrderId" IS NOT NULL)`),
   check('CK_WO_Closed', sql`"Status" = 1 OR "ClosedAt" IS NOT NULL`),
 ]);
 
@@ -818,8 +776,8 @@ export const trackingSessions = pgTable('TrackingSessions', {
   StartInferred: smallint('StartInferred').notNull().default(1),
   EndReason: smallint('EndReason'),
   MatchState: smallint('MatchState').notNull(),
-  LinkSource: smallint('LinkSource'),
   Classification: smallint('Classification'),
+  ClassifiedAt: tstz('ClassifiedAt'),
   PrevSessionId: ref('PrevSessionId').references((): AnyPgColumn => trackingSessions.Id),
   RecordedSeconds: integer('RecordedSeconds'),
   RecordingIndexedAt: tstz('RecordingIndexedAt'),

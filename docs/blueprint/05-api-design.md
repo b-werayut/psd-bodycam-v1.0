@@ -25,7 +25,7 @@
 | 400 | validation / ค่าไม่ถูกต้องตามกติกาธุรกิจ (เช่น ตั้ง Temporary assignment ให้กล้องที่ Retired) |
 | 401 / 403 | ไม่ได้ login / ไม่มี permission |
 | **404** | ไม่พบ **หรืออยู่นอก data scope** (ไม่ยืนยันว่ามี record — กติกาเดิม) |
-| 409 | สถานะไม่อนุญาต (`WORK_ORDER_NOT_OPEN`, `TEAM_HAS_OPEN_UNLINKED_WORK_ORDER`, `WORK_ORDER_FOLLOWS_BOOKING` — ใบที่ผูก Booking เปลี่ยนสถานะได้จาก Booking เท่านั้น) |
+| 409 | สถานะหรือข้อมูลขัดกัน (เช่น `DEPARTMENT_IN_USE` — ลบแผนกที่ยังมีข้อมูลอ้างอิง) · ใบงานไม่มี action เปลี่ยนสถานะ เพราะสถานะตาม Booking เท่านั้น (DL33) |
 | 412 | `If-Match` ไม่ตรง `RowVersion` |
 | 429 | rate limit / เกินโควตาสตรีม (มี `Retry-After`) |
 | 503 | ระบบภายนอกไม่พร้อม (`BOOKING_UNAVAILABLE`, `VENDOR_UNAVAILABLE`) |
@@ -58,7 +58,7 @@
 | PATCH | `/users/:id/access` | `users:manage` ✱ ระงับ/คืนสิทธิ์ (ตัด session ทันที) |
 | GET | `/roles`, `/roles/:id/permissions` | `users:read` |
 | PUT | `/roles/:id/permissions` | `roles:manage` |
-| GET / POST / PATCH / DELETE | `/departments[/:id]` | `org:read` / `org:manage` |
+| GET / POST / PATCH / DELETE | `/departments[/:id]` | `org:read` / `org:manage` · body มี `bookingDepartmentRef` สำหรับ map แผนกจาก Booking (DL38) |
 | GET / POST / PATCH / DELETE | `/employees[/:id]` | `org:read` / `org:manage` |
 | GET / POST | `/teams` | `teams:read` / `teams:manage` |
 | GET / PATCH / DELETE | `/teams/:id` | `teams:read` / `teams:manage` |
@@ -80,6 +80,8 @@
 | PATCH | `/devices/:id/streaming-access` | `devices:manage` ✱ | `{ enabled }` ตัด session ที่เปิดอยู่ |
 | GET / POST / PATCH / DELETE | `/depots[/:id]` | `devices:read` / `devices:manage` | ฐาน/จุดชาร์จ `{ code, name, departmentId?, lat, lng, radiusM }` (Q15) |
 
+**สถานะกล้องบนหน้าจอ (DL35):** สถานะ platform (online / offline) ใน `GET /devices` และ `GET /devices/:id` — `api` ดึงจาก DSS ผ่าน DSS middleware ตอน request · หน้า device list, device detail และก่อนเปิด live เรียกตอนเปิดหน้า · ไม่มี push `device:status` ทาง Socket.IO (`DeviceState` ยังอัปเดตโดย GpsPoll และใช้ภายใน session engine)
+
 ### Tracking & Sessions
 
 | Method | Path | Permission | หมายเหตุ |
@@ -88,40 +90,35 @@
 | GET | `/tracking/devices/:id/history?from&to` | `tracking:history` ✱ | polyline segments + stops (ไม่มี road-match) · ช่วง ≤ 24 ชม. |
 | GET | `/tracking-sessions` | `sessions:read` | filter `open=true`, `deviceId`, `teamId`, `workOrderId`, `matchState`, `from`, `to` |
 | GET | `/tracking-sessions/:id` | `sessions:read` | + recordings + match attempts |
-| POST | `/tracking-sessions/:id/attach` | `work-orders:link` | `{ workOrderId }` หรือ `{ bookingJobId, teamId? }` — ย้าย/ผูก session (รวม session ที่อยู่ใน WO อื่น) · `teamId` **บังคับ** เมื่อ session เป็น `NoTeam` (บันทึกลง session และใช้เป็น `WorkOrders.TeamId` ถ้าต้องสร้าง WO ใหม่) · session ที่ยังเปิดอยู่ = ย้ายทั้ง session ไม่ split |
-| POST | `/tracking-sessions/:id/classify` | `sessions:classify` | `{ classification, note }` (ชาร์จ/ทดสอบ/ฝึก) |
+
+Session อ่านอย่างเดียว — ผูกกับใบงานโดย matching อัตโนมัติเท่านั้น · session ที่ยังไม่มีใบงาน (`AwaitingMatch` / `NoTeam`) รอข้อมูล Booking และดูภาพได้จาก `/streams/recordings?deviceId` · ไม่มี attach / classify ด้วยมือ (DL33)
 
 ### Work Orders
 
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
-| GET | `/work-orders` | `work-orders:read` | filter `status`, `linkStatus`, `teamId`, `needsReview`, `from`, `to`, `q` (เลข WO / เลข Booking / ชื่อทีม) |
-| GET | `/work-orders/review-queue` | `work-orders:read` | WO ที่ **Open** และ `LinkStatus ∈ {Pending, Suggested, Ambiguous, Unlinked}` + ทุก WO ที่ `NeedsReview` (ตรงกับ `IX_WO_ReviewQueue`) · เรียงตาม `reviewSince` · คืน `slaDueAt` (= reviewSince + 36 ชม.) |
+| GET | `/work-orders` | `work-orders:read` | filter `status`, `teamId`, `needsReview`, `from`, `to`, `q` (เลข WO / เลข Booking / ชื่อทีม) |
+| GET | `/work-orders/by-booking/:externalJobId` | `work-orders:read` | deep link จาก Booking app (DL31) → `{ id }` · ไม่พบ / นอก scope = 404 |
 | GET | `/work-orders/:id` | `work-orders:read` | detail + booking + team + summary |
-| GET | `/work-orders/:id/sessions` | `work-orders:read` | |
+| GET | `/work-orders/:id/sessions` | `work-orders:read` | ใช้เลือกกล้อง + ช่วงเวลาในหน้า หลักฐาน (DL36) |
 | GET | `/work-orders/:id/events` | `work-orders:read` | timeline |
 | GET | `/work-orders/:id/match-attempts` | `work-orders:read` | |
-| GET | `/work-orders/:id/booking-candidates` | `work-orders:link` | คำนวณสดจาก projection |
-| POST | `/work-orders/:id/link` | `work-orders:link` | `{ bookingJobId, reason? }` + `If-Match` · อาจได้ผลเป็น merge |
-| POST | `/work-orders/:id/unlink` | `work-orders:link` | `{ reason }` + `If-Match` |
-| POST | `/work-orders/:id/void` | `work-orders:void` | `{ reason, classification }` + `If-Match` · **เฉพาะใบที่ไม่ผูก Booking** (ใบที่ผูกแล้ว ⇒ 409 `WORK_ORDER_FOLLOWS_BOOKING` ให้ยกเลิกฝั่ง Booking) |
 | PATCH | `/work-orders/:id` | `work-orders:edit-note` | `{ note }` + `If-Match` (แก้ได้แค่หมายเหตุ) |
-| POST | `/work-orders/:id/review/clear` | `work-orders:link` | ล้าง `NeedsReview` `{ note }` |
+
+ใบงานสร้างและอัปเดตจาก Booking sync เท่านั้น (1:1 กับ `BookingJobs`) — ไม่มี endpoint link / unlink / void / review queue (DL33) · `needsReview` + `reviewReasons` เป็นป้ายข้อมูลเท่านั้น
 
 ### Booking & Integration
 
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
-| GET | `/booking-jobs` | `booking:read` | projection · filter `from`, `to`, `teamId`, `status`, `linked`, `q` |
-| GET | `/booking-jobs/:id` | `booking:read` | + WO ที่ link + `raw` (เฉพาะ `integration:view`) |
+| GET | `/booking-jobs` | `booking:read` | projection · filter `from`, `to`, `teamId`, `status`, `q` |
+| GET | `/booking-jobs/:id` | `booking:read` | + ใบงานของงานนี้ + `raw` (เฉพาะ `integration:view`) |
 | POST | `/booking-jobs/:id/refresh` | `booking:refresh` | `fetchJob` สด (timeout 5s · 503 ถ้าไม่ได้) |
 | GET | `/integration/status` | `integration:view` | breaker, lag, counts |
-| GET | `/integration/inbox?status` · `/integration/outbox?status` · `/integration/call-logs` | `integration:view` | |
-| POST | `/integration/inbox/:id/retry` · `/integration/outbox/:id/retry` | `integration:manage` | |
+| GET | `/integration/inbox?status` · `/integration/call-logs` | `integration:view` | |
+| POST | `/integration/inbox/:id/retry` | `integration:manage` | |
 | POST | `/integration/booking/sync` | `integration:manage` | `{ mode: 'incremental' \| 'full', from?, to? }` → 202 |
 | GET | `/integration/mapping-issues` | `integration:view` | ref ที่ map ไม่ได้ |
-| POST | `/integration/booking/webhooks` | Public + HMAC | **[Assumption]** → 202 |
-| POST | `/integration/webhooks/device-location` · `/device-status` | Public + HMAC ✱ | จาก vendor กล้อง |
 
 ### Media ✱
 
@@ -136,6 +133,8 @@
 | GET | `/evidence-exports/policy` · POST `/evidence-exports` · GET `/evidence-exports/:id` | `evidence:export` |
 | POST | `/evidence-exports/:id/download-ticket` · GET `/evidence-exports/download?ticket=` | `evidence:download` / Public (ticket) |
 | POST | `/talk/sessions` `{ streamSessionToken }` · WS `/api/talk/ws?ticket=` | `streaming:talk` |
+
+`POST /evidence-exports` ใช้ job เดิมเมื่อ device + channel + start/end ตรงกันพอดีและ job ยัง `Queued` / `Processing` / `Ready` ที่ยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่ (port `evidence-export-rules.ts` · ใช้จากหน้า หลักฐาน และ `/recordings` — DL36)
 
 ### Notifications, Dashboard, System
 
@@ -154,7 +153,7 @@
 
 ## 5.3 Request / Response Examples
 
-### GET `/api/work-orders?status=1&linkStatus=3,4,5&page=1&pageSize=20`
+### GET `/api/work-orders?status=1&teamId=7&page=1&pageSize=20`
 
 ```json
 {
@@ -162,15 +161,12 @@
     {
       "id": "1042",
       "workOrderNo": "WO-202611-00042",
-      "title": "ใบงานอัตโนมัติ TEAM-07 BWC-0031",
+      "title": "ติดตั้งกล้องวงจรปิด อาคาร B",
       "status": 1,
-      "linkStatus": 3,
-      "linkConfidence": 2,
       "needsReview": false,
       "team": { "id": "7", "code": "TEAM-07", "name": "ทีมติดตั้ง 7" },
       "leader": { "id": "315", "name": "สมชาย ใจดี" },
-      "booking": null,
-      "suggestedBooking": { "id": "8801", "externalJobNo": "BK-2611-0193", "plannedStartAt": "2026-11-03T02:00:00.000Z" },
+      "booking": { "id": "8801", "externalJobNo": "BK-2611-0193", "plannedStartAt": "2026-11-03T02:00:00.000Z" },
       "openedAt": "2026-11-03T00:41:12.000Z",
       "lastActivityAt": "2026-11-03T03:10:00.000Z",
       "openSessionCount": 1,
@@ -193,10 +189,6 @@
   "title": "ติดตั้งกล้องวงจรปิด อาคาร B",
   "status": 1,
   "closeReason": null,
-  "linkStatus": 2,
-  "linkSource": 1,
-  "linkConfidence": 1,
-  "linkedAt": "2026-11-03T00:46:30.000Z",
   "booking": {
     "id": "8801",
     "sourceSystem": "BOOKING",
@@ -223,41 +215,12 @@
   "reviewReasons": [],
   "note": null,
   "summary": { "sessionCount": 2, "activeSeconds": 8340, "recordedSeconds": 7210, "devices": ["BWC-0031", "BWC-0090"] },
-  "availableActions": ["unlink", "editNote", "exportEvidence"],
+  "availableActions": ["editNote", "exportEvidence"],
   "rowVersion": 4
 }
 ```
 
-`availableActions` คำนวณที่ server (pattern จาก `/my-jobs` ของ reference) — client ไม่เดากติกาเอง · **ไม่มีปุ่มปิด/reopen** เพราะสถานะตาม Booking check-in/check-out (`closedAt` = เวลา check-out)
-
-### POST `/api/work-orders/1042/link`
-
-```http
-POST /api/work-orders/1042/link
-If-Match: 3
-Content-Type: application/json
-
-{ "bookingJobId": "8801", "reason": "ยืนยันจากหัวหน้าทีมทางโทรศัพท์" }
-```
-
-```json
-{ "id": "1042", "linkStatus": 2, "linkSource": 2, "result": "linked", "rowVersion": 4 }
-```
-
-กรณีงานนั้นมี WO อยู่แล้ว: `{ "id": "1042", "status": 5, "result": "merged", "mergedIntoWorkOrderId": "1037" }`
-
-### POST `/api/work-orders/1042/void` — error ตัวอย่าง
-
-```json
-{
-  "statusCode": 409,
-  "code": "WORK_ORDER_FOLLOWS_BOOKING",
-  "message": "ใบงานนี้ผูกกับ Booking แล้ว สถานะเปลี่ยนได้จากระบบ Booking เท่านั้น",
-  "details": { "bookingJobNo": "BK-2611-0193" },
-  "correlationId": "7c1d2f0e5b6a4a1f"
-}
-```
-
+`availableActions` คำนวณที่ server (pattern จาก `/my-jobs` ของ reference) — client ไม่เดากติกาเอง · **ไม่มีปุ่มปิด/reopen/link/void** เพราะใบงานและสถานะมาจาก Booking เท่านั้น (DL33 · `closedAt` = เวลา check-out)
 ### GET `/api/tracking-sessions?open=true`
 
 ```json
@@ -267,7 +230,7 @@ Content-Type: application/json
       "id": "55120",
       "device": { "id": "31", "code": "BWC-0031", "name": "กล้องทีม 7" },
       "team": { "id": "7", "code": "TEAM-07" },
-      "workOrder": { "id": "1042", "workOrderNo": "WO-202611-00042", "linkStatus": 2 },
+      "workOrder": { "id": "1042", "workOrderNo": "WO-202611-00042" },
       "startedAt": "2026-11-03T02:31:40.000Z",
       "startInferred": 1,
       "matchState": 1,
@@ -292,25 +255,21 @@ Content-Type: application/json
     "isStale": false,
     "consecutiveFailures": 0,
     "inbox": { "pending": 0, "failed": 1, "dead": 0 },
-    "outbox": { "pending": 0, "failed": 0, "dead": 0, "writebackEnabled": false },
     "mappingIssues": 2,
     "lastFullSyncAt": "2026-11-02T19:00:04.000Z"
   }
 }
 ```
 
-### Booking webhook ขาเข้า [Assumption]
+### GET `/api/work-orders/by-booking/c1f0a9e2` — deep link จาก Booking app (DL31)
 
-```http
-POST /api/integration/booking/webhooks
-X-Booking-Timestamp: 1793667600
-X-Booking-Signature: sha256=4f0c…
-Content-Type: application/json
+Booking app ลิงก์มาที่ `https://{host}/work-orders/by-booking/{externalJobId}` · SPA เรียก endpoint นี้แล้ว redirect ไป `/work-orders/:id`
 
-{ "eventId": "evt_01JC…", "type": "job.updated", "jobId": "c1f0a9e2", "occurredAt": "2026-11-03T03:00:00Z" }
+```json
+{ "id": "1042" }
 ```
 
-ตอบ `202 { "accepted": true }` เสมอเมื่อ signature ผ่าน (รวมกรณีซ้ำ) · signature ไม่ผ่าน = 401 · body เกิน 256 KB = 413
+ต้อง login + data scope ตามปกติ · ไม่พบใบงานหรือนอก scope = 404 · ระบบไม่รับ webhook จาก Booking (pull อย่างเดียว — Part 7 §7.2)
 
 ---
 
@@ -322,7 +281,7 @@ Content-Type: application/json
 
 | Method | Path | Permission | Response หลัก |
 |---|---|---|---|
-| GET | `/mobile/overview` | `dashboard:view` | สรุปหน้าแรก: กล้อง online/ดับระหว่างงาน · ใบงานเปิดอยู่ · คิวตรวจสอบ · alert ล่าสุด · สถานะ Booking sync |
+| GET | `/mobile/overview` | `dashboard:view` | สรุปหน้าแรก (ดึงตอนเปิดหน้า): กล้อง online/ดับระหว่างงาน · ใบงานเปิดอยู่ / ไม่มี check-out · alert ล่าสุด · สถานะ Booking sync |
 | GET / PATCH / DELETE | `/auth/devices[/:id]` | login | ทะเบียนเครื่อง (`deviceName`, `pushEnabled`) — ไม่มี PIN |
 | POST / GET / DELETE | `/notifications/push-tokens[/:token]` | `notifications:read` | FCM token |
 
@@ -331,7 +290,7 @@ Content-Type: application/json
 ```json
 {
   "devices": { "online": 42, "offline": 11, "unknown": 3, "offlineDuringJob": 1 },
-  "workOrders": { "open": 18, "reviewQueue": 4, "noCheckout": 1 },
+  "workOrders": { "open": 18, "noCheckout": 1 },
   "booking": { "isStale": false, "lastSuccessAt": "2026-11-04T03:08:00.000Z" },
   "latestAlerts": [
     { "alertId": "9012", "alertType": 5, "severity": 2, "title": "กล้อง BWC-0031 ดับระหว่างงาน", "workOrderId": "1042" }
@@ -353,10 +312,9 @@ Push ที่ส่งเข้ามือถือ: alert ตาม §5.6 ข
 | Event | Room | Payload | ใช้ที่ |
 |---|---|---|---|
 | `gps:batch` ✱ | tracking rooms | `{ points: [{ deviceId, lat, lng, speedKph, heading, recordedAt, isValidFix }] }` | แผนที่ (throttle flush 1s ที่ client) |
-| `device:status` ✱ | tracking rooms | `{ deviceId, platformState, stateSince, source }` | แผนที่, รายการอุปกรณ์ |
 | `session:opened` | tracking rooms | `{ sessionId, deviceId, teamId, workOrderId, startedAt }` | Active sessions, dashboard |
 | `session:closed` | tracking rooms | `{ sessionId, deviceId, workOrderId, endedAt, endReason }` | |
-| `workorder:changed` | `dept:{id}` | `{ workOrderId, status, linkStatus, needsReview, rowVersion, change: 'created'\|'linked'\|'closed'\|... }` | WO list/detail (invalidate query), mobile |
+| `workorder:changed` | `dept:{id}` | `{ workOrderId, status, needsReview, rowVersion, change: 'created'\|'statusChanged'\|'sessionAttached'\|... }` | WO list/detail (invalidate query), mobile |
 | `alert:new` ✱ | alert rooms / `user:{id}` | `{ alertId, alertType, severity, title, message, workOrderId?, deviceId? }` | toast, bell |
 | `stream:status` ✱ | `user:{id}` | `{ sessionToken, status, endReason }` | player |
 | `integration:status` | `org` (ทุกคน — payload ไม่มีข้อมูลอ่อนไหว) | `{ source: 'BOOKING', isStale, lastSuccessAt }` · admin ดูรายละเอียด breaker/lag จาก `/integration/status` | banner "Booking data stale" ทุกหน้าที่แสดงข้อมูล Booking |
@@ -364,30 +322,32 @@ Push ที่ส่งเข้ามือถือ: alert ตาม §5.6 ข
 
 Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLivePositions` / `liveMerge` ของ reference) · `workorder:changed` → `queryClient.invalidateQueries(['work-orders'])` (debounce 800ms)
 
+ไม่มี event `device:status` — สถานะ online/offline ไม่ push ขึ้นหน้าจอ หน้าจอดึงตอนเปิด (DL35 · §5.2 Devices & Assignments)
+
 ---
 
 ## 5.6 Alert Types
 
-ตั้งเลขใหม่ (ฐานข้อมูลใหม่ ไม่ต้องสืบทอดเลขที่ retired ของ reference)
+ตั้งเลขใหม่ (ฐานข้อมูลใหม่ ไม่ต้องสืบทอดเลขที่ retired ของ reference) · เลขเป็น enum append-only — เลขที่เลิกใช้เป็น "สงวน" ห้ามใช้ซ้ำและห้ามเลื่อนเลข
 
 | # | Code | Severity | ผู้รับ | เงื่อนไข |
 |---|---|---|---|---|
-| 1 | `CAMERA_ACTIVE_UNLINKED` | Info | Operator ของแผนก | WO ใหม่ที่ `Unlinked` |
-| 2 | `BOOKING_MATCH_SUGGESTED` | Info | Operator | WO `Suggested` |
-| 3 | `BOOKING_MATCH_AMBIGUOUS` | Warning | Operator | WO `Ambiguous` |
-| 4 | `CAMERA_ACTIVE_NO_TEAM` | Warning | Admin + Operator | กล้องเปิดใช้แต่ Booking ยังไม่ผูกกล้องนี้กับทีม/งาน (เข้าใบรวมของกล้อง) |
-| 5 | `DEVICE_OFFLINE_DURING_JOB` | Warning | Operator | WO linked Open, Booking ช่วงงานยังไม่จบ, กล้อง offline ≥ `alert.offline-during-job-minutes` (10) |
-| 6 | `WORK_ORDER_AUTO_CLOSED` | Info | Operator | ปิดด้วย SafetyTimeout (ผูก Booking แต่ไม่มี check-out ครบ 7 วัน) หรือ NoBookingData (ใบรวมไม่มีข้อมูล Booking ครบ 240 นาที) |
+| 1 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `CAMERA_ACTIVE_UNLINKED` (ใบงานไม่ผูก Booking) |
+| 2 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `BOOKING_MATCH_SUGGESTED` (LinkStatus) |
+| 3 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `BOOKING_MATCH_AMBIGUOUS` (LinkStatus) |
+| 4 | `CAMERA_ACTIVE_NO_TEAM` | Warning | Admin + Operator | กล้องเปิดใช้แต่ Booking ยังไม่ผูกกล้องนี้กับทีม/งาน (session `NoTeam` — ไม่สร้างใบงาน รอ Booking) |
+| 5 | `DEVICE_OFFLINE_DURING_JOB` | Warning | Operator | WO Open, Booking ช่วงงานยังไม่จบ, กล้อง offline ≥ `alert.offline-during-job-minutes` (10) |
+| 6 | `WORK_ORDER_AUTO_CLOSED` | Info | Operator | ปิดด้วย SafetyTimeout (ไม่มี check-out ครบ 7 วัน) |
 | 7 | `WORK_ORDER_CANCELLED_WITH_EVIDENCE` | Warning | Operator + Admin | Booking ยกเลิกแต่มี recording |
 | 8 | `BOOKING_JOB_CHANGED_AFTER_CLOSE` | Info | Operator | |
-| 9 | `RECORDING_OUTSIDE_WORK` | Warning | Operator | session ที่ไม่มี WO linked มี recording ≥ 10 นาที |
+| 9 | `RECORDING_OUTSIDE_WORK` | Warning | Operator | session ที่ไม่มี WO (`AwaitingMatch` / `NoTeam`) มี recording ≥ 10 นาที |
 | 10 | `BOOKING_SYNC_STALE` | Warning / Critical | Admin | lag > 15 / > 60 นาที |
-| 11 | `INTEGRATION_DEAD_LETTER` | Warning | Admin | inbox/outbox `Dead` |
+| 11 | `INTEGRATION_DEAD_LETTER` | Warning | Admin | inbox `Dead` |
 | 12 | `BOOKING_MAPPING_ISSUES` | Info | Admin | รายวัน |
 | 13 | `DEVICE_VENDOR_MISSING` | Warning | Admin | device sync ไม่พบเครื่องใน DSS |
-| 14 | `WORK_ORDER_NO_CHECKOUT` | Warning | Operator | ใบงานผูก Booking แล้วไม่มี check-out เกิน 36 ชม. นับจาก `OpenedAt` (`workorder.stale-open-hours`) |
-| 15 | `WORK_ORDER_AUTO_VOIDED` | Info | Operator | ใบรวมถูก void อัตโนมัติเพราะไม่มี recording (สงสัยกล้องชาร์จ) — ตรวจย้อนได้ |
-| 16 | `REVIEW_QUEUE_OVERDUE` | Warning | Operator + Admin | ใบงานอยู่ในคิวตรวจสอบเกิน 36 ชม. (`review.sla-hours`) — ครั้งเดียวต่อใบ |
+| 14 | `WORK_ORDER_NO_CHECKOUT` | Warning | Operator | ใบงานไม่มี check-out เกิน 36 ชม. นับจาก `OpenedAt` (`workorder.stale-open-hours`) |
+| 15 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `WORK_ORDER_AUTO_VOIDED` (auto-void ใบที่ไม่มี recording) |
+| 16 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `REVIEW_QUEUE_OVERDUE` (SLA คิวตรวจสอบ) |
 
 ทุก alert มี `DedupeKey` (เช่น `5:wo:1042`) กันซ้ำขณะยัง New/Acknowledged · ไม่มีการ "re-nag"
 
@@ -401,10 +361,7 @@ Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLive
 | `tracking:view` | ✓ | ✓ | ✓ |
 | `tracking:history` | ✓ | ✓ | ✓ |
 | `sessions:read` | ✓ | ✓ | ✓ |
-| `sessions:classify` | ✓ | ✓ | |
 | `work-orders:read` | ✓ | ✓ | ✓ |
-| `work-orders:link` | ✓ | ✓ | |
-| `work-orders:void` | ✓ | | |
 | `work-orders:edit-note` | ✓ | ✓ | |
 | `booking:read` | ✓ | ✓ | ✓ |
 | `booking:refresh` | ✓ | ✓ | |
@@ -429,7 +386,8 @@ Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLive
 | `audit:view` | ✓ | | |
 | `settings:manage` | ✓ | | |
 
-- **ไม่มี permission ปิด/reopen ใบงาน** — สถานะใบงานที่ผูก Booking ตาม check-in/check-out ของ Booking **[Confirmed — Q1, Q2, Q9]** · void = `ADMIN` เฉพาะใบที่ไม่ผูก Booking
+- **ไม่มี permission ปิด/reopen ใบงาน** — สถานะใบงานตาม check-in/check-out ของ Booking **[Confirmed — Q1, Q2, Q9]**
+- **ไม่มี permission link / void ใบงาน หรือ classify session** — ใบงานมาจาก Booking เท่านั้น และ session ผูกกับใบงานโดย matching อัตโนมัติ (DL33) · OPERATOR = monitor (แผนที่, live, live wall, talk), ดูย้อนหลัง/export หลักฐาน, จัดการทีม, รับทราบ alert
 - **ไม่มี role `TEAM_LEADER`** — หัวหน้าทีม check-in/check-out ใน Booking app · แอปมือถือของระบบนี้สำหรับ Operator/Admin/Viewer **[Confirmed — Q18]** · ทีมและหัวหน้าทีมยังเก็บเป็นข้อมูล (`Teams`, `TeamMembers`) เพื่อใช้จับคู่กับ Booking
 - การผูกกล้องกับทีม/งาน (รวมกล้องสำรอง) **มาจาก Booking เท่านั้น** (`DeviceRefs`, Booking sync) **[Confirmed — Q4, Q20]** — ไม่มี permission ผูกกล้องในระบบนี้
 - `audit:view` = `ADMIN` เท่านั้น **[Confirmed — Q19]**
