@@ -194,7 +194,7 @@ flowchart TB
 
 - `RealtimeProvider` เดียว (port) · event ใหม่ `session:opened/closed`, `workorder:changed`, `integration:status`
 - แผนที่: queue `gps:batch` flush ทุก 1s (pattern `liveMerge.ts`) · REST snapshot เมื่อ reconnect · poll 60s เฉพาะตอน socket หลุด
-- **ไม่มี `device:status`** (DL35) — ไม่ subscribe สถานะ online/offline · หน้า device list / device detail / ก่อนเปิด live ดึงสถานะจาก API ตอนเปิดหน้า (`GET /devices`, `GET /devices/:id` — api ถาม DSS)
+- **ไม่มี `device:status`** (DL35) — ไม่ subscribe สถานะ online/offline · หน้า device list / device detail / ก่อนเปิด live ดึงสถานะจาก API ตอนเปิดหน้า (`GET /devices`, `GET /devices/:id` — api ถาม DSS ผ่าน cache Redis 10s, DL45) · แสดงเวลาอัปเดตจาก `platformStatusFetchedAt`
 - WO/Session list: event ⇒ `invalidateQueries` (debounce 800ms) — ไม่ patch cache เอง ลดความเสี่ยงข้อมูลเพี้ยน
 - `integration:status` ⇒ `BookingStaleBanner` ทุกหน้าที่แสดงข้อมูล Booking
 

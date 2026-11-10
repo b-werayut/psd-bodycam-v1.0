@@ -28,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `06-frontend-architecture.md` | Folder structure, routes, screens, component reuse, status→tone mapping |
 | `07-integration-strategy.md` | Booking port/adapters, pull-only sync, the API we ask Booking for, inbox, retry, idempotency, Confirmed vs Assumption |
 | `08-implementation-roadmap.md` | Phases P0–P6 with dependencies and acceptance criteria |
-| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL44) |
+| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL45) |
 
 - Implement in roadmap order.
 - P3c (the real Booking `http` adapter) is blocked until the Booking team provides a spec. Until then, build on the `mock` adapter (DL25).
@@ -63,11 +63,11 @@ Client (Vite):
 **Process model**
 - NestJS **modular monolith**. Two process types come from one codebase: `api` and `worker`.
 - The worker is split by `WORKER_ROLES=tracking,integration,media`, so roles can become separate pods later without code changes.
-- Redis provides the Socket.IO adapter/emitter, locks, rate limiting, BullMQ queues and the circuit-breaker state.
+- Redis provides the Socket.IO adapter/emitter, locks, rate limiting, BullMQ queues, the circuit-breaker state and the screen camera-status cache (DL45). It is not a general data cache: external data is projected into PostgreSQL.
 
 **Two paths that must stay isolated**
 - *Real-time path*: DSS (GpsPoll) → `device-status` → `DeviceState` (internal, feeds the session engine) and `gps:batch` → Socket.IO. It **never calls Booking**.
-  - No `device:status` push (DL35): screens that show camera status fetch it from DSS on open (`api` → DSS middleware). Other events (`gps:batch`, `session:*`, `workorder:changed`, `alert:new`, …) stay.
+  - No `device:status` push (DL35): screens that show camera status fetch it from DSS on open (`api` → DSS middleware), through a Redis cache `device-status:{deviceId}` with TTL `status.display-cache-seconds` = 10s, fail-open to DSS when Redis is down (DL45). Other events (`gps:batch`, `session:*`, `workorder:changed`, `alert:new`, …) stay.
 - *Booking path* (worker `integration` role): `BookingProvider` port (`mock` | `http` | `csv`) → `IntegrationInbox` → `BookingJobs` (local projection) + its `WorkOrders` row (1:1 upsert by the inbox processor, DL33) → queue `matching` attaches sessions.
   - Matching reads only the projection; it never calls the Booking API live.
   - **Pull only (DL31)**: change feed every 2 min + nightly full reconcile + per-job refresh. No inbound Booking webhook, no write-back, no `IntegrationOutbox`. Booking links to us via `/work-orders/by-booking/{externalJobId}`.

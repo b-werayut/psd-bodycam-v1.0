@@ -72,7 +72,7 @@ flowchart LR
   end
   subgraph Data["Data"]
     PG[("PostgreSQL 16<br/>+ btree_gist")]
-    RD[("Redis 7<br/>adapter · locks · BullMQ · breaker")]
+    RD[("Redis 7<br/>adapter · locks · BullMQ · breaker<br/>cache สถานะกล้อง")]
     FS[("Local disk (PVC)<br/>MP4 export ชั่วคราว")]
   end
   ING --> SPA
@@ -93,6 +93,8 @@ flowchart LR
 - `worker-tracking` ต้องมี **1 instance ที่ active** (Redis lock กันซ้ำอยู่แล้ว แต่ไม่ได้ประโยชน์จากการ scale)
 - `worker-integration` / `worker-media` scale แนวนอนได้ (BullMQ consumers)
 - Redis ต้องมี persistence (AOF) และใช้ร่วมระหว่าง API กับ worker (key prefix ต่อ environment — port `lock-key.ts` ของ reference)
+  - บทบาท: Socket.IO adapter (`api`) / emitter (worker) · lock · rate limit · BullMQ · circuit breaker · ผล `Idempotency-Key` 24 ชม. · **cache สถานะกล้องบนหน้าจอ** (DL45)
+  - ไม่ใช้ Redis เป็น cache ข้อมูลทั่วไป — ข้อมูลจากระบบภายนอกเก็บเป็น projection ใน PostgreSQL (`BookingJobs`, `RecordingSegments`, `DeviceState`) · cache ที่เหลือเป็น in-memory ต่อ process (data scope 60s, token Booking / DSS)
 - `worker-media` image ต้องมี ffmpeg · migrate เป็น job แยกก่อน rollout
 - **กันงานแปลงไฟล์แย่งเครื่อง (DL39)** — สำคัญเป็นพิเศษเพราะ `api` กับ worker อยู่บน PSD Server เครื่องเดียวกัน (DL44): การแยก process ยังกัน event loop, crash และ deploy ไม่ให้ลากกัน แต่ CPU / RAM / network / disk ยังใช้ร่วมกัน จึงต้องคุมเพิ่ม
   - Kubernetes `resources` แยกต่อ container: `worker-media` ตั้ง `limits` (เริ่มที่ CPU 1 core / memory 1 GiB แล้วปรับตามโหลดจริง) · `api` ตั้ง `requests` กัน CPU / memory ไว้ให้เสมอ
@@ -167,7 +169,7 @@ flowchart TB
 | `users` | ผู้ใช้, role, role-permission matrix, ระงับบัญชี (`cutAllSessions`) | `modules/users` (ตัด company) |
 | `org` | departments (tree), employees, link employee ↔ user, `BookingEmployeeRef` | `departments`, `employees` |
 | `teams` | ทีม, สมาชิก, เปลี่ยนหัวหน้าทีม (ประวัติ), `BookingTeamRef` | ใหม่ |
-| `devices` | ทะเบียน bodycam, vendor sync (`device-sync.plan.ts`), streaming toggle, Depots · การผูกกล้อง → ทีม **อ่านจาก Booking sync เท่านั้น** (ไม่มีหน้าจอผูกเอง — Q20) · สถานะกล้องที่แสดงบนหน้าจอ `api` ถาม DSS middleware ตอน request (DL35) | `devices`, `device-assignments` (refactor เป็น read-only projection) |
+| `devices` | ทะเบียน bodycam, vendor sync (`device-sync.plan.ts`), streaming toggle, Depots · การผูกกล้อง → ทีม **อ่านจาก Booking sync เท่านั้น** (ไม่มีหน้าจอผูกเอง — Q20) · สถานะกล้องที่แสดงบนหน้าจอ `api` ถาม DSS middleware ตอน request (DL35) ผ่าน cache Redis (DL45) | `devices`, `device-assignments` (refactor เป็น read-only projection) |
 | `device-status` | **Device Event Processing**: รับ observation จาก GpsPoll (`/location` ให้ทั้ง GPS และ online/offline — DL32) → `DeviceState` + `DeviceStatusHistory` ให้ session engine ใช้ภายใน · ไม่ push สถานะขึ้นหน้าจอ (ไม่มี `device:status` — DL35) · ไม่มี business logic | แยกจาก `GpsPoll.applyVendorStatuses` (ไม่ port `brms-mq.service.ts` — DL30) |
 | `tracking` | GPS ingestion pipeline (`ingestLocations`), positions snapshot, route history | `modules/tracking` (ตัด road-match) |
 | `sessions` | **Session engine** (sweep, pure `decide()`, open/close/split) · เป็น writer เดียวของ lifecycle session · ไม่สร้างใบงาน — match ไม่ได้ ⇒ session ค้าง `AwaitingMatch` / `NoTeam` · กล้องชาร์จที่ฐาน ⇒ ระบบตั้ง `Classified` + `IdleOrCharging` · recording index | ใหม่ (แทน `camera-session.service.ts`) |
@@ -206,6 +208,7 @@ flowchart LR
 ```
 
 - สถานะ online/offline **ไม่ถูก push ขึ้นหน้าจอ** (ไม่มี `device:status` — DL35) · `DeviceState` ใช้ภายในโดย session engine · หน้าจอที่แสดงสถานะกล้อง (รายการ/รายละเอียดอุปกรณ์, ก่อนเปิด live) ให้ `api` ถาม DSS middleware ตอนเปิดหน้า
+- **cache สถานะกล้อง (DL45)**: `api` เก็บผลจาก DSS ใน Redis key `device-status:{deviceId}` (prefix ต่อ environment) อายุ `status.display-cache-seconds` (10s) ใช้ร่วมทุก api pod · `GET /devices` อ่านทีละหลาย key (`MGET`) แล้วถาม DSS เฉพาะกล้องที่ไม่มีใน cache · หลายคนเปิดหน้าพร้อมกันจึงไม่ยิง DSS ซ้ำ · session engine ไม่ใช้ cache นี้ (ใช้ `DeviceState` จาก GpsPoll)
 
 ### (B) Session → Work Order ของ Booking job
 
@@ -254,8 +257,8 @@ Evidence (หน้า หลักฐาน `/evidence` — DL36): เลือ
 |---|---|---|---|
 | **Booking API** | sync หยุด, projection เก่าลง, ไม่มีใบงานใหม่ | tracking, session, match กับ projection เดิม, live/playback ทั้งหมด | circuit breaker (Redis) · retry backoff · banner "ข้อมูล Booking ไม่เป็นปัจจุบัน" · session ที่ match ไม่ได้ระหว่างนั้นค้าง `AwaitingMatch` แล้ว rematch อัตโนมัติหลัง Booking กลับมา (full reconcile เมื่อ breaker ปิด) |
 | Booking ช้า (timeout) | job ของ queue `booking-*` ช้า | ทุกอย่างนอก queue นั้น | timeout 8s · concurrency จำกัด · อยู่คนละ worker role |
-| DSS middleware / Dahua DSS Platform | ไม่มี status/GPS ใหม่, live/playback ใช้ไม่ได้, หน้าจอดึงสถานะกล้องไม่ได้ (DL35) | หน้าจอ, WO เดิม, Booking sync | สถานะอุปกรณ์กลายเป็น UNKNOWN (คำนวณจากอายุข้อมูล) · session **ไม่ถูกปิดทันที** (hold ≤ `session.unknown-max-minutes`) |
-| Redis | ไม่มี realtime จาก worker, ไม่มี lock, queue หยุด | REST API, DB | health check แจ้ง · worker-tracking หยุด sweep เมื่อ lock ไม่ได้ (fail-safe) |
+| DSS middleware / Dahua DSS Platform | ไม่มี status/GPS ใหม่, live/playback ใช้ไม่ได้, หน้าจอดึงสถานะกล้องไม่ได้ (DL35) เมื่อ cache หมดอายุ (≤ 10s — DL45) | หน้าจอ, WO เดิม, Booking sync | สถานะอุปกรณ์กลายเป็น UNKNOWN (คำนวณจากอายุข้อมูล) · session **ไม่ถูกปิดทันที** (hold ≤ `session.unknown-max-minutes`) |
+| Redis | ไม่มี realtime จาก worker, ไม่มี lock, queue หยุด, ไม่มี cache สถานะกล้อง | REST API, DB | health check แจ้ง · worker-tracking หยุด sweep เมื่อ lock ไม่ได้ (fail-safe) · `api` ข้าม cache แล้วถาม DSS ตรง (fail-open — DL45) |
 | worker-tracking | ไม่มี session ใหม่ / ไม่มี GPS ใหม่ | UI, Booking sync | level-triggered sweep ⇒ เมื่อกลับมา คำนวณใหม่จาก state ปัจจุบันได้เอง |
 | PostgreSQL | ระบบหยุด | — | managed HA + backup (นอกขอบเขต design นี้) |
 

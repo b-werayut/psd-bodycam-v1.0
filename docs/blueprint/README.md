@@ -73,7 +73,7 @@
 | ใบงานมาจาก Booking เท่านั้น (`BookingJobId` NOT NULL — DL33) | ใบงานตรง Booking เสมอ · ไม่มีใบงานขยะ · ไม่มีงาน manual (link / void / คิวตรวจสอบ) | session ที่ Booking ไม่ระบุค้าง `AwaitingMatch` ไม่มีใบงาน — ดูหลักฐานจาก `/recordings` รายกล้อง |
 | สถานะใบงานตาม Booking check-in/check-out | ไม่มีสองแหล่งความจริงเรื่องสถานะ | Booking ล่ม = ปิดใบงานช้า (ปิดย้อนหลังด้วยเวลาจริง) · ต้องมี SafetyTimeout |
 | Matching อัตโนมัติอย่างเดียว (DL33) | ไม่มีคิวงานให้ Operator · ผลอธิบายได้จาก `MatchAttempts` | การผูกผิดแก้ได้ทางเดียวคือแก้ข้อมูลใน Booking |
-| ไม่ push online/offline — หน้าจอดึงสถานะจาก DSS ตอนเปิด (DL35) | สถานะที่เห็นสดกว่า GpsPoll · event น้อยลง | หน้าจอที่เปิดค้างไม่อัปเดตสถานะเอง |
+| ไม่ push online/offline — หน้าจอดึงสถานะจาก DSS ตอนเปิด (DL35) ผ่าน cache Redis 10s (DL45) | สถานะที่เห็นสดกว่า GpsPoll · event น้อยลง · หลายคนเปิดพร้อมกันไม่ยิง DSS ซ้ำ | หน้าจอที่เปิดค้างไม่อัปเดตสถานะเอง · สถานะเก่าได้ ≤ 10s |
 | ไฟล์ export MP4 บน Local disk PVC 24 ชม. (DL34) | ไม่ต้องดูแล object storage | ต้อง mount PVC ร่วม `api` + `worker-media` (R16) · ผู้ใช้ต้องดาวน์โหลดเก็บเองภายใน 24 ชม. |
 | Partition GPS/Audit รายเดือน | retention = drop partition · query เร็ว | DDL partition ต้องเขียน custom migration |
 
@@ -126,7 +126,8 @@ flowchart LR
   WI -- "pull sync" --> BK
 ```
 
-- **Real-time path** (DSS `/location` → GPS + สถานะ → `DeviceState` ภายใน + `gps:batch` → Socket.IO) และ **session engine** ไม่เรียก Booking · ไม่ push online/offline — หน้าจอดึงสถานะจาก DSS ตอนเปิดผ่าน `api` (DL35)
+- **Real-time path** (DSS `/location` → GPS + สถานะ → `DeviceState` ภายใน + `gps:batch` → Socket.IO) และ **session engine** ไม่เรียก Booking · ไม่ push online/offline — หน้าจอดึงสถานะจาก DSS ตอนเปิดผ่าน `api` (DL35) ซึ่ง cache ผลไว้ใน Redis 10s (DL45)
+- **Redis** = Socket.IO adapter / emitter · lock · rate limit · BullMQ · circuit breaker · cache สถานะกล้องบนหน้าจอ — ไม่ใช่ cache ข้อมูลทั่วไป
 - **Booking path** อยู่ใน worker integration: pull sync อย่างเดียว (DL31) + projection + inbox + upsert WO 1:1 (DL33) + circuit breaker + reconcile
 - **ไฟล์ export MP4**: `worker-media` เขียนลง Local disk PVC · `api` stream ให้ดาวน์โหลดด้วย download ticket · ลบหลัง 24 ชม. (DL34)
 - **กติกาหลัก**: session engine เป็น writer เดียวของ lifecycle session · ทุก write ต่ออุปกรณ์ถือ row lock `DeviceState` · emit realtime หลัง commit

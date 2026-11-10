@@ -476,6 +476,7 @@ sequenceDiagram
 | Key | Default | Bounds | ใช้ที่ |
 |---|---|---|---|
 | `status.unknown-after-seconds` | 120 | ≥ 2 × poll | คำนวณ UNKNOWN |
+| `status.display-cache-seconds` | 10 | 0–60 (0 = ไม่ cache) | อายุ cache Redis ของสถานะกล้องที่ `api` ดึงจาก DSS ให้หน้าจอ (DL45) · ไม่กระทบ session engine |
 | `gps.poll-interval-seconds` | 15 | 5–300 | GpsPoll (เดิม) |
 | `camera.activation-debounce-minutes` | **15** **[Confirmed — Q3]** | 1–60 | เปิด session |
 | `session.merge-gap-minutes` | 15 | 0–240 | ตัด session เมื่อ offline (ไม่ใช่การปิดใบงาน) |
