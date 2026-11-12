@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**PSD Body worn camera** (repo `psd-bodycam-v1.0`) — a new Bodycam-only tracking and work-order system. It rebuilds the Bodycam part of the reference project `C:\Git\Internal-BodyCam` (with Dashcam and vehicles removed entirely) and links camera usage to work orders from an external **Booking** system.
+**PSD Body worn camera** (repo `psd-bodycam-v1.0`) — a new Bodycam-only tracking and work-order system. It rebuilds the Bodycam part of the reference project `C:\Git\Internal-BodyCam` (with Dashcam and vehicles removed entirely) and links camera usage to work orders from an external **Booking** system (named **Smart Booking** in the requirements).
+
+Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopted as a whole (DL48) with two overrides: role names stay generic (no "Safety"), and GPS history + talk are Must, not Optional.
 
 ## Language policy
 
@@ -24,14 +26,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `02-system-architecture.md` | Modules, process roles, dependency rules, failure isolation, security |
 | `03-business-workflows.md` | Session lifecycle, `decide()` decision table, matching algorithm, Booking-driven status, Settings keys |
 | `04-database-design.md` | **Canonical names** for tables, columns, enums, constraints and indexes, plus retention and migration strategy |
-| `05-api-design.md` | REST endpoints, error codes, mobile API, Socket.IO events, alert types, permission matrix |
+| `05-api-design.md` | REST endpoints, error codes, the Booking inbound endpoint, team-leader mobile API, Socket.IO events, alert types, permission matrix |
 | `06-frontend-architecture.md` | Folder structure, routes, screens, component reuse, status→tone mapping |
-| `07-integration-strategy.md` | Booking port/adapters, pull-only sync, the API we ask Booking for, inbox, retry, idempotency, Confirmed vs Assumption |
+| `07-integration-strategy.md` | Booking push contract v1 (inbound endpoint, auth, responses), inbound mapper, optional read API, inbox, retry, idempotency, Confirmed vs Assumption |
 | `08-implementation-roadmap.md` | Phases P0–P6 with dependencies and acceptance criteria |
-| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL45) |
+| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL49) |
 
 - Implement in roadmap order.
-- P3c (the real Booking `http` adapter) is blocked until the Booking team provides a spec. Until then, build on the `mock` adapter (DL25).
+- P3c (Smart Booking go-live: agreed contract/auth, `smart-booking` mapper if their body is not our v1, optional read API adapter) is blocked until the Booking team provides a spec. Until then, build on our v1 contract, the `booking-simulator` and the `mock` driver (DL25, DL46).
 - Once code exists, code is the truth. When docs disagree with code, fix the docs.
 
 ## Reference project (read-only)
@@ -68,9 +70,13 @@ Client (Vite):
 **Two paths that must stay isolated**
 - *Real-time path*: DSS (GpsPoll) → `device-status` → `DeviceState` (internal, feeds the session engine) and `gps:batch` → Socket.IO. It **never calls Booking**.
   - No `device:status` push (DL35): screens that show camera status fetch it from DSS on open (`api` → DSS middleware), through a Redis cache `device-status:{deviceId}` with TTL `status.display-cache-seconds` = 10s, fail-open to DSS when Redis is down (DL45). Other events (`gps:batch`, `session:*`, `workorder:changed`, `alert:new`, …) stay.
-- *Booking path* (worker `integration` role): `BookingProvider` port (`mock` | `http` | `csv`) → `IntegrationInbox` → `BookingJobs` (local projection) + its `WorkOrders` row (1:1 upsert by the inbox processor, DL33) → queue `matching` attaches sessions.
+- *Booking path*: Smart Booking **POSTs** jobs to `POST /api/integration/booking/jobs` (`api` process: HMAC or API-key guard, DTO check, insert raw into `IntegrationInbox` with `Channel = 1 Push`, reply `202 accepted` / `200 duplicate`) → queue `booking-inbox` → inbox processor (worker `integration` role) maps with `BookingInboundMapper` (`v1` | `smart-booking`) → `BookingJobs` (local projection) + its `WorkOrders` row (1:1 upsert, DL33) → queue `matching` attaches sessions.
+  - **Push, not pull (DL46, replaces DL31)**: no change feed, no 2-min polling, no `Cursor`. The api never maps or writes `BookingJobs` / `WorkOrders` itself.
+  - Optional read API only if Booking offers one: `BookingProvider` (`none` | `mock` | `http`, default `none`) for per-job refresh and a nightly reconcile. The circuit breaker covers only these outbound calls. `csv` import is a manual fallback.
+  - Jobs carry DO / SH numbers (`BookingJobs.DoNo` / `ShNo`, meaning still an Assumption) for display and search only, plus check-in / check-out times.
+  - Lost POSTs are invisible to us: rely on Booking retries, alert `BOOKING_INBOUND_SILENT`, and the optional reconcile.
   - Matching reads only the projection; it never calls the Booking API live.
-  - **Pull only (DL31)**: change feed every 2 min + nightly full reconcile + per-job refresh. No inbound Booking webhook, no write-back, no `IntegrationOutbox`. Booking links to us via `/work-orders/by-booking/{externalJobId}`.
+  - No write-back, no `IntegrationOutbox`. Booking links to us via `/work-orders/by-booking/{externalJobId}`.
   - `booking-integration` must not import `sessions` or the `work-orders` matcher; matching is handed over through the queue `matching` only. Single exception (Part 2 §2.4 rule 1): the inbox processor calls the `work-orders` writer to upsert the `WorkOrders` row in the same transaction as the projection.
 
 **Core domain**
@@ -142,11 +148,12 @@ Emit realtime events **only after commit**.
 - `availableActions` are computed on the server.
 
 **Access**
-- Roles are `ADMIN`, `OPERATOR` and `VIEWER`.
-  - `OPERATOR` replaces the reference's Supervisor and Dispatcher roles. It monitors (map, live, live wall, talk), plays back / exports evidence, manages teams and acks alerts. It has no link, classify or review duties (DL33).
-  - There is no team-leader role: team leaders use the Booking app.
-  - The mobile app is for Operator, Admin and Viewer.
-- Scope levels are `all` and `department` (subtree).
+- Roles are `ADMIN`, `OPERATOR` and `VIEWER` (web), plus `TEAM_LEADER` (mobile only, DL47). Never add "Safety" to role names (DL48).
+  - `OPERATOR` replaces the reference's Supervisor and Dispatcher roles (the requirement's department/division manager). It monitors (map, live, live wall, talk), plays back / exports evidence, manages teams and acks alerts. It has no link, classify or review duties (DL33).
+  - `TEAM_LEADER`: field team leader. The mobile app is for this role only: live of their own camera + Booking job details (`/mobile/me`, `/mobile/jobs`, `/streams/live`). No web UI, no playback, GPS, camera-status or user management. Check-in / check-out still happens in the Booking app.
+  - Team leaders log in with Entra SSO if they have an Entra account, otherwise with username/password like the reference (`/auth/login`, lockout, refresh rotation) (DL49).
+  - The mobile app is built by our own team. Live + job details is the starting scope; the team may add or remove features by adding `/api/mobile/*` endpoints and `TEAM_LEADER` permissions through a data migration (DL49).
+- Scope levels are `all`, `department` (subtree) and `team` (the team the user's employee currently leads; jobs by `BookingJobs.TeamId` / `LeaderEmployeeId`, cameras of that team or in its open jobs' `DeviceRefs`).
 - Every endpoint needs `@RequirePermission` + `@Audit` and applies data scope at the query layer.
 
 **Reference data**

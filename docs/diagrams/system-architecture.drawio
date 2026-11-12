@@ -10,7 +10,7 @@
         <mxCell id="u_web" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Web browser&lt;/b&gt;&lt;br&gt;ADMIN · OPERATOR · VIEWER&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;เมนูหลัก: live · หลักฐาน (playback) · แผนที่&lt;/font&gt;" vertex="1">
           <mxGeometry height="80" width="300" x="400" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="u_mob" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Mobile app&lt;/b&gt;&lt;br&gt;OPERATOR · ADMIN · VIEWER&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;monitoring + ตรวจหลักฐาน&lt;/font&gt;" vertex="1">
+        <mxCell id="u_mob" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Mobile app&lt;/b&gt;&lt;br&gt;หัวหน้าทีม (TEAM_LEADER)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;live กล้องของตัวเอง + รายละเอียดใบงาน&lt;/font&gt;" vertex="1">
           <mxGeometry height="80" width="300" x="760" y="80" as="geometry" />
         </mxCell>
         <mxCell id="x_fcm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Firebase Cloud Messaging&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;push notification&lt;/font&gt;" vertex="1">
@@ -37,7 +37,7 @@
         <mxCell id="api_gw" parent="api" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#6C8EBF;" value="&lt;b&gt;RealtimeGateway&lt;/b&gt;&lt;br&gt;Socket.IO /realtime · rooms" vertex="1">
           <mxGeometry height="64" width="190" x="225" y="36" as="geometry" />
         </mxCell>
-        <mxCell id="api_wh" parent="api" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#6C8EBF;" value="&lt;b&gt;Deep link จาก Booking&lt;/b&gt;&lt;br&gt;/work-orders/by-booking/:jobId" vertex="1">
+        <mxCell id="api_wh" parent="api" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#6C8EBF;" value="&lt;b&gt;Booking inbound + deep link&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;POST /api/integration/booking/jobs&lt;br&gt;/work-orders/by-booking/:jobId&lt;/font&gt;" vertex="1">
           <mxGeometry height="64" width="190" x="430" y="36" as="geometry" />
         </mxCell>
         <mxCell id="api_talk" parent="api" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#6C8EBF;" value="&lt;b&gt;Talk WebSocket&lt;/b&gt;&lt;br&gt;two-way talk" vertex="1">
@@ -97,7 +97,7 @@
         <mxCell id="w_int" parent="plat" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFE6CC;strokeColor=#D79B00;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;" value="worker-integration × 1..N" vertex="1">
           <mxGeometry height="360" width="320" x="820" y="640" as="geometry" />
         </mxCell>
-        <mxCell id="j_bs" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;" value="&lt;b&gt;booking-sync&lt;/b&gt; (pull)&lt;br&gt;change feed 2m · full 02:00" vertex="1">
+        <mxCell id="j_bs" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;dashed=1;" value="&lt;b&gt;reconcile&lt;/b&gt; (optional)&lt;br&gt;full 02:00 ถ้ามี read API" vertex="1">
           <mxGeometry height="52" width="145" x="12" y="40" as="geometry" />
         </mxCell>
         <mxCell id="j_bi" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;" value="&lt;b&gt;booking-inbox&lt;/b&gt;&lt;br&gt;upsert ใบงาน 1:1" vertex="1">
@@ -109,10 +109,10 @@
         <mxCell id="j_np" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;" value="&lt;b&gt;notification-push&lt;/b&gt;&lt;br&gt;FCM" vertex="1">
           <mxGeometry height="52" width="145" x="163" y="102" as="geometry" />
         </mxCell>
-        <mxCell id="j_port" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;dashed=1;" value="&lt;b&gt;BookingProvider port&lt;/b&gt;: mock | http | csv&lt;br&gt;fetchChangedSince · fetchWindow · fetchJob" vertex="1">
+        <mxCell id="j_port" parent="w_int" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#D79B00;dashed=1;" value="&lt;b&gt;BookingInboundMapper&lt;/b&gt;: v1 | smart-booking&lt;br&gt;BookingProvider (optional): none | mock | http" vertex="1">
           <mxGeometry height="52" width="296" x="12" y="164" as="geometry" />
         </mxCell>
-        <mxCell id="t_int" parent="w_int" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;modules: booking-integration · work-orders (matcher) · notifications&lt;br&gt;booking-integration ส่งงานผ่าน queue &lt;b&gt;matching&lt;/b&gt;&lt;br&gt;เชื่อม Booking แบบ pull อย่างเดียว&lt;/font&gt;" vertex="1">
+        <mxCell id="t_int" parent="w_int" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;modules: booking-integration · work-orders (matcher) · notifications&lt;br&gt;booking-integration ส่งงานผ่าน queue &lt;b&gt;matching&lt;/b&gt;&lt;br&gt;Smart Booking POST เข้า api (push) · read API optional&lt;/font&gt;" vertex="1">
           <mxGeometry height="90" width="300" x="12" y="226" as="geometry" />
         </mxCell>
         <mxCell id="x_dss" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;DSS middleware&lt;/b&gt; (psd-bwc-dss-services · FastAPI)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;/api/v1: location (GPS + online/offline) · devices · stream · playback · recording/search · talk WS · /proxy HLS&lt;/font&gt;" vertex="1">
@@ -124,13 +124,13 @@
         <mxCell id="x_cam" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;fillColor=#EEEEEE;" value="&lt;b&gt;Bodycam devices&lt;/b&gt; (4G): &lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;ลงทะเบียนกับ Dahua DSS Platform · ส่งภาพ / GPS / สถานะ&lt;/font&gt;" vertex="1">
           <mxGeometry height="56" width="800" x="400" y="1570" as="geometry" />
         </mxCell>
-        <mxCell id="x_book" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;Booking System&lt;/b&gt;&lt;br&gt;ต้นทางใบงานเดียว · check-in / check-out&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;&lt;i&gt;[Assumption] API spec รอทีม Booking&lt;/i&gt;&lt;/font&gt;" vertex="1">
+        <mxCell id="x_book" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;strokeWidth=2;" value="&lt;b&gt;Smart Booking&lt;/b&gt;&lt;br&gt;ต้นทางใบงานเดียว · POST ใบงานเข้ามา&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;&lt;i&gt;[Assumption] contract / auth รอทีม Booking&lt;br&gt;มี DO / SH · check-in / check-out&lt;/i&gt;&lt;/font&gt;" vertex="1">
           <mxGeometry height="140" width="260" x="1600" y="600" as="geometry" />
         </mxCell>
         <mxCell id="x_entra" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;verticalAlign=middle;" value="&lt;b&gt;Microsoft Entra ID&lt;/b&gt;&lt;br&gt;SSO (OIDC)" vertex="1">
           <mxGeometry height="80" width="240" x="60" y="360" as="geometry" />
         </mxCell>
-        <mxCell id="n_rules" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=8;fontSize=11;arcSize=4;" value="&lt;b&gt;กติกาสำคัญ&lt;/b&gt;&lt;br&gt;• สถานะใบงานตาม Booking: sync = รอเริ่ม (Planned) · check-in = เปิด · check-out = ปิด&lt;br&gt;• &lt;b&gt;ใบงานมาจาก Booking sync&lt;/b&gt; · 1 Booking job = 1 WO · 1 WO มีหลาย session&lt;br&gt;• session ผูกเข้าใบงานด้วย matching · rematch เมื่อ Booking sync มา&lt;br&gt;• สถานะกล้องบนหน้าจอ: ดึงจาก DSS ตอนเปิดดู&lt;br&gt;• Invariant อยู่ใน DB: UQ_TS_OpenPerDevice · EX_TS_NoOverlap · UQ_WO_BookingJob&lt;br&gt;• Emit realtime หลัง commit เท่านั้น" vertex="1">
+        <mxCell id="n_rules" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=8;fontSize=11;arcSize=4;" value="&lt;b&gt;กติกาสำคัญ&lt;/b&gt;&lt;br&gt;• สถานะใบงานตาม Booking: ได้รับใบงาน = รอเริ่ม (Planned) · check-in = เปิด · check-out = ปิด&lt;br&gt;• &lt;b&gt;ใบงานมาจาก Smart Booking (POST)&lt;/b&gt; · 1 Booking job = 1 WO · 1 WO มีหลาย session&lt;br&gt;• session ผูกเข้าใบงานด้วย matching · rematch เมื่อ Booking POST มา&lt;br&gt;• สถานะกล้องบนหน้าจอ: ดึงจาก DSS ตอนเปิดดู&lt;br&gt;• Invariant อยู่ใน DB: UQ_TS_OpenPerDevice · EX_TS_NoOverlap · UQ_WO_BookingJob&lt;br&gt;• Emit realtime หลัง commit เท่านั้น" vertex="1">
           <mxGeometry height="230" width="290" x="40" y="480" as="geometry" />
         </mxCell>
         <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;fillColor=#FFFFFF;strokeColor=#999999;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=13;fillColor=#FFFFFF;strokeColor=#BDBDBD;" value="Legend (สีเส้น)" vertex="1">
@@ -142,7 +142,7 @@
         <mxCell id="leg_t1" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;Tracking path (GPS · online/offline · session)&lt;/font&gt;" vertex="1">
           <mxGeometry height="24" width="200" x="85" y="80" as="geometry" />
         </mxCell>
-        <mxCell id="leg_t2" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;Booking path (pull sync · change feed)&lt;/font&gt;" vertex="1">
+        <mxCell id="leg_t2" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;Booking path (Smart Booking POST · push)&lt;/font&gt;" vertex="1">
           <mxGeometry height="24" width="200" x="85" y="120" as="geometry" />
         </mxCell>
         <mxCell id="leg_t3" parent="legend" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;" value="&lt;font style=&quot;font-size:11px&quot;&gt;Media / หลักฐาน (live · playback · export)&lt;/font&gt;" vertex="1">
@@ -254,12 +254,15 @@
         <mxCell id="e_tl_book" edge="1" parent="1" source="x_tl" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.6923;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.6923;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_book" value="check-in / check-out">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e_int_book" edge="1" parent="1" source="w_int" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.1111;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.3846;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_book" value="pull: change feed ทุก 2m&lt;br&gt;full reconcile 02:00 · fetchJob&lt;br&gt;HTTP · circuit breaker · timeout 8s">
+        <mxCell id="e_int_book" edge="1" parent="1" source="w_int" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.1111;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.3846;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_book" value="read API (optional)&lt;br&gt;reconcile 02:00 · fetchJob&lt;br&gt;HTTP · circuit breaker · timeout 8s">
           <mxGeometry relative="1" x="0.55" as="geometry">
             <Array as="points">
               <mxPoint x="1700" y="880" />
             </Array>
           </mxGeometry>
+        </mxCell>
+        <mxCell id="e_book_api" value="POST ใบงาน (push)&lt;br&gt;HMAC · ตอบ 202" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.2;exitY=0;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1;entryY=0.9;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="x_book" target="api">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e_int_fcm" edge="1" parent="1" source="w_int" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#15803D;fontColor=#15803D;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.8889;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" target="x_fcm" value="push">
           <mxGeometry relative="1" x="0.6" as="geometry">
@@ -357,7 +360,7 @@
         <mxCell id="m_wo" value="&lt;b&gt;work-orders&lt;/b&gt;&lt;br&gt;สร้างจาก Booking job เท่านั้น · matching" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="dom">
           <mxGeometry x="790" y="180" width="180" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="m_bkg" value="&lt;b&gt;booking-integration&lt;/b&gt;&lt;br&gt;adapter · projection · inbox · pull sync&lt;br&gt;+ upsert WorkOrders (writer · tx เดียว)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;worker: integration&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="dom">
+        <mxCell id="m_bkg" value="&lt;b&gt;booking-integration&lt;/b&gt;&lt;br&gt;inbound (api) · mapper · projection · inbox&lt;br&gt;+ upsert WorkOrders (writer · tx เดียว)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;api + worker: integration&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;fontSize=11;strokeWidth=2;" vertex="1" parent="dom">
           <mxGeometry x="1120" y="180" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="m_dev" value="&lt;b&gt;devices + device-assignments&lt;/b&gt;&lt;br&gt;ทะเบียน bodycam · Depots · vendor sync&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;การผูกกล้อง→ทีม อ่านจาก Booking เท่านั้น&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="dom">
@@ -508,7 +511,7 @@
         <mxCell id="a_gw" value="&lt;b&gt;Socket.IO&lt;/b&gt;&lt;br&gt;/realtime (api)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneA">
           <mxGeometry x="1320" y="45" width="150" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="a_web" value="&lt;b&gt;แผนที่ realtime&lt;/b&gt;&lt;br&gt;web + mobile" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneA">
+        <mxCell id="a_web" value="&lt;b&gt;แผนที่ realtime&lt;/b&gt;&lt;br&gt;web" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneA">
           <mxGeometry x="1540" y="45" width="160" height="60" as="geometry" />
         </mxCell>
         <mxCell id="fa1" value="poll /location" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1D4ED8;fontColor=#1D4ED8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="a_gp" target="a_dss">
@@ -574,7 +577,7 @@
         <mxCell id="b_rt" value="&lt;b&gt;Realtime + Alerts + Push&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;หลัง commit เท่านั้น&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneB">
           <mxGeometry x="690" y="240" width="200" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="b_note" value="&lt;b&gt;ใบงานจาก Booking&lt;/b&gt;&lt;br&gt;• ใบงานมาจาก Booking sync เท่านั้น (lane C) · 1 Booking job = 1 WO&lt;br&gt;• session ผูกใบงานผ่าน Matcher อัตโนมัติ&lt;br&gt;• match ไม่ได้ / หลายใบ → session รอ (AwaitingMatch) แล้ว rematch เมื่อข้อมูล Booking มา&lt;br&gt;• sync ยังไม่ check-in = Planned (รอเริ่ม) · check-in = Open · check-out = Closed&lt;br&gt;• ค้าง check-out: alert 36 ชม. · ปิด SafetyTimeout 7 วัน" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=10;fontSize=11;arcSize=3;" vertex="1" parent="laneB">
+        <mxCell id="b_note" value="&lt;b&gt;ใบงานจาก Booking&lt;/b&gt;&lt;br&gt;• ใบงานมาจาก Smart Booking POST เท่านั้น (lane C) · 1 Booking job = 1 WO&lt;br&gt;• session ผูกใบงานผ่าน Matcher อัตโนมัติ&lt;br&gt;• match ไม่ได้ / หลายใบ → session รอ (AwaitingMatch) แล้ว rematch เมื่อข้อมูล Booking มา&lt;br&gt;• ได้รับใบงาน ยังไม่ check-in = Planned (รอเริ่ม) · check-in = Open · check-out = Closed&lt;br&gt;• ค้าง check-out: alert 36 ชม. · ปิด SafetyTimeout 7 วัน" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=10;fontSize=11;arcSize=3;" vertex="1" parent="laneB">
           <mxGeometry x="1300" y="20" width="500" height="140" as="geometry" />
         </mxCell>
         <mxCell id="fb1" value="decide(): open / close / split" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#B45309;fontColor=#B45309;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="b_sw" target="b_ts">
@@ -597,22 +600,22 @@
         <mxCell id="fb7" value="workorder:changed" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#B45309;fontColor=#B45309;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=1.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=0.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="b_wo" target="b_rt">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="laneC" value="(C) Booking sync → ใบงาน · pull อย่างเดียว · เก็บใน PostgreSQL" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;startSize=40;fillColor=#FFE6CC;strokeColor=#D79B00;swimlaneFillColor=#FFFFFF;fontStyle=1;fontSize=14;collapsible=0;rounded=1;arcSize=1;" vertex="1" parent="1">
+        <mxCell id="laneC" value="(C) Smart Booking POST → ใบงาน · push · เก็บใน PostgreSQL" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;startSize=40;fillColor=#FFE6CC;strokeColor=#D79B00;swimlaneFillColor=#FFFFFF;fontStyle=1;fontSize=14;collapsible=0;rounded=1;arcSize=1;" vertex="1" parent="1">
           <mxGeometry x="40" y="840" width="1820" height="430" as="geometry" />
         </mxCell>
-        <mxCell id="c_book" value="&lt;b&gt;Booking System&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;[Assumption]&lt;br&gt;API ตาม Part 7 §7.2.1&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;strokeWidth=2;" vertex="1" parent="laneC">
+        <mxCell id="c_book" value="&lt;b&gt;Smart Booking&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;[Assumption]&lt;br&gt;POST ตาม contract v1&lt;br&gt;(Part 7 §7.2)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;strokeWidth=2;" vertex="1" parent="laneC">
           <mxGeometry x="70" y="40" width="180" height="270" as="geometry" />
         </mxCell>
-        <mxCell id="c_ref" value="&lt;b&gt;api: ปุ่ม refresh รายใบ&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;POST /booking-jobs/:id/refresh → fetchJob&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
+        <mxCell id="c_ref" value="&lt;b&gt;api: ปุ่ม refresh รายใบ&lt;/b&gt; (optional)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;POST /booking-jobs/:id/refresh → fetchJob&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;dashed=1;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
           <mxGeometry x="350" y="50" width="240" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="c_sync" value="&lt;b&gt;booking-sync worker&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;fetchChangedSince · fetchWindow&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
+        <mxCell id="c_sync" value="&lt;b&gt;api: รับ POST ใบงาน&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;/api/integration/booking/jobs · HMAC&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
           <mxGeometry x="350" y="160" width="240" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="c_sch" value="&lt;b&gt;repeatable job&lt;/b&gt;&lt;br&gt;change feed ทุก 2m · full reconcile 02:00" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
+        <mxCell id="c_sch" value="&lt;b&gt;reconcile รายคืน 02:00&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;optional · ถ้ามี read API (fetchWindow)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;dashed=1;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
           <mxGeometry x="350" y="250" width="240" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="c_in" value="&lt;b&gt;IntegrationInbox&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;PostgreSQL · ข้อมูลดิบที่ดึงมา&lt;br&gt;unique {jobId}:{version}&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneC">
+        <mxCell id="c_in" value="&lt;b&gt;IntegrationInbox&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;PostgreSQL · ข้อมูลดิบที่ Booking POST มา&lt;br&gt;unique eventId หรือ {jobId}:{version}&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="laneC">
           <mxGeometry x="680" y="65" width="200" height="140" as="geometry" />
         </mxCell>
         <mxCell id="c_proc" value="&lt;b&gt;inbox processor&lt;/b&gt;&lt;br&gt;(booking-inbox)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneC">
@@ -630,22 +633,25 @@
         <mxCell id="c_dl" value="&lt;b&gt;Deep link จาก Booking app&lt;/b&gt;&lt;br&gt;Booking app → https://{host}/work-orders/by-booking/{externalJobId} → หน้าใบงาน + หลักฐาน&lt;br&gt;ผู้เปิดต้องมีบัญชีในระบบนี้ (ADMIN / OPERATOR / VIEWER) + data scope ตามปกติ" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=10;fontSize=11;arcSize=3;" vertex="1" parent="laneC">
           <mxGeometry x="70" y="330" width="810" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="c_note" value="&lt;b&gt;Booking ล่ม / ช้า&lt;/b&gt;&lt;br&gt;• breaker: 5 failures → เปิด 2 นาที → half-open 1 probe · timeout 8s&lt;br&gt;• retry 30s → 1m → 2m → 4m → 8m · max 5 → Dead + alert&lt;br&gt;• sync หยุด · tracking / session / หลักฐานยังทำงาน (match กับ projection เดิม · ที่เหลือ rematch เมื่อ Booking กลับมา)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=10;fontSize=11;arcSize=3;" vertex="1" parent="laneC">
+        <mxCell id="c_note" value="&lt;b&gt;Booking ส่งไม่ได้ / เราล่ม&lt;/b&gt;&lt;br&gt;• Booking retry เมื่อไม่ได้ 2xx [Assumption] · dedupe ด้วย eventId&lt;br&gt;• ไม่มี POST เกิน 24 ชม. → alert BOOKING_INBOUND_SILENT&lt;br&gt;• read API (optional): breaker 5 failures → เปิด 2 นาที · timeout 8s&lt;br&gt;• tracking / session / หลักฐานยังทำงาน · session ที่ค้าง rematch เมื่อใบงานมาถึง" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFDE7;strokeColor=#BFA100;fontSize=12;verticalAlign=middle;align=left;verticalAlign=top;spacing=10;fontSize=11;arcSize=3;" vertex="1" parent="laneC">
           <mxGeometry x="1300" y="270" width="500" height="130" as="geometry" />
         </mxCell>
         <mxCell id="fc1" value="fetchJob" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.1481;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_ref" target="c_book">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="fc2" value="change feed&lt;br&gt;(via breaker)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5556;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sync" target="c_book">
+        <mxCell id="fc2" value="POST ใบงาน&lt;br&gt;สร้าง / เปลี่ยน" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=none;startArrow=block;startFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.5556;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sync" target="c_book">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="fc3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.5000;exitY=0.0000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sch" target="c_sync">
+        <mxCell id="fc3" value="fetchWindow" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=1.0000;entryY=0.8704;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sch" target="c_book">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="fc4" value="INSERT dedupe" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.1071;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_ref" target="c_in">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="fc5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.8929;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sync" target="c_in">
+        <mxCell id="fc5" value="INSERT dedupe" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.8929;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sync" target="c_in">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fc7" value="INSERT dedupe" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;dashed=1;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.5000;entryY=1.0000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_sch" target="c_in">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="fc6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C2410C;fontColor=#C2410C;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1.0000;exitY=0.5000;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0.0000;entryY=0.5000;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="c_in" target="c_proc">
@@ -675,7 +681,7 @@
         <mxCell id="laneD" value="(D) Live streaming + หลักฐาน (เมนูหลัก)" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;startSize=40;fillColor=#E1D5E7;strokeColor=#9673A6;swimlaneFillColor=#FFFFFF;fontStyle=1;fontSize=14;collapsible=0;rounded=1;arcSize=1;" vertex="1" parent="1">
           <mxGeometry x="40" y="1300" width="1820" height="460" as="geometry" />
         </mxCell>
-        <mxCell id="d_user" value="&lt;b&gt;ผู้ใช้&lt;/b&gt;&lt;br&gt;web + mobile&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;Live · Live wall&lt;br&gt;หลักฐาน&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;" vertex="1" parent="laneD">
+        <mxCell id="d_user" value="&lt;b&gt;ผู้ใช้&lt;/b&gt;&lt;br&gt;web + mobile&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;web: Live · Live wall · หลักฐาน&lt;br&gt;mobile (หัวหน้าทีม): live กล้องตัวเอง + ใบงาน&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;" vertex="1" parent="laneD">
           <mxGeometry x="70" y="30" width="170" height="280" as="geometry" />
         </mxCell>
         <mxCell id="d_lcam" value="&lt;b&gt;เลือกกล้อง&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;รายการอุปกรณ์ · live wall&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
@@ -687,7 +693,7 @@
         <mxCell id="d_live" value="&lt;b&gt;Live streaming + talk&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;POST /streams/live · สิทธิ์สด + quota&lt;br&gt;seal URL → HLS proxy&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
           <mxGeometry x="880" y="30" width="260" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="d_list" value="&lt;b&gt;ตารางใบงาน&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;GET /work-orders&lt;br&gt;sync มาจาก Booking&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
+        <mxCell id="d_list" value="&lt;b&gt;ตารางใบงาน&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;GET /work-orders&lt;br&gt;มาจาก Smart Booking (POST)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">
           <mxGeometry x="300" y="140" width="220" height="60" as="geometry" />
         </mxCell>
         <mxCell id="d_pick" value="&lt;b&gt;เลือกกล้อง + ช่วงเวลา&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot; color=&quot;#555555&quot;&gt;จาก TrackingSessions ของใบงาน&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=12;verticalAlign=middle;fontSize=11;" vertex="1" parent="laneD">

@@ -12,12 +12,12 @@
 | D1 | คง convention ของ reference: ตาราง/คอลัมน์ **PascalCase (quoted)**, PK `bigint GENERATED ALWAYS AS IDENTITY`, `timestamptz` (UTC), enum = `smallint` append-only | port โค้ดจาก reference ได้ตรง (`server/src/db/schema.ts`, `scope.predicates.ts`) · ทีมคุ้นเคย |
 | D2 | **JSON ใช้ `jsonb`** (reference ใช้ `text`) | query/index ได้, validate ได้ |
 | D3 | **แยก observed fact ออกจาก business record**: `TrackingSessions` = กล้องถูกใช้งานจริง · `WorkOrders` = ใบงานธุรกิจ | แก้ design smell pseudo work order (`WorkType = 5` + `CAM-AUTO`/`SITE-CAM`) ของ reference |
-| D4 | **ใบงานมาจาก Booking เท่านั้น**: `WorkOrders.BookingJobId` → `BookingJobs` (projection ที่ sync มา) · **NOT NULL** · unique = 1 Booking ↔ 1 WO · WO สร้าง/อัปเดตโดย Booking sync เท่านั้น (DL33) | WO มี PK / เลขใบงาน / timeline ของตัวเอง · matching ไม่ต้องเรียก API สด · session ที่ match ไม่ได้รอข้อมูล Booking โดยไม่สร้างใบงาน |
+| D4 | **ใบงานมาจาก Booking เท่านั้น**: `WorkOrders.BookingJobId` → `BookingJobs` (projection ของงานที่ Smart Booking POST เข้ามา — DL46) · **NOT NULL** · unique = 1 Booking ↔ 1 WO · WO สร้าง/อัปเดตโดย inbox processor เท่านั้น (DL33) | WO มี PK / เลขใบงาน / timeline ของตัวเอง · matching ไม่ต้องเรียก API สด · session ที่ match ไม่ได้รอข้อมูล Booking โดยไม่สร้างใบงาน |
 | D5 | เก็บข้อมูล Booking **เท่าที่ต้องใช้ match + แสดงผล** + `Raw jsonb` สำหรับ audit/debug | หลีกเลี่ยง duplicate ข้อมูล Booking โดยไม่จำเป็น · ลด PDPA exposure |
 | D6 | **Invariant บังคับที่ DB**: partial unique, exclusion constraint (`btree_gist`), CHECK | race condition ระหว่าง API/worker ไม่สามารถสร้างข้อมูลผิด invariant ได้ แม้ logic มี bug |
 | D7 | Hot state แยกตาราง: `DeviceState` (อัปเดตทุก poll) ออกจาก `Devices` (master) | ลด row churn / lock contention บน master |
 | D8 | Soft delete เฉพาะ **master data** (Users, Employees, Teams, Devices, Departments) · fact/log tables **ไม่มี soft delete** (ใช้ status เช่น `Cancelled`) | ประวัติหลักฐานต้องไม่หาย |
-| D9 | ไม่มี `CompanyId` (บริษัทเดียว) · scope ผ่าน `DepartmentId` (subtree) หรือ `all` (ไม่มีผู้ใช้ภาคสนาม — DL14, DL16) | ตัดปัญหา `CompanyId = null` 3 ความหมายของ reference |
+| D9 | ไม่มี `CompanyId` (บริษัทเดียว) · scope ผ่าน `all`, `DepartmentId` (subtree) หรือ `team` · ผู้ใช้ภาคสนามมีแล้ว = `TEAM_LEADER` บนแอปมือถือ (scope `team` = ทีมที่ตนเป็นหัวหน้า active ผ่าน `Employees.UserId` → `TeamMembers` — DL47 แทน DL14/DL16) | ตัดปัญหา `CompanyId = null` 3 ความหมายของ reference · scope `team` คำนวณจากข้อมูลที่มีอยู่ ไม่ต้องเพิ่มคอลัมน์ |
 | D10 | `GpsLocations` และ `AuditLogs` **partition รายเดือน** · retention = `DROP PARTITION` | แทน batched ctid DELETE ของ reference (`retention.service.ts`) |
 | D11 | เลขใบงานจาก **counter table** (`WorkOrderCounters`) แบบ atomic upsert | แทน `SELECT max + 1` + retry ของ reference |
 
@@ -133,7 +133,7 @@ erDiagram
   WorkOrders ||--o{ TrackingSessions : contains
   TrackingSessions ||--o| TrackingSessions : "split from"
   Teams ||--o{ WorkOrders : performs
-  BookingJobs ||--|| WorkOrders : "1:1 created by sync"
+  BookingJobs ||--|| WorkOrders : "1:1 created by inbox processor"
   WorkOrders ||--o{ WorkOrderEvents : history
   TrackingSessions ||--o{ MatchAttempts : evaluated
   BookingJobs ||--o{ MatchAttempts : "chosen in"
@@ -165,6 +165,8 @@ erDiagram
     bigint Id PK
     varchar SourceSystem
     varchar ExternalJobId UK
+    varchar DoNo "DL46"
+    varchar ShNo "DL46"
     smallint Status
     varchar BookingDepartmentRef
     bigint DepartmentId FK "resolved"
@@ -212,13 +214,14 @@ erDiagram
     bigint Id PK
     varchar Source
     varchar ExternalEventId
+    smallint Channel "1 Push 2 Reconcile 3 CsvImport 4 Refresh"
     smallint Status
     jsonb Payload
   }
   IntegrationSyncState {
     varchar Source PK
     varchar Resource PK
-    text Cursor
+    timestamptz LastReceivedAt "last inbound POST"
     timestamptz LastSuccessAt
     timestamptz BreakerOpenUntil
   }
@@ -275,7 +278,7 @@ erDiagram
 | Device ↔ Team ณ เวลาใด ๆ | N : 1 (ไม่ซ้อนเวลา) | `EX_DevAsg_NoOverlap` |
 | Device ↔ Open session | 1 : 0..1 | `UQ_TS_OpenPerDevice` + `EX_TS_NoOverlap` |
 | WorkOrder ↔ TrackingSession | 1 : N (session ที่ยังไม่มี WO ได้ — รอข้อมูล Booking) | FK `TrackingSessions.WorkOrderId` (nullable) |
-| BookingJob ↔ WorkOrder | 1 : 1 (Booking sync สร้าง WO ทันทีที่ได้งาน — DL33) | `BookingJobId` NOT NULL + `UQ_WO_BookingJob` |
+| BookingJob ↔ WorkOrder | 1 : 1 (inbox processor สร้าง WO เมื่อได้รับงานจาก Smart Booking — DL33, DL46) | `BookingJobId` NOT NULL + `UQ_WO_BookingJob` |
 | Employee ↔ User | 0..1 : 0..1 | `UQ_Employees_User` |
 
 ---
@@ -296,7 +299,7 @@ erDiagram
 | `TrackingSessions.StartInferred` | 1 Observed (StateSince) · 2 SplitBoundary · 3 PlannedBoundary (สลับงานอัตโนมัติ) |
 | `TrackingSessions.EndReason` | 1 DeviceOffline · 2 StatusUnknown · 3 WorkOrderClosed (Booking check-out/cancel) · 4 JobSwitched · 5 MaxSegment · 6 DeviceReassigned · 7 AdminSplit · 8 *(สงวน — เดิม WorkOrderVoided · เลิกใช้ DL33)* · 9 AtBaseChanged · ห้ามใช้เลขที่สงวนซ้ำ |
 | `TrackingSessions.Classification` | 1 IdleOrCharging (ระบบตั้งเองเมื่ออยู่ในรัศมีฐาน) · 2 *(สงวน — เดิม Test · เลิกใช้ DL33)* · 3 *(สงวน — เดิม Training · เลิกใช้ DL33)* · 9 *(สงวน — เดิม Other · เลิกใช้ DL33)* · ห้ามใช้เลขที่สงวนซ้ำ |
-| `WorkOrders.Status` | 1 Open (Booking check-in) · 2 Closed · 3 Cancelled (Booking ยกเลิก — ยังดูหลักฐานได้) · 4 *(สงวน — เดิม Voided · เลิกใช้ DL33)* · 5 *(สงวน — เดิม Merged · เลิกใช้ DL33)* · 6 Planned (รอเริ่ม — sync แล้วยังไม่ check-in · DL37) · ห้ามใช้เลขที่สงวนซ้ำ · **สถานะตาม Booking เท่านั้น** |
+| `WorkOrders.Status` | 1 Open (Booking check-in) · 2 Closed · 3 Cancelled (Booking ยกเลิก — ยังดูหลักฐานได้) · 4 *(สงวน — เดิม Voided · เลิกใช้ DL33)* · 5 *(สงวน — เดิม Merged · เลิกใช้ DL33)* · 6 Planned (รอเริ่ม — ได้รับงานแล้วแต่ยังไม่ check-in · DL37) · ห้ามใช้เลขที่สงวนซ้ำ · **สถานะตาม Booking เท่านั้น** |
 | `WorkOrders.CloseReason` | 1 BookingCheckout (check-out หรือ Completed จาก Booking — ทางปิดหลัก) · 2 *(สงวน — เดิม NoBookingData · เลิกใช้ DL33)* · 3 SafetyTimeout (ไม่ check-out ครบ 7 วัน — `workorder.force-close-after-hours`) · ห้ามใช้เลขที่สงวนซ้ำ · **ไม่มีการปิดโดยคนในระบบนี้** |
 | `MatchAttempts.Confidence` | 1 High · 2 Medium · 3 Low |
 | `WorkOrderEvents.EventType` | 1 Created · 2 StatusChanged · 3 *(สงวน — เดิม Linked · เลิกใช้ DL33)* · 4 *(สงวน — เดิม Unlinked · เลิกใช้ DL33)* · 5 *(สงวน — เดิม Relinked · เลิกใช้ DL33)* · 6 SessionAttached · 7 SessionDetached · 8 *(สงวน — เดิม MergedInto · เลิกใช้ DL33)* · 9 NoteUpdated · 10 ReviewFlagged (ตั้ง badge `NeedsReview`) · 11 *(สงวน — เดิม ReviewCleared · เลิกใช้ DL33)* · ห้ามใช้เลขที่สงวนซ้ำ |
@@ -305,6 +308,7 @@ erDiagram
 | `MatchAttempts.Trigger` | 1 SessionOpened · 2 Sweep · 3 BookingChanged · 4 AssignmentChanged · 5 *(สงวน — เดิม Manual · เลิกใช้ DL33)* · 6 Reconcile · ห้ามใช้เลขที่สงวนซ้ำ |
 | `MatchAttempts.Result` | 1 Linked (attach เข้า WO ของ Booking job) · 2 *(สงวน — เดิม Suggested · เลิกใช้ DL33)* · 3 Ambiguous (หลาย candidate ⇒ `AwaitingMatch`) · 4 NoCandidate · 5 NoTeam · 6 *(สงวน — เดิม SkippedManual · เลิกใช้ DL33)* · 7 ProjectionStale · ห้ามใช้เลขที่สงวนซ้ำ |
 | `IntegrationInbox.Status` | 1 Pending · 2 Processed · 3 Failed · 4 Ignored (version เก่า/ซ้ำ) · 5 Dead |
+| `IntegrationInbox.Channel` | 1 Push (Smart Booking POST เข้ามา) · 2 Reconcile (read API ตอนกลางคืน — optional) · 3 CsvImport (admin upload CSV) · 4 Refresh (refresh ต่องานผ่าน read API — optional) (DL46) |
 | `IntegrationCallLogs.Outcome` | 1 Success · 2 HttpError · 3 Timeout · 4 NetworkError · 5 CircuitOpen · 6 InvalidResponse |
 | `Alerts.Severity` / `Alerts.Status` | 1 Info · 2 Warning · 3 Critical / 1 New · 2 Acknowledged · 3 Resolved · 4 Dismissed |
 | `Alerts.AlertType` | ดู [05-api-design.md §5.6](05-api-design.md#56-alert-types) |
@@ -356,14 +360,14 @@ erDiagram
 | FullName | varchar(200) | NN | |
 | AzureObjectId | varchar(64) | | `UQ_Users_AzureObjectId` partial · null = ยังไม่เคย link (ไม่ใช่ "ห้ามเข้า") |
 | RoleId | bigint | NN | FK → Roles |
-| DepartmentId | bigint | | FK → Departments (null ได้เฉพาะ role scope `all`) |
+| DepartmentId | bigint | | FK → Departments (null ได้เฉพาะ role scope `all`) · role `TEAM_LEADER` (scope `team`) ต้องผูกพนักงานผ่าน `Employees.UserId` — **บังคับใน service ไม่ใช่ DB** (DL47) |
 | Status | smallint | NN | default 1 |
 | FailedLoginCount | smallint | NN | default 0 |
 | LockedUntil | timestamptz | | |
 | LastLoginAt | timestamptz | | |
 | AUDIT, SOFT | | | |
 
-**Roles** (`Id`, `Code varchar(30) UQ`, `Name`, `IsSystem boolean`) · **Permissions** (`Id`, `Code varchar(100) UQ` รูปแบบ `resource:action`, `Resource`, `Action`, `Description`) · **RolePermissions** (`RoleId`, `PermissionId`, PK composite)
+**Roles** (`Id`, `Code varchar(30) UQ`, `Name`, `IsSystem boolean`) — `ADMIN` · `OPERATOR` · `VIEWER` · `TEAM_LEADER` (DL47 — เพิ่มด้วย data migration) · **Permissions** (`Id`, `Code varchar(100) UQ` รูปแบบ `resource:action`, `Resource`, `Action`, `Description`) · **RolePermissions** (`RoleId`, `PermissionId`, PK composite)
 
 **RefreshTokens** — port ตรงจาก reference: `Id`, `UserId NN`, `TokenHash char(64) UQ`, `ExpiresAt NN`, `RevokedAt`, `ReplacedByTokenId FK self`, `UserDeviceId FK`, `CreatedAt` · IX `(UserId, ExpiresAt)`
 
@@ -526,17 +530,17 @@ Constraints: `CK_TS_Window` (`EndedAt IS NULL OR EndedAt > StartedAt`) · `CK_TS
 
 ### E. Work Orders
 
-**WorkOrders** — ใบงาน 1:1 กับ `BookingJobs` · **สร้าง/อัปเดตโดย Booking sync เท่านั้น** (inbox processor, worker role `integration`) ทันทีที่ sync งานมา — ไม่มี code path อื่นสร้างใบงาน · ไม่มีการผูก/ยกเลิกผูก/รวม/void ด้วยมือ (DL33)
+**WorkOrders** — ใบงาน 1:1 กับ `BookingJobs` · **สร้าง/อัปเดตโดย inbox processor เท่านั้น** (worker role `integration`) ทันทีที่ได้รับงานจาก Smart Booking (DL46) — ไม่มี code path อื่นสร้างใบงาน · ไม่มีการผูก/ยกเลิกผูก/รวม/void ด้วยมือ (DL33)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
 | WorkOrderNo | varchar(30) | NN | `WO-YYYYMM-NNNNN` · `UQ_WO_No` |
-| Title | varchar(300) | NN | จาก Booking job · อัปเดตตาม sync |
+| Title | varchar(300) | NN | จาก Booking job · อัปเดตทุกครั้งที่ได้รับงาน |
 | Status | smallint | NN | default 6 Planned · ตาม Booking เท่านั้น (DL37) |
 | CloseReason | smallint | | |
 | BookingJobId | bigint | NN | FK → BookingJobs · `UQ_WO_BookingJob` (1 Booking ↔ 1 WO) |
 | TeamId | bigint | | FK → Teams · ทีมจาก Booking job (`BookingJobs.TeamId`) · ว่างได้เมื่อ ref ทีมยัง map ไม่ได้ (matching ผ่าน `DeviceRefs` ไม่ต้องรู้ทีม) |
-| DepartmentId | bigint | NN | FK → Departments · มาจากแผนกที่ Booking ส่งมา (`BookingJobs.DepartmentId` — DL38) · อัปเดตทุก sync · ใช้ data scope · map ไม่ได้ ⇒ แผนก root (เห็นเฉพาะ scope `all`) + `MappingIssues` 6 + alert `BOOKING_MAPPING_ISSUES` จนกว่า admin เติม `Departments.BookingDepartmentRef` |
+| DepartmentId | bigint | NN | FK → Departments · มาจากแผนกที่ Booking ส่งมา (`BookingJobs.DepartmentId` — DL38) · อัปเดตทุกครั้งที่ได้รับงาน · ใช้ data scope · map ไม่ได้ ⇒ แผนก root (เห็นเฉพาะ scope `all`) + `MappingIssues` 6 + alert `BOOKING_MAPPING_ISSUES` จนกว่า admin เติม `Departments.BookingDepartmentRef` |
 | LeaderEmployeeId | bigint | | FK → Employees (จาก Booking job — `BookingJobs.LeaderEmployeeId`) |
 | OpenedAt | timestamptz | | เวลา check-in ตาม Booking · null ขณะ `Planned` (DL37) · ใช้นับ `workorder.stale-open-hours` / `workorder.force-close-after-hours` |
 | LastActivityAt | timestamptz | | session ล่าสุดใน WO ยังเปิด = now / ปิด = EndedAt (แสดงผล/เรียงลำดับ) · null = ยังไม่มี session |
@@ -566,13 +570,15 @@ RETURNING "LastValue";
 
 ### F. Booking Integration
 
-**BookingJobs** — local projection ของใบงาน Booking (**ทุก field ฝั่ง Booking = [Assumption]** จนกว่าจะได้ spec)
+**BookingJobs** — local projection ของใบงานที่ Smart Booking POST เข้ามา (DL46) — upsert โดย inbox processor (**ทุก field ฝั่ง Booking = [Assumption]** จนกว่าจะได้ spec)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
 | SourceSystem | varchar(30) | NN | default `'BOOKING'` (รองรับหลายระบบในอนาคต) |
 | ExternalJobId | varchar(100) | NN | `UQ_BookingJobs_External (SourceSystem, ExternalJobId)` |
 | ExternalJobNo | varchar(50) | | เลขที่แสดงต่อผู้ใช้ |
+| DoNo | varchar(50) | | เลข DO จาก Smart Booking (`job.doNo`) — มีใน job **[Confirmed — DL46]** · ความหมาย (คาดว่า Delivery Order) **[Assumption]** · แสดงผล + ค้นหาเท่านั้น ไม่ใช่ matching key |
+| ShNo | varchar(50) | | เลข SH จาก Smart Booking (`job.shNo`) — มีใน job **[Confirmed — DL46]** · ความหมาย (คาดว่า Shipment) **[Assumption]** · แสดงผล + ค้นหาเท่านั้น ไม่ใช่ matching key |
 | ExternalVersion | varchar(100) | | version/etag ถ้ามี |
 | ExternalUpdatedAt | timestamptz | | ใช้ version guard (ข้อมูลเก่ากว่าห้ามทับ) |
 | Status | smallint | NN | canonical |
@@ -594,21 +600,21 @@ RETURNING "LastValue";
 | Raw | jsonb | NN | payload ล่าสุด (redact ข้อมูลส่วนบุคคลที่ไม่จำเป็นก่อนเก็บ) |
 | PayloadHash | char(64) | NN | SHA-256 — ไม่เปลี่ยน = ไม่ต้อง re-match |
 | MappingIssues | smallint[] | | 1 UnknownTeamRef · 2 UnknownLeaderRef · 3 UnmappedStatus · 4 MissingWindow · 5 UnknownDeviceRef · 6 UnknownDepartmentRef (DL38) |
-| FirstSyncedAt / LastSyncedAt | timestamptz | NN | |
-| SourceMissingSince | timestamptz | | หายจาก full sync (ไม่ลบ) |
+| FirstSyncedAt / LastSyncedAt | timestamptz | NN | ครั้งแรก / ครั้งล่าสุดที่ได้รับข้อมูลงานนี้ (POST / reconcile / CSV) · ชื่อคอลัมน์คงเดิม |
+| SourceMissingSince | timestamptz | | หายจาก reconcile ตอนกลางคืน (ไม่ลบ) — ตั้งได้เฉพาะเมื่อมี read API (`BOOKING_PROVIDER_DRIVER` ≠ `none` — DL46) |
 
-IX GIN `(DeviceRefs)`, `(BookingTeamRef, PlannedStartAt)`, `(BookingLeaderRef, PlannedStartAt)`, `(TeamId, PlannedStartAt)`, `(Status, PlannedStartAt)`, `(ScheduledDate)`, `(LastSyncedAt)`, GIN ไม่จำเป็นในเฟสแรก
+IX GIN `(DeviceRefs)`, `(BookingTeamRef, PlannedStartAt)`, `(BookingLeaderRef, PlannedStartAt)`, `(TeamId, PlannedStartAt)`, `(Status, PlannedStartAt)`, `(ScheduledDate)`, `(LastSyncedAt)`, `IX_BookingJobs_DoNo (DoNo) WHERE "DoNo" IS NOT NULL`, `IX_BookingJobs_ShNo (ShNo) WHERE "ShNo" IS NOT NULL` (ค้นหาด้วยเลข DO / SH — DL46), GIN ไม่จำเป็นในเฟสแรก
 
 **MatchAttempts** — บันทึกการตัดสินใจ matching (เขียนเฉพาะเมื่อ `InputHash` เปลี่ยน)
 `Id`, `TrackingSessionId NN`, `WorkOrderId`, `Trigger NN`, `Result NN`, `Confidence`, `ChosenBookingJobId`, `Candidates jsonb` (`[{bookingJobId, tier, score, reasons[]}]`), `InputHash char(64) NN`, `AlgoVersion smallint NN`, `ProjectionSyncedAt`, `AttemptedAt NN` · IX `(TrackingSessionId, AttemptedAt DESC)`, `(WorkOrderId, AttemptedAt DESC)` · retention 180 วัน
 
-**IntegrationInbox** — ข้อมูลที่ดึงจาก Booking (poll / refresh — pull อย่างเดียว DL31) — dedupe + process แบบ async
-`Id`, `Source varchar(30) NN`, `ExternalEventId varchar(200) NN` (`{jobId}:{version ?? updatedAt}`), `EventType varchar(50)`, `Payload jsonb NN`, `ReceivedAt NN`, `Status NN`, `Attempts smallint NN default 0`, `LastError text`, `ProcessedAt` · `UQ_Inbox_Event (Source, ExternalEventId)` · IX `(Status, ReceivedAt) WHERE Status IN (1,3)`
+**IntegrationInbox** — ข้อมูลที่ Smart Booking POST เข้ามา + ที่ดึงจาก read API (ถ้ามี) + CSV import (DL46) — dedupe + process แบบ async · process `api` เขียนแถว `Channel = 1 Push` แล้ว enqueue `booking-inbox` หลัง commit · inbox processor (worker `integration`) map + upsert
+`Id`, `Source varchar(30) NN`, `ExternalEventId varchar(200) NN` (body `eventId` ถ้ามี ไม่งั้น `{jobId}:{version ?? updatedAt}`), `EventType varchar(50)` (`job.created` / `job.updated` / `job.checked-in` / `job.checked-out` / `job.cancelled` — ข้อมูลประกอบเท่านั้น), `Channel smallint NN default 1` (1 Push · 2 Reconcile · 3 CsvImport · 4 Refresh — DL46), `Payload jsonb NN` (raw body — field ที่ไม่รู้จักเก็บไว้และไม่ใช้), `ReceivedAt NN`, `Status NN`, `Attempts smallint NN default 0`, `LastError text`, `ProcessedAt` · `UQ_Inbox_Event (Source, ExternalEventId)` · IX `(Status, ReceivedAt) WHERE Status IN (1,3)` (ใช้ทั้ง retry sweep — `Pending` เก่ากว่า 1 นาที + `Failed` — และวัดอายุ backlog สำหรับ `booking.stale-after-minutes`)
 
-**IntegrationSyncState** — สถานะ sync + circuit breaker snapshot
-PK `(Source, Resource)` · `Cursor text`, `LastAttemptAt`, `LastSuccessAt`, `LastFullSyncAt`, `LastErrorAt`, `LastError text`, `ConsecutiveFailures integer NN default 0`, `BreakerOpenUntil`
+**IntegrationSyncState** — สถานะรับข้อมูลขาเข้า + read API (optional) + circuit breaker snapshot
+PK `(Source, Resource)` · `LastReceivedAt` (POST ขาเข้าล่าสุดที่รับได้ — ใช้ alert `BOOKING_INBOUND_SILENT` · DL46), `LastAttemptAt`, `LastSuccessAt` (เรียก read API ล่าสุด — outbound), `LastFullSyncAt` (reconcile ล่าสุด), `LastErrorAt`, `LastError text`, `ConsecutiveFailures integer NN default 0`, `BreakerOpenUntil` · ตัด `Cursor` แล้ว (ไม่มี change feed — DL46 · ยังไม่มีโค้ด จึงลบได้เลย)
 
-**IntegrationCallLogs** — log ทุก request ไป/มาจาก Booking (redacted, ตัดที่ 4 KB)
+**IntegrationCallLogs** — log ทุก request ไป/มาจาก Booking (redacted, ตัดที่ 4 KB) · **ทุก POST ขาเข้าเขียน 1 แถว** `Direction = 2 Inbound`, `Operation = 'inbound.job'` (รวมที่ตอบ 400 / 401 — ใช้นับ inbound failure ในหน้า Integration) · ห้ามเก็บ secret / signature / body เต็ม (DL46)
 `Id`, `Source NN`, `Direction smallint NN` (1 Outbound · 2 Inbound), `Operation varchar(50) NN`, `HttpMethod varchar(10)`, `Url varchar(500)` (ไม่มี secret/query token), `HttpStatus smallint`, `LatencyMs integer`, `CorrelationId varchar(64)`, `Outcome NN`, `ErrorMessage varchar(1000)`, `RequestExcerpt text`, `ResponseExcerpt text`, `OccurredAt NN` · IX `(Source, OccurredAt DESC)`, `(Outcome, OccurredAt DESC)` · retention 30 วัน
 
 ### G. Media (port จาก reference)
@@ -624,7 +630,7 @@ PK `(Source, Resource)` · `Cursor text`, `LastAttemptAt`, `LastSuccessAt`, `Las
 - **AuditLogs** — partitioned รายเดือนตาม `OccurredAt` · คอลัมน์ตาม reference (`UserId`, `ActorUsername`, `ActorRole`, `Action`, `ResourceType`, `ResourceId`, `Changes jsonb`, `HttpMethod`, `RequestPath`, `Result`, `Ip`, `UserAgent`, `OccurredAt`) + `CorrelationId` · PK `(OccurredAt, Id)`
 - **Settings** — port ตรง (`SettingKey UQ`, `SettingValue text`, `ValueType`, `Category`, `IsSystem`) · bounds อยู่ในโค้ด (`setting-spec.ts`)
 
-รวม **34 ตาราง** (reference 33) — ตัดตารางที่ผูก dashcam/approval/company/site และเพิ่มตารางสำหรับ team, depot, session, Booking integration · ไม่มี `IntegrationOutbox` (DL31) · รายการครบอยู่ใน README (Recommended Database Schema)
+รวม **34 ตาราง** (reference 33) — ตัดตารางที่ผูก dashcam/approval/company/site และเพิ่มตารางสำหรับ team, depot, session, Booking integration · ไม่มี `IntegrationOutbox` (ไม่มี write-back ไป Booking — DL31, DL46) · ไม่มีตารางใหม่จาก DL46/DL47 (เพิ่มแค่คอลัมน์) · รายการครบอยู่ใน README (Recommended Database Schema)
 
 ---
 
@@ -708,6 +714,8 @@ export const bookingJobs = pgTable('BookingJobs', {
   SourceSystem: varchar('SourceSystem', { length: 30 }).notNull().default('BOOKING'),
   ExternalJobId: varchar('ExternalJobId', { length: 100 }).notNull(),
   ExternalJobNo: varchar('ExternalJobNo', { length: 50 }),
+  DoNo: varchar('DoNo', { length: 50 }), // DL46 — แสดงผล + ค้นหา ไม่ใช่ matching key
+  ShNo: varchar('ShNo', { length: 50 }), // DL46
   ExternalUpdatedAt: tstz('ExternalUpdatedAt'),
   Status: smallint('Status').notNull(),
   RawStatus: varchar('RawStatus', { length: 50 }),
@@ -726,14 +734,16 @@ export const bookingJobs = pgTable('BookingJobs', {
   Raw: jsonb('Raw').notNull(),
   PayloadHash: char('PayloadHash', { length: 64 }).notNull(),
   MappingIssues: smallint('MappingIssues').array(),
-  FirstSyncedAt: tstz('FirstSyncedAt').notNull().defaultNow(),
-  LastSyncedAt: tstz('LastSyncedAt').notNull().defaultNow(),
-  SourceMissingSince: tstz('SourceMissingSince'),
+  FirstSyncedAt: tstz('FirstSyncedAt').notNull().defaultNow(), // ได้รับข้อมูลครั้งแรก
+  LastSyncedAt: tstz('LastSyncedAt').notNull().defaultNow(),   // ได้รับข้อมูลครั้งล่าสุด
+  SourceMissingSince: tstz('SourceMissingSince'),              // เฉพาะ reconcile (read API — optional)
 }, (t) => [
   uniqueIndex('UQ_BookingJobs_External').on(t.SourceSystem, t.ExternalJobId),
   index('IX_BookingJobs_TeamRef_Start').on(t.BookingTeamRef, t.PlannedStartAt),
   index('IX_BookingJobs_LeaderRef_Start').on(t.BookingLeaderRef, t.PlannedStartAt),
   index('IX_BookingJobs_Team_Start').on(t.TeamId, t.PlannedStartAt),
+  index('IX_BookingJobs_DoNo').on(t.DoNo).where(sql`"DoNo" IS NOT NULL`),
+  index('IX_BookingJobs_ShNo').on(t.ShNo).where(sql`"ShNo" IS NOT NULL`),
   check('CK_BookingJobs_Window',
     sql`"PlannedEndAt" IS NULL OR "PlannedStartAt" IS NULL OR "PlannedEndAt" >= "PlannedStartAt"`),
 ]);
