@@ -320,8 +320,8 @@ erDiagram
 
 ## 4.4 Table Definitions
 
-> คอลัมน์ audit มาตรฐาน (เรียกว่า **AUDIT**) = `CreatedAt timestamptz NN default now()`, `CreatedBy bigint FK Users`, `UpdatedAt timestamptz`, `UpdatedBy bigint FK Users`
-> **SOFT** = `IsDeleted boolean NN default false`, `DeletedAt timestamptz`, `DeletedBy bigint FK Users` และ unique ทุกตัวเป็น partial `WHERE "IsDeleted" = false`
+> คอลัมน์ audit มาตรฐาน (เรียกว่า **AUDIT**) = `CreatedAt timestamptz NN default now()`, `CreatedBy bigint FK Users`, `UpdatedAt timestamptz NN default now()` (ORM ตั้งค่าใหม่ทุกครั้งที่ update), `UpdatedBy bigint FK Users` · helper `createdAt()` / `updatedAt()` / `auditActor()` ใน `server/src/db/columns.ts`
+> **SOFT** = `IsDeleted boolean NN default false`, `DeletedAt timestamptz`, `DeletedBy bigint FK Users` และ unique ทุกตัวเป็น partial `WHERE "IsDeleted" = false` · helper `softDelete()` + `notDeleted(t)`
 > NN = NOT NULL
 
 ### A. Identity & Access
@@ -669,48 +669,50 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 
 ## 4.7 Migration Strategy
 
-1. **Baseline** `0000_baseline` จาก `drizzle-kit generate` (ทุกตารางยกเว้น partitioned)
-2. **`0001_extensions_partitions` (custom SQL)**: `CREATE EXTENSION btree_gist` · `GpsLocations` + `AuditLogs` แบบ `PARTITION BY RANGE` + partition เดือนปัจจุบันและ 2 เดือนถัดไป · exclusion constraints ทั้งหมด
-3. **Reference data ผ่าน custom data migration** (`npm run db:generate -- --custom`, ทุก statement `ON CONFLICT DO NOTHING`): roles, permissions, role-permissions, settings defaults — **seed ใช้เฉพาะ dev** (แก้กับดัก "ห้ามรัน seed ใน production" ของ reference)
-4. **Partitioned tables** ประกาศ `pgTable` ใน `server/src/db/schema.partitioned.ts` ซึ่ง **ไม่อยู่ใน `schema` path ของ `drizzle.config.ts`** ⇒ drizzle-kit ไม่ generate DDL ให้ แต่ query แบบ typed ได้
-5. **Drift gate**: port `guardMigrationsOrExit()` (`server/src/db/migration-status.ts`, `assert-migrations.ts`) + advisory lock ตอน migrate · production รัน migrate เป็น step แยกก่อน deploy (reference ยังไม่มีใน Dockerfile — ต้องทำ)
-6. **ไม่ย้ายข้อมูลจากระบบเดิม** **[Confirmed — Q13]** — เป็นระบบใหม่ทั้งหมด ระบบเดิมใช้เป็น reference เท่านั้น · master data (อุปกรณ์ ผ่าน vendor sync, พนักงาน, ผู้ใช้, ทีม, ฐาน) ตั้งใหม่ในระบบนี้
+1. **Baseline** `0000_baseline` จาก `drizzle-kit generate` — ตารางของ P0 ใน `schema.ts` (Departments, Roles, Users, Employees, Permissions, RolePermissions, UserDevices, RefreshTokens, PushTokens, Settings) · **ช่วง dev (ก่อน go-live production ครั้งแรก) ข้อมูลใน DB ทิ้งได้** — แก้ / รวม / generate migration ใหม่ทั้งชุด และ drop-recreate DB ได้ (DL50) · **หลัง go-live: append-only** ไม่แก้ไฟล์ที่ apply แล้ว เพิ่มไฟล์ใหม่ต่อท้ายเท่านั้น
+2. **`0001_extensions_partitions` (custom SQL — P0)**: `CREATE EXTENSION btree_gist` · `AuditLogs` แบบ `PARTITION BY RANGE ("OccurredAt")` (PK `(OccurredAt, Id)`, `Id` ใช้ sequence `AuditLogs_Id_seq`) + partition `AuditLogs_default` + block `DO $$` สร้าง `AuditLogs_YYYYMM` ของเดือนปัจจุบันและ 2 เดือนถัดไป (ขอบเดือน UTC) + index `IX_AuditLogs_Occurred (OccurredAt DESC)`, `IX_AuditLogs_User (UserId, OccurredAt DESC)` บนตารางแม่
+3. **Custom SQL ของ phase ถัดไป** (ช่วง dev จะเพิ่มลง `0001` เดิมแล้ว reset DB หรือแยกไฟล์ใหม่ก็ได้ — DL50): `GpsLocations` partitioned + BRIN — P1 (pattern เดียวกับ `AuditLogs`) · exclusion constraints ใส่ใน migration ของ phase ที่สร้างตารางนั้น เพราะ drizzle-kit generate `EXCLUDE` ไม่ได้: `EX_TeamMembers_LeaderNoOverlap` (P1) · `EX_TS_NoOverlap` (P2) · `EX_DevAsg_NoOverlap` (phase ที่สร้าง `DeviceAssignments`) — ตัวอย่างใน §4.9
+4. **Reference data ผ่าน custom data migration** (`npm run db:generate -- --custom`, ทุก statement `ON CONFLICT DO NOTHING`): roles, permissions, role-permissions, settings defaults — **seed ใช้เฉพาะ dev** (แก้กับดัก "ห้ามรัน seed ใน production" ของ reference)
+5. **Partitioned tables** ประกาศ `pgTable` ใน `server/src/db/schema.partitioned.ts` ซึ่ง **ไม่อยู่ใน `schema` path ของ `drizzle.config.ts`** ⇒ drizzle-kit ไม่ generate DDL ให้ แต่ query แบบ typed ได้ · ตอนนี้มี `AuditLogs` · `GpsLocations` เพิ่มใน P1
+6. **Drift gate**: port `guardMigrationsOrExit()` (`server/src/db/migration-status.ts`, `assert-migrations.ts`) + advisory lock ตอน migrate · production รัน migrate เป็น step แยกก่อน deploy (reference ยังไม่มีใน Dockerfile — ต้องทำ)
+7. **ไม่ย้ายข้อมูลจากระบบเดิม** **[Confirmed — Q13]** — เป็นระบบใหม่ทั้งหมด ระบบเดิมใช้เป็น reference เท่านั้น · master data (อุปกรณ์ ผ่าน vendor sync, พนักงาน, ผู้ใช้, ทีม, ฐาน) ตั้งใหม่ในระบบนี้
 
 ---
 
 ## 4.8 ตัวอย่าง Drizzle Schema
 
 ```ts
-// server/src/db/schema.ts (ตัดตอน)
+// server/src/db/schema.ts (ตัดตอน · ตารางของ phase หลัง P0 — เขียนตาม convention ของ code จริง:
+// export ชื่อ PascalCase ตรงกับชื่อตาราง + helper จาก ./columns)
 import { sql } from 'drizzle-orm';
 import {
-  pgTable, bigint, varchar, smallint, boolean, integer, jsonb, char,
-  doublePrecision, timestamp, date, unique, uniqueIndex, index, check, type AnyPgColumn,
+  pgTable, varchar, smallint, boolean, integer, jsonb, char,
+  doublePrecision, date, unique, uniqueIndex, index, check, type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import {
+  pkId, ref, tstz, createdAt, updatedAt, auditActor, softDelete, notDeleted,
+} from './columns';
+// pkId() = bigint identity PK · ref(name, () => T.Id) = bigint FK · tstz(name) = timestamptz
 
-const id = () => bigint('Id', { mode: 'bigint' }).primaryKey().generatedAlwaysAsIdentity();
-const ref = (name: string) => bigint(name, { mode: 'bigint' });
-const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
-
-export const teams = pgTable('Teams', {
-  Id: id(),
+export const Teams = pgTable('Teams', {
+  Id: pkId(),
   Code: varchar('Code', { length: 30 }).notNull(),
   Name: varchar('Name', { length: 200 }).notNull(),
-  DepartmentId: ref('DepartmentId').notNull().references(() => departments.Id),
+  DepartmentId: ref('DepartmentId', () => Departments.Id).notNull(),
   BookingTeamRef: varchar('BookingTeamRef', { length: 64 }),
   IsActive: boolean('IsActive').notNull().default(true),
-  CreatedAt: tstz('CreatedAt').notNull().defaultNow(),
-  UpdatedAt: tstz('UpdatedAt').$onUpdate(() => new Date()),
-  IsDeleted: boolean('IsDeleted').notNull().default(false),
-  DeletedAt: tstz('DeletedAt'),
+  CreatedAt: createdAt(),
+  UpdatedAt: updatedAt(),
+  ...auditActor(),
+  ...softDelete(),
 }, (t) => [
-  uniqueIndex('UQ_Teams_Code').on(t.Code).where(sql`"IsDeleted" = false`),
+  uniqueIndex('UQ_Teams_Code').on(t.Code).where(notDeleted(t)),
   uniqueIndex('UQ_Teams_BookingRef').on(t.BookingTeamRef)
     .where(sql`"BookingTeamRef" IS NOT NULL AND "IsDeleted" = false`),
 ]);
 
-export const bookingJobs = pgTable('BookingJobs', {
-  Id: id(),
+export const BookingJobs = pgTable('BookingJobs', {
+  Id: pkId(),
   SourceSystem: varchar('SourceSystem', { length: 30 }).notNull().default('BOOKING'),
   ExternalJobId: varchar('ExternalJobId', { length: 100 }).notNull(),
   ExternalJobNo: varchar('ExternalJobNo', { length: 50 }),
@@ -721,11 +723,11 @@ export const bookingJobs = pgTable('BookingJobs', {
   RawStatus: varchar('RawStatus', { length: 50 }),
   Title: varchar('Title', { length: 300 }),
   BookingDepartmentRef: varchar('BookingDepartmentRef', { length: 64 }), // DL38
-  DepartmentId: ref('DepartmentId').references(() => departments.Id),
+  DepartmentId: ref('DepartmentId', () => Departments.Id),
   BookingTeamRef: varchar('BookingTeamRef', { length: 64 }),
-  TeamId: ref('TeamId').references(() => teams.Id),
+  TeamId: ref('TeamId', () => Teams.Id),
   BookingLeaderRef: varchar('BookingLeaderRef', { length: 64 }),
-  LeaderEmployeeId: ref('LeaderEmployeeId').references(() => employees.Id),
+  LeaderEmployeeId: ref('LeaderEmployeeId', () => Employees.Id),
   ScheduledDate: date('ScheduledDate', { mode: 'string' }),
   PlannedStartAt: tstz('PlannedStartAt'),
   PlannedEndAt: tstz('PlannedEndAt'),
@@ -748,16 +750,16 @@ export const bookingJobs = pgTable('BookingJobs', {
     sql`"PlannedEndAt" IS NULL OR "PlannedStartAt" IS NULL OR "PlannedEndAt" >= "PlannedStartAt"`),
 ]);
 
-export const workOrders = pgTable('WorkOrders', {
-  Id: id(),
+export const WorkOrders = pgTable('WorkOrders', {
+  Id: pkId(),
   WorkOrderNo: varchar('WorkOrderNo', { length: 30 }).notNull(),
   Title: varchar('Title', { length: 300 }).notNull(),
   Status: smallint('Status').notNull().default(6), // 6 Planned (DL37)
   CloseReason: smallint('CloseReason'),
-  BookingJobId: ref('BookingJobId').notNull().references(() => bookingJobs.Id),
-  TeamId: ref('TeamId').references(() => teams.Id),
-  DepartmentId: ref('DepartmentId').notNull().references(() => departments.Id),
-  LeaderEmployeeId: ref('LeaderEmployeeId').references(() => employees.Id),
+  BookingJobId: ref('BookingJobId', () => BookingJobs.Id).notNull(),
+  TeamId: ref('TeamId', () => Teams.Id),
+  DepartmentId: ref('DepartmentId', () => Departments.Id).notNull(),
+  LeaderEmployeeId: ref('LeaderEmployeeId', () => Employees.Id),
   OpenedAt: tstz('OpenedAt'),
   LastActivityAt: tstz('LastActivityAt'),
   ClosedAt: tstz('ClosedAt'),
@@ -765,8 +767,8 @@ export const workOrders = pgTable('WorkOrders', {
   ReviewReasons: smallint('ReviewReasons').array(),
   Note: varchar('Note', { length: 2000 }),
   RowVersion: integer('RowVersion').notNull().default(1),
-  CreatedAt: tstz('CreatedAt').notNull().defaultNow(),
-  UpdatedAt: tstz('UpdatedAt').notNull().defaultNow(),
+  CreatedAt: createdAt(),
+  UpdatedAt: updatedAt(),
 }, (t) => [
   uniqueIndex('UQ_WO_No').on(t.WorkOrderNo),
   unique('UQ_WO_BookingJob').on(t.BookingJobId),
@@ -775,12 +777,12 @@ export const workOrders = pgTable('WorkOrders', {
   check('CK_WO_Closed', sql`"Status" = 1 OR "ClosedAt" IS NOT NULL`),
 ]);
 
-export const trackingSessions = pgTable('TrackingSessions', {
-  Id: id(),
-  DeviceId: ref('DeviceId').notNull().references(() => devices.Id),
-  TeamId: ref('TeamId').references(() => teams.Id),
-  DepartmentId: ref('DepartmentId').notNull().references(() => departments.Id),
-  WorkOrderId: ref('WorkOrderId').references(() => workOrders.Id),
+export const TrackingSessions = pgTable('TrackingSessions', {
+  Id: pkId(),
+  DeviceId: ref('DeviceId', () => Devices.Id).notNull(),
+  TeamId: ref('TeamId', () => Teams.Id),
+  DepartmentId: ref('DepartmentId', () => Departments.Id).notNull(),
+  WorkOrderId: ref('WorkOrderId', () => WorkOrders.Id),
   StartedAt: tstz('StartedAt').notNull(),
   EndedAt: tstz('EndedAt'),
   StartInferred: smallint('StartInferred').notNull().default(1),
@@ -788,11 +790,11 @@ export const trackingSessions = pgTable('TrackingSessions', {
   MatchState: smallint('MatchState').notNull(),
   Classification: smallint('Classification'),
   ClassifiedAt: tstz('ClassifiedAt'),
-  PrevSessionId: ref('PrevSessionId').references((): AnyPgColumn => trackingSessions.Id),
+  PrevSessionId: ref('PrevSessionId', (): AnyPgColumn => TrackingSessions.Id),
   RecordedSeconds: integer('RecordedSeconds'),
   RecordingIndexedAt: tstz('RecordingIndexedAt'),
-  CreatedAt: tstz('CreatedAt').notNull().defaultNow(),
-  UpdatedAt: tstz('UpdatedAt').notNull().defaultNow(),
+  CreatedAt: createdAt(),
+  UpdatedAt: updatedAt(),
 }, (t) => [
   uniqueIndex('UQ_TS_OpenPerDevice').on(t.DeviceId).where(sql`"EndedAt" IS NULL`),
   index('IX_TS_WorkOrder').on(t.WorkOrderId),
@@ -805,20 +807,66 @@ export const trackingSessions = pgTable('TrackingSessions', {
 
 ## 4.9 ตัวอย่าง Custom Migration SQL
 
+**P0 (มีแล้ว)** — `server/drizzle/0001_extensions_partitions.sql` (ตัดตอน · ดูไฟล์จริงสำหรับคอลัมน์ครบ)
+
 ```sql
--- drizzle/0001_extensions_partitions.sql
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 --> statement-breakpoint
-ALTER TABLE "TrackingSessions" ADD CONSTRAINT "EX_TS_NoOverlap"
-  EXCLUDE USING gist ("DeviceId" WITH =, tstzrange("StartedAt", "EndedAt", '[)') WITH &&);
+CREATE SEQUENCE IF NOT EXISTS "AuditLogs_Id_seq" AS bigint;
 --> statement-breakpoint
-ALTER TABLE "DeviceAssignments" ADD CONSTRAINT "EX_DevAsg_NoOverlap"
-  EXCLUDE USING gist ("DeviceId" WITH =, tstzrange("ValidFrom", "ValidTo", '[)') WITH &&);
+CREATE TABLE "AuditLogs" (
+  "Id"         bigint      NOT NULL DEFAULT nextval('"AuditLogs_Id_seq"'),
+  -- ... คอลัมน์ตาม §4.4 ...
+  "OccurredAt" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "PK_AuditLogs" PRIMARY KEY ("OccurredAt", "Id")
+) PARTITION BY RANGE ("OccurredAt");
 --> statement-breakpoint
+ALTER SEQUENCE "AuditLogs_Id_seq" OWNED BY "AuditLogs"."Id";
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "AuditLogs_default" PARTITION OF "AuditLogs" DEFAULT;
+--> statement-breakpoint
+DO $$
+DECLARE
+  month_start timestamp := date_trunc('month', now() AT TIME ZONE 'UTC');
+  i int;
+  from_ts timestamptz;
+  to_ts timestamptz;
+BEGIN
+  FOR i IN 0..2 LOOP
+    from_ts := (month_start + make_interval(months => i)) AT TIME ZONE 'UTC';
+    to_ts := (month_start + make_interval(months => i + 1)) AT TIME ZONE 'UTC';
+    EXECUTE format(
+      'CREATE TABLE IF NOT EXISTS %I PARTITION OF "AuditLogs" FOR VALUES FROM (%L) TO (%L)',
+      'AuditLogs_' || to_char(month_start + make_interval(months => i), 'YYYYMM'),
+      from_ts,
+      to_ts
+    );
+  END LOOP;
+END
+$$;
+--> statement-breakpoint
+CREATE INDEX "IX_AuditLogs_Occurred" ON "AuditLogs" ("OccurredAt" DESC);
+--> statement-breakpoint
+CREATE INDEX "IX_AuditLogs_User" ON "AuditLogs" ("UserId", "OccurredAt" DESC);
+```
+
+**P1 / P2 (แผน — ยังไม่มีใน code)** — custom SQL ของแต่ละ phase · ช่วง dev ต่อท้าย `0001` หรือแยกไฟล์ใหม่ (`npm run db:generate -- --custom --name=<ชื่อ>`) ก็ได้ (DL50)
+
+```sql
+-- P1: exclusion constraint ของ TeamMembers (ตารางสร้างใน migration ที่ generate ของ P1)
 ALTER TABLE "TeamMembers" ADD CONSTRAINT "EX_TeamMembers_LeaderNoOverlap"
   EXCLUDE USING gist ("TeamId" WITH =, tstzrange("ValidFrom", "ValidTo", '[)') WITH &&)
   WHERE ("Role" = 1);
 --> statement-breakpoint
+-- P2: exclusion constraint ของ TrackingSessions
+ALTER TABLE "TrackingSessions" ADD CONSTRAINT "EX_TS_NoOverlap"
+  EXCLUDE USING gist ("DeviceId" WITH =, tstzrange("StartedAt", "EndedAt", '[)') WITH &&);
+--> statement-breakpoint
+-- phase ที่สร้าง DeviceAssignments
+ALTER TABLE "DeviceAssignments" ADD CONSTRAINT "EX_DevAsg_NoOverlap"
+  EXCLUDE USING gist ("DeviceId" WITH =, tstzrange("ValidFrom", "ValidTo", '[)') WITH &&);
+--> statement-breakpoint
+-- P1: GpsLocations partitioned (pattern เดียวกับ AuditLogs)
 CREATE TABLE "GpsLocations" (
   "DeviceId"       bigint           NOT NULL,
   "RecordedAt"     timestamptz      NOT NULL,
@@ -834,11 +882,12 @@ CREATE TABLE "GpsLocations" (
   CONSTRAINT "PK_GpsLocations" PRIMARY KEY ("DeviceId", "RecordedAt")
 ) PARTITION BY RANGE ("RecordedAt");
 --> statement-breakpoint
-CREATE TABLE "GpsLocations_202611" PARTITION OF "GpsLocations"
-  FOR VALUES FROM ('2026-11-01 00:00:00+00') TO ('2026-12-01 00:00:00+00');
+CREATE TABLE IF NOT EXISTS "GpsLocations_default" PARTITION OF "GpsLocations" DEFAULT;
 --> statement-breakpoint
-CREATE INDEX "IX_GpsLocations_202611_RecordedAt_brin"
-  ON "GpsLocations_202611" USING brin ("RecordedAt");
+-- ละไว้: block DO $$ แบบเดียวกับ AuditLogs สร้าง GpsLocations_YYYYMM เดือนปัจจุบัน + 2 เดือนถัดไป
+-- (ขอบเดือน UTC) เป็น statement แยกของตัวเอง
+CREATE INDEX "IX_GpsLocations_RecordedAt_brin"
+  ON "GpsLocations" USING brin ("RecordedAt"); -- สร้างบนตารางแม่ ⇒ ทุก partition ได้ index อัตโนมัติ
 ```
 
-> หมายเหตุ: `tstzrange(a, NULL)` = ช่วงไม่มีขอบบน จึงไม่ต้อง `COALESCE(EndedAt, 'infinity')` · partition ถัดไปสร้างโดย job `PartitionMaintenance` ใน worker (สร้างล่วงหน้า 2 เดือน, idempotent ด้วย `CREATE TABLE IF NOT EXISTS`)
+> หมายเหตุ: `tstzrange(a, NULL)` = ช่วงไม่มีขอบบน จึงไม่ต้อง `COALESCE(EndedAt, 'infinity')` · partition ถัดไปสร้างโดย job `PartitionMaintenance` ใน worker (สร้างล่วงหน้า 2 เดือน, idempotent ด้วย `CREATE TABLE IF NOT EXISTS`) · index บนตารางแม่ถูกสร้างให้ partition ใหม่เอง job จึงไม่ต้องสร้าง index · partition `_default` รับแถวที่ไม่มี partition เดือนนั้นรองรับ: แถวใน `_default` **ไม่ถูกลบด้วย `DROP PARTITION`** และถ้า `_default` มีแถวในช่วงเดือนที่จะสร้าง `CREATE TABLE … PARTITION OF` จะ error ⇒ `PartitionMaintenance` ต้องสร้างล่วงหน้าให้ทันเพื่อให้ `_default` ว่างอยู่เสมอ

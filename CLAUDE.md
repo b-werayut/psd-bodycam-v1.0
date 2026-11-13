@@ -14,10 +14,11 @@ Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopte
 - Everything under `docs/` is Thai. UI strings default to Thai (i18n th/en).
 - This file is in English only to save tokens.
 
-## Current state: design only, no code yet
+## Current state: P0 (foundation) in progress
 
-- `client/` and `server/` are empty. There is no `package.json`, so **there are no build, lint or test commands yet**. They are created in roadmap phase P0.
-- The source of truth is **`docs/blueprint/`**. Read the relevant Part before designing or implementing anything:
+- Code exists in `server/` (NestJS) and `client/` (Vite + React). P0 task plans: `docs/superpowers/plans/2026-11-04-p0-server-foundation.md` and `2026-11-04-p0-client-foundation.md`. Check the code to see which tasks are done; the plan checkboxes are not kept up to date.
+- DB so far: P0 tables only (`server/src/db/schema.ts`) + migrations `0000_baseline` and `0001_extensions_partitions` (`btree_gist` + `AuditLogs`). Tables of later phases (`Devices`, `GpsLocations`, `TrackingSessions`, …) are not created yet.
+- The design source of truth is **`docs/blueprint/`**. Read the relevant Part before designing or implementing anything:
 
 | Part | Use it for |
 |---|---|
@@ -30,7 +31,7 @@ Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopte
 | `06-frontend-architecture.md` | Folder structure, routes, screens, component reuse, status→tone mapping |
 | `07-integration-strategy.md` | Booking push contract v1 (inbound endpoint, auth, responses), inbound mapper, optional read API, inbox, retry, idempotency, Confirmed vs Assumption |
 | `08-implementation-roadmap.md` | Phases P0–P6 with dependencies and acceptance criteria |
-| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL49) |
+| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL50) |
 
 - Implement in roadmap order.
 - P3c (Smart Booking go-live: agreed contract/auth, `smart-booking` mapper if their body is not our v1, optional read API adapter) is blocked until the Booking team provides a spec. Until then, build on our v1 contract, the `booking-simulator` and the `mock` driver (DL25, DL46).
@@ -46,19 +47,20 @@ Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopte
   - Client: `client/src/styles/tailwind.css` (OKLCH tokens), `client/DESIGN.md`, `components/ui`, `components/command-center`, the app shell, `lib/apiClient.ts`, `features/evidence` (DL36).
 - Its `scheduler/camera-session.service.ts` is the **anti-pattern** being replaced: a pseudo work order plus reserved seed rows, `.limit(100)` with no `ORDER BY`, and a reopen loop.
 
-## Planned commands (mirror the reference scripts in P0)
+## Commands
 
-Server (NestJS):
+Server (`cd server`, NestJS):
 - `npm run start:api:dev` / `npm run start:worker:dev` — two entry points, `main.api.ts` and `main.worker.ts`
-- `npm run typecheck`
-- `npm test` — Vitest unit tests, `*.test.ts`
-- `npm run test:int` — integration tests, `*.int-test.ts`. They need a Postgres database whose name ends in `_test`, plus Redis.
-- `npm run db:generate` / `npm run db:migrate` — drizzle-kit
-- Single test: `npx vitest run path/to/file.test.ts -t "test name"`
+- `npm run lint` / `npm run typecheck`
+- `npm test` — Vitest unit tests, `src/**/*.test.ts`
+- `npm run test:int` — integration tests, `src/**/*.int-test.ts`, run serially. The test DB comes from `DATABASE_URL_TEST`, or `DATABASE_URL` + `_test`; its name must end in `_test`. `npm run db:prepare:test` creates it and runs the migrations.
+- `npm run ci` — lint + typecheck + unit + integration
+- `npm run db:generate` (custom SQL: `npm run db:generate -- --custom --name=<name>`) / `npm run db:migrate` — drizzle-kit
+- Single test: `npx vitest run path/to/file.test.ts -t "test name"` (integration: add `--config vitest.integration.config.ts`)
+- `db:seed` (`src/db/seed.ts`) and `coverage` / `test:ci:full` (`scripts/ci-coverage.js`) are in `package.json` but their files do not exist yet.
 
-Client (Vite):
-- `npm run dev` / `npm run build` / `npm run typecheck` / `npm test`
-- Planned change from the reference: `build` must also typecheck, and ESLint is added (Part 6 §6.1).
+Client (`cd client`, Vite):
+- `npm run dev` / `npm run build` (typecheck + vite build) / `npm run typecheck` / `npm run lint` / `npm test`
 
 ## Architecture (big picture)
 
@@ -136,6 +138,7 @@ Emit realtime events **only after commit**.
 - JSON columns use `jsonb`.
 - Soft delete applies to master data only.
 - `GpsLocations` and `AuditLogs` are partitioned by month. They are declared in `schema.partitioned.ts`, which is kept outside drizzle-kit's schema path, and their DDL is written as custom SQL.
+- Dev phase (until the first production go-live, DL50): DB data is disposable. Migrations may be edited, squashed or regenerated, and the DB dropped and recreated. After go-live, migrations are append-only.
 
 **API**
 - Prefix is `/api`. All JSON is camelCase.
