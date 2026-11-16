@@ -632,6 +632,12 @@ PK `(Source, Resource)` · `LastReceivedAt` (POST ขาเข้าล่าส
 
 รวม **34 ตาราง** (reference 33) — ตัดตารางที่ผูก dashcam/approval/company/site และเพิ่มตารางสำหรับ team, depot, session, Booking integration · ไม่มี `IntegrationOutbox` (ไม่มี write-back ไป Booking — DL31, DL46) · ไม่มีตารางใหม่จาก DL46/DL47 (เพิ่มแค่คอลัมน์) · รายการครบอยู่ใน README (Recommended Database Schema)
 
+### I. DSS middleware (schema `dss` — ไม่ใช่ของ NestJS)
+
+- **`dss."RequestLogs"`** — ประวัติ request หลักที่เข้า DSS middleware (`psd-bwc-dss-services`) สำหรับดูสถิติการใช้งานและ monitor · DSS middleware เป็นผู้สร้างและเขียนเองผ่าน `REQUEST_LOG_DATABASE_URL` (ว่าง = ไม่เก็บ) · NestJS ไม่อ่าน/ไม่เขียน และ**ไม่นับรวมใน 34 ตารางข้างบน**
+- คอลัมน์: `Id bigint identity PK`, `OccurredAt timestamptz NN`, `Client varchar(50)` (ชื่อผู้เรียกจาก JWT `kid` เช่น `smart-booking`), `Method varchar(10) NN` (`WS` = WebSocket), `Path varchar(300) NN`, `DeviceCode varchar(64)`, `StatusCode smallint NN`, `ResultCode integer` (`code` ของ DSS — DSS ตอบ HTTP 200 แม้ล้มเหลว), `DurationMs integer NN`, `ClientIp varchar(45)`, `UserAgent varchar(300)`, `Detail varchar(300)` · IX `IX_RequestLogs_Occurred (OccurredAt DESC)`, `IX_RequestLogs_Device (DeviceCode, OccurredAt DESC)`
+- ไม่เก็บ polling / request ที่ถี่มาก: `/health`, `/body-camera/proxy` (HLS), `/api/v1/location` (GpsPoll ทุก 15s) — ตั้งได้ที่ `REQUEST_LOG_EXCLUDE_PATHS` · DDL อยู่ที่ `psd-bwc-dss-services/deploy/request-logs.sql`
+
 ---
 
 ## 4.5 Data Lifecycle, Retention & Archiving
@@ -650,6 +656,7 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 | Notifications / Alerts | 90 วัน | DELETE batch | |
 | IntegrationInbox | 30 วัน (Dead เก็บจนกว่าจะ resolve) | DELETE batch | |
 | IntegrationCallLogs | 30 วัน | DELETE batch | |
+| `dss."RequestLogs"` | 90 วัน (`REQUEST_LOG_RETENTION_DAYS`) | DELETE batch รายวัน (ชุดละ 5000) โดย DSS middleware | ไม่ใช่ job ของ NestJS · `0` = ไม่ลบ |
 
 > หลักฐานที่ต้องเก็บนานกว่า 3 เดือน ให้ export MP4 ออกไปเก็บนอกระบบก่อนครบกำหนด — ระบบแสดงวันที่ข้อมูลจะถูกลบในหน้าใบงาน
 
@@ -676,6 +683,7 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 5. **Partitioned tables** ประกาศ `pgTable` ใน `server/src/db/schema.partitioned.ts` ซึ่ง **ไม่อยู่ใน `schema` path ของ `drizzle.config.ts`** ⇒ drizzle-kit ไม่ generate DDL ให้ แต่ query แบบ typed ได้ · ตอนนี้มี `AuditLogs` · `GpsLocations` เพิ่มใน P1
 6. **Drift gate**: port `guardMigrationsOrExit()` (`server/src/db/migration-status.ts`, `assert-migrations.ts`) + advisory lock ตอน migrate · production รัน migrate เป็น step แยกก่อน deploy (reference ยังไม่มีใน Dockerfile — ต้องทำ)
 7. **ไม่ย้ายข้อมูลจากระบบเดิม** **[Confirmed — Q13]** — เป็นระบบใหม่ทั้งหมด ระบบเดิมใช้เป็น reference เท่านั้น · master data (อุปกรณ์ ผ่าน vendor sync, พนักงาน, ผู้ใช้, ทีม, ฐาน) ตั้งใหม่ในระบบนี้
+8. **Schema `dss` อยู่นอก drizzle** — `drizzle.config.ts` ไม่ได้ตั้ง `schemaFilter` ⇒ drizzle-kit ดูแค่ `public` จึงไม่ยุ่งกับ `dss."RequestLogs"` · **อย่าเพิ่ม `dss` ใน `schemaFilter`** (drizzle-kit จะเห็นตารางนี้เป็นส่วนเกินและเสนอให้ลบ) · DSS middleware สร้าง schema + ตารางเองตอนเขียนครั้งแรก (`CREATE SCHEMA/TABLE IF NOT EXISTS`) และสร้างใหม่เองถ้าตารางหายระหว่างรัน ⇒ drop-recreate DB ช่วง dev (DL50) ไม่ต้อง restart DSS middleware · ถ้า DB user ไม่มีสิทธิ์ `CREATE` ให้ DBA รัน `deploy/request-logs.sql` ของ `psd-bwc-dss-services` และ GRANT ก่อน
 
 ---
 

@@ -162,6 +162,8 @@ flowchart LR
 | Media | `StreamingSessions`, `TalkSessions`, `EvidenceExports` |
 | System | `Alerts`, `Notifications`, `AuditLogs` (partitioned), `Settings` |
 
+นอกจาก 34 ตารางนี้ DB เดียวกันมี `dss."RequestLogs"` (schema `dss`) ที่ DSS middleware สร้างและเขียนเองสำหรับเก็บประวัติ request — NestJS / drizzle ไม่ได้จัดการ (ดู Part 4 §4.4 I และ §4.7 ข้อ 8)
+
 Role `TEAM_LEADER` และ scope `team` เพิ่มผ่าน data migration (`Roles` / `RolePermissions`) ไม่มีตารางใหม่ · หัวหน้าทีมต้องผูก `Employees.UserId` (บังคับใน service — DL47)
 
 Invariant สำคัญที่ DB บังคับ:
