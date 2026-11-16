@@ -139,6 +139,7 @@ Emit realtime events **only after commit**.
 - Soft delete applies to master data only.
 - `GpsLocations` and `AuditLogs` are partitioned by month. They are declared in `schema.partitioned.ts`, which is kept outside drizzle-kit's schema path, and their DDL is written as custom SQL.
 - Dev phase (until the first production go-live, DL50): DB data is disposable. Migrations may be edited, squashed or regenerated, and the DB dropped and recreated. After go-live, migrations are append-only.
+- The same DB also holds schema `dss` (table `dss."RequestLogs"`). The DSS middleware (`psd-bwc-dss-services`, env `REQUEST_LOG_DATABASE_URL`) creates and writes it, and re-creates it after a DB reset. It is not one of our tables and Nest never reads it. drizzle-kit leaves it alone because `drizzle.config.ts` has no `schemaFilter` (so only `public` is managed). Never add `dss` to a `schemaFilter`, or push/generate will offer to drop it. See `04-database-design.md` §4.4 I.
 
 **API**
 - Prefix is `/api`. All JSON is camelCase.
