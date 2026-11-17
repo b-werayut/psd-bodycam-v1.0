@@ -53,8 +53,8 @@ flowchart LR
 **Deliverables**
 - โครง repo `client/` + `server/` · scripts dev/test/build · Docker images (api, worker+ffmpeg, web) · CI: lint, **typecheck**, unit, integration (Postgres + Redis ใน CI)
 - Port `server/src/common/*` (db, scope แบบใหม่ `all` / `department` — `team` เพิ่มใน P5, settings + spec, lock, queue, rate limit, storage, context, audit interceptor, permission check, realtime bus, migration guards, prod-readiness)
-- DB baseline + custom migration (extensions, partitions) + data migration ของ roles/permissions/settings · seed dev-only
-- Auth: password + Entra SSO + refresh rotation + lockout + ระงับบัญชี · users / roles / departments / employees
+- DB baseline + custom migration (extensions, partitions) + data migration ของ roles/permissions/settings (role `ADMIN`, `COMPANY_ADMIN` — DL51, `OPERATOR`, `VIEWER`) · seed dev-only
+- Auth: password + Entra SSO + refresh rotation + lockout + ระงับบัญชี · users / roles / departments / employees · กติกา `COMPANY_ADMIN` (DL51): permission สงวนของ `ADMIN` (`PERMISSION_RESERVED_FOR_ADMIN`) + ป้องกันบัญชี `ADMIN` (`ADMIN_ACCOUNT_PROTECTED`) + `availableActions` ต่อแถวผู้ใช้
 - Global exception filter (error format Part 5) · pino logging + correlationId · health endpoints · Swagger
 - Client: shell, design tokens, primitives, composites, i18n, auth pages, `usePermission`, router + 404/errorElement · port design guard tests
 
@@ -62,6 +62,7 @@ flowchart LR
 - Login password + Entra ทำงานใน staging · refresh rotation/reuse detection ผ่าน integration test
 - endpoint ทุกตัวไม่มี `@RequirePermission` ⇒ test fail (secure by default)
 - `npm run build` รวม typecheck · migrate รันซ้ำได้ผลเดิม · drift gate หยุด process เมื่อ migration ค้าง
+- `COMPANY_ADMIN` จัดการผู้ใช้ role อื่นได้ · แก้ / ระงับ / ลบบัญชี `ADMIN` หรือกำหนด role `ADMIN` ⇒ 403 · เรียก `/audit-logs`, `/settings`, `PUT /roles/:id/permissions` ⇒ 403 · ใส่ permission สงวนให้ role อื่น ⇒ 400 (integration test — DL51)
 - design guard tests ผ่าน · หน้าว่างของ shell ตรง DESIGN.md (light/dark)
 
 ### P1 — Devices & Real-time Tracking
@@ -142,7 +143,7 @@ flowchart LR
 - Push FCM "ใบงานใหม่ของทีม" เมื่อเกิด WO ของทีม (deep link `bodycam://jobs/{workOrderId}`) · alert ไม่ push ไปมือถือแล้ว
 - Socket.IO room `team:{id}` (หัวหน้าทีม join) · `workorder:changed` ส่งเข้า `team:{teamId}` ของใบงานด้วย · ไม่ส่ง `gps:batch` ให้หัวหน้าทีม
 - ทะเบียนเครื่อง `/auth/devices` (ไม่มี PIN) · refresh token แบบ body · push tokens + FCM queue · notifications inbox
-- Web: login ด้วย `TEAM_LEADER` แสดงหน้า "ใช้งานผ่านแอปมือถือ" (ไม่มีเมนู) · `ADMIN` สร้างบัญชีหัวหน้าทีมใน User Management และผูก `Employees.UserId` (บังคับใน service)
+- Web: login ด้วย `TEAM_LEADER` แสดงหน้า "ใช้งานผ่านแอปมือถือ" (ไม่มีเมนู) · `ADMIN` หรือ `COMPANY_ADMIN` (DL51) สร้างบัญชีหัวหน้าทีมใน User Management และผูก `Employees.UserId` (บังคับใน service)
 - เอกสาร mobile contract ฉบับใหม่ (ปรับจาก `docs/MOBILE-API-CONTRACT.md` ของ reference) — แอปมือถือทีมเราพัฒนาเอง ปรับ / เพิ่ม / ลดฟังก์ชันได้ (DL49) · login หัวหน้าทีมได้ทั้ง Entra SSO และ username/password แบบ reference (DL49) — acceptance: บัญชีไม่มี Entra login ด้วยรหัสผ่านได้ + lockout ทำงาน
 
 **Acceptance**: หัวหน้าทีมเห็นเฉพาะใบงาน / กล้องของทีมตัวเอง — ของทีมอื่น ⇒ 404 · live เปิดได้เฉพาะกล้องใน scope `team` (กล้องอื่น ⇒ 404) · endpoint ของเมนู web (dashboard, tracking, sessions, playback, evidence, live wall, talk, alerts, users, settings ฯลฯ) ⇒ 403 และ login web ⇒ หน้า "ใช้งานผ่านแอปมือถือ" ไม่มีเมนู · ไม่ผูกพนักงาน / ไม่ใช่หัวหน้า ⇒ รายการว่าง ไม่ error · เปลี่ยนหัวหน้าทีม ⇒ สิทธิ์ย้ายไปคนใหม่ทันที · push "ใบงานใหม่ของทีม" ถึงเครื่องจริงเมื่อ simulator POST ใบงานใหม่ของทีม · ระงับบัญชี ⇒ refresh + push token ถูก revoke · ทีม mobile เชื่อมต่อได้ครบ

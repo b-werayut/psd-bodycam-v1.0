@@ -152,12 +152,14 @@ Emit realtime events **only after commit**.
 - `availableActions` are computed on the server.
 
 **Access**
-- Roles are `ADMIN`, `OPERATOR` and `VIEWER` (web), plus `TEAM_LEADER` (mobile only, DL47). Never add "Safety" to role names (DL48).
+- Roles are `ADMIN`, `COMPANY_ADMIN`, `OPERATOR` and `VIEWER` (web), plus `TEAM_LEADER` (mobile only, DL47). Never add "Safety" to role names (DL48).
+  - `ADMIN`: super admin. Bypasses permission and scope checks (still audited).
+  - `COMPANY_ADMIN` (DL51): company admin, scope `all`, no bypass. Has `OPERATOR`'s permissions plus `org:manage`, `users:read`, `users:manage`. Manages users of every role except `ADMIN`: touching an `ADMIN` account or assigning role `ADMIN` ⇒ 403 `ADMIN_ACCOUNT_PROTECTED`. Can never hold the `ADMIN`-reserved permissions (`audit:view`, `settings:manage`, `roles:manage`, `integration:*`, `devices:manage`, `devices:sync`); granting them to any non-`ADMIN` role ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN`. Enforce both in the service, not only in the UI.
   - `OPERATOR` replaces the reference's Supervisor and Dispatcher roles (the requirement's department/division manager). It monitors (map, live, live wall, talk), plays back / exports evidence, manages teams and acks alerts. It has no link, classify or review duties (DL33).
   - `TEAM_LEADER`: field team leader. The mobile app is for this role only: live of their own camera + Booking job details (`/mobile/me`, `/mobile/jobs`, `/streams/live`). No web UI, no playback, GPS, camera-status or user management. Check-in / check-out still happens in the Booking app.
   - Team leaders log in with Entra SSO if they have an Entra account, otherwise with username/password like the reference (`/auth/login`, lockout, refresh rotation) (DL49).
   - The mobile app is built by our own team. Live + job details is the starting scope; the team may add or remove features by adding `/api/mobile/*` endpoints and `TEAM_LEADER` permissions through a data migration (DL49).
-- Scope levels are `all`, `department` (subtree) and `team` (the team the user's employee currently leads; jobs by `BookingJobs.TeamId` / `LeaderEmployeeId`, cameras of that team or in its open jobs' `DeviceRefs`).
+- Scope levels are `all` (`ADMIN`, `COMPANY_ADMIN`), `department` (subtree; `OPERATOR`, `VIEWER`) and `team` (`TEAM_LEADER`: the team the user's employee currently leads; jobs by `BookingJobs.TeamId` / `LeaderEmployeeId`, cameras of that team or in its open jobs' `DeviceRefs`).
 - Every endpoint needs `@RequirePermission` + `@Audit` and applies data scope at the query layer.
 
 **Reference data**

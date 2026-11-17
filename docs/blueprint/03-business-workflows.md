@@ -495,7 +495,7 @@ User flow (DL47):
 - Realtime: `TEAM_LEADER` เข้า room `team:{id}` รับ `workorder:changed` ของทีม · ไม่มี `gps:batch`
 - **ไม่มีในแอป (web เท่านั้น)**: playback / หลักฐาน, GPS / แผนที่, สถานะกล้อง (monitoring), live wall, talk, alerts, user management (requirement §4.3 · DL48) · `TEAM_LEADER` เข้า web ⇒ หน้า "ใช้งานผ่านแอปมือถือ" ไม่มีเมนู
 - ไม่มีคิวตรวจสอบ / link / จัดประเภท session (DL33)
-- Login: Entra SSO ถ้าหัวหน้าทีมมีบัญชี Entra ไม่งั้น username/password แบบ reference (lockout + refresh rotation) — รองรับทั้งคู่ **[Confirmed — DL49]** · บัญชีสร้างโดย `ADMIN` และผูกพนักงานผ่าน `Employees.UserId`
+- Login: Entra SSO ถ้าหัวหน้าทีมมีบัญชี Entra ไม่งั้น username/password แบบ reference (lockout + refresh rotation) — รองรับทั้งคู่ **[Confirmed — DL49]** · บัญชีสร้างโดย `ADMIN` หรือ `COMPANY_ADMIN` (DL51) และผูกพนักงานผ่าน `Employees.UserId`
 - Check-in/check-out หน้างาน **อยู่ฝั่ง Booking app** — ระบบเรารับเป็นข้อมูลที่ Smart Booking POST มาเท่านั้น
 
 ---

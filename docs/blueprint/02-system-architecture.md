@@ -21,7 +21,7 @@
 ```mermaid
 flowchart TB
   subgraph Users["ผู้ใช้"]
-    OPS["Admin / Operator / Viewer<br/>Web browser"]
+    OPS["Admin / Company admin / Operator / Viewer<br/>Web browser"]
     LEAD["หัวหน้าทีม · TEAM_LEADER<br/>Mobile app ของระบบนี้"]
     TL["หัวหน้าทีม<br/>Smart Booking app"]
   end
@@ -309,16 +309,19 @@ Evidence (หน้า หลักฐาน `/evidence` — DL36): เลือ
 
 | Role | Data scope | ใช้ทำอะไร |
 |---|---|---|
-| `ADMIN` | all | ทุกอย่าง รวม settings, integration, roles |
+| `ADMIN` | all | super admin — ทุกอย่าง รวม settings, integration, roles, audit · bypass permission/scope |
+| `COMPANY_ADMIN` | all | ผู้ดูแลบริษัท (web — DL51): งานแบบ `OPERATOR` ทั้งบริษัท + จัดการพนักงาน / แผนก (`org:manage`) + จัดการผู้ใช้ทุก role **ยกเว้น `ADMIN`** · ไม่มี audit, settings, matrix สิทธิ์, integration, จัดการ / sync กล้อง (permission สงวนของ `ADMIN`) · ไม่ bypass |
 | `OPERATOR` | department (รวมแผนกย่อย) | ศูนย์ควบคุม (web): เฝ้าดู (แผนที่/live/live wall/talk), playback / export หลักฐาน, จัดการทีม, ack alert · ไม่มีคิวตรวจสอบ / link / classify (DL33) |
 | `VIEWER` | department | อ่านอย่างเดียว (web) |
 | `TEAM_LEADER` | team | **แอปมือถือเท่านั้น**: live กล้องของตัวเอง/ทีม + รายละเอียดใบงานของทีมจาก Smart Booking · ไม่มี web UI (login เว็บเห็นหน้า "ใช้งานผ่านแอปมือถือ") · ไม่มี playback / หลักฐาน / GPS / สถานะกล้อง / talk / alert (DL47) |
 
 - `OPERATOR` แทน `SUPERVISOR` + `DISPATCHER` ของ reference — ระบบใหม่ไม่มีงานสร้าง/อนุมัติ/มอบหมายใบงาน จึงไม่ต้องแยก 2 บทบาท (Part 9 DL14)
 - ชื่อ role เป็นชื่อกลาง ไม่ใช้คำว่า Safety (DL48): "แอดมินฝ่ายความปลอดภัย" ใน requirement = `ADMIN` · "ผู้จัดการแผนก/ฝ่าย" = `OPERATOR` (scope department) · `VIEWER` คงไว้
+- **`COMPANY_ADMIN` (DL51)** — กันยกระดับสิทธิ์ใน service ไม่พึ่ง UI: (1) permission สงวนของ `ADMIN` (`audit:view`, `settings:manage`, `roles:manage`, `integration:*`, `devices:manage`, `devices:sync`) ให้ role อื่นที่ไม่ใช่ `ADMIN` ไม่ได้ — `PUT /roles/:id/permissions` ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN` (2) ผู้ใช้ที่ไม่ใช่ `ADMIN` แก้ / ระงับ / ลบบัญชี `ADMIN` หรือกำหนด role `ADMIN` ไม่ได้ ⇒ 403 `ADMIN_ACCOUNT_PROTECTED`
+- Data scope ตาม role code: `ADMIN`, `COMPANY_ADMIN` = `all` · `OPERATOR`, `VIEWER` = `department` · `TEAM_LEADER` = `team`
 - **ไม่มีการสร้าง/ปิด/reopen/void ใบงานโดยคนในระบบนี้** — ใบงานทุกใบมาจาก Booking และเปลี่ยนสถานะตาม check-in / check-out / ยกเลิกของ Booking (หัวหน้าทีม/แอดมินทำฝั่ง Booking) **[Confirmed — DL13, DL15, DL33]**
 - **หัวหน้าทีมใช้แอปมือถือของระบบนี้** (role `TEAM_LEADER`) — check-in / check-out ยังทำใน Smart Booking app **[Confirmed — requirement ฉบับ 2026-11-12 · DL47 แทน DL4 / DL16]**
-  - บัญชีสร้างโดย `ADMIN` ใน User Management และต้องผูก employee (`Employees.UserId`) · login ได้ทั้ง Entra SSO (มีบัญชี Entra) และ username/password แบบ reference (ไม่มี Entra) **[Confirmed — DL49]**
+  - บัญชีสร้างโดย `ADMIN` หรือ `COMPANY_ADMIN` (DL51) ใน User Management และต้องผูก employee (`Employees.UserId`) · login ได้ทั้ง Entra SSO (มีบัญชี Entra) และ username/password แบบ reference (ไม่มี Entra) **[Confirmed — DL49]**
 
 - **Scope** port `server/src/common/scope/*` แล้วเปลี่ยน level เป็น `all` / `department` / `team` · นอก scope = 404 (กติกาเดิม)
   - `department` = subtree ด้วย recursive CTE + cache 60s

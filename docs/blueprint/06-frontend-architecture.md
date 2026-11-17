@@ -114,6 +114,7 @@ client/src/
 - ทุก route `lazy` + `HydrateFallback = LoadingSkeleton` (pattern เดิม) · `errorElement = RouteErrorPage`
 - **ใช้ path จริงสำหรับ detail** (`/work-orders/:id`) — แทน `?open=<id>` dialog ของ reference เพื่อให้ deep link จาก alert / การแจ้งเตือน / Booking app ใช้ได้
 - `RequirePermission` แสดงการ์ด "ไม่มีสิทธิ์" พร้อมรายชื่อ permission (พฤติกรรมเดิม)
+- เมนู / route: `ADMIN` เห็นทุกอย่าง (bypass) · role อื่นตาม permission — `COMPANY_ADMIN` (DL51) จึงไม่เห็น การเชื่อมต่อ, Audit, ตั้งค่า และเปิด URL ตรงได้การ์ด "ไม่มีสิทธิ์" · ตารางเมนู × role อยู่ใน [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §4.2
 - **`TEAM_LEADER` ไม่มี web UI (DL47)**: `RequireAuth` อ่าน role จาก `/auth/me` · role = `TEAM_LEADER` ⇒ redirect ไป `/mobile-only` ทุก route (รวม deep link `/work-orders/by-booking/...`) · ไม่โหลด shell / `RealtimeProvider` · ไม่ใช้การ์ด "ไม่มีสิทธิ์" เพราะผู้ใช้ไม่ได้ผิดสิทธิ์ แค่ใช้ผิดช่องทาง
 
 ```mermaid
@@ -159,7 +160,7 @@ flowchart TB
 | **Live wall** — เมนูหลัก Live (DL36) | port ทั้งหน้า (1/4/6/9/16, drag-drop, slot ใน URL, talk) · รายการกล้องจัดกลุ่มตามทีม · สถานะกล้องดึงตอนเปิดหน้า (DL35) | `/streams/*`, `/devices` | `stream:status` |
 | **Integration Status / Error Monitoring** | monitor การรับ POST จาก Smart Booking (DL46): การ์ด POST ล่าสุด (`lastReceivedAt`) + เตือนเมื่อเงียบนาน (alert 17) · inbound 24 ชม. แยก accepted / duplicate / invalid (400) / unauthorized (401) · inbox backlog Pending / Failed / Dead + ปุ่ม retry Dead · call logs (inbound + outbound) · mapping issues · **ส่วน read API** (breaker, ปุ่ม full reconcile, refresh รายใบ) แสดงเฉพาะเมื่อ `BOOKING_PROVIDER_DRIVER ≠ none` (`readApi` ≠ null) | `/integration/*` | `integration:status` |
 | **Teams** | ตารางทีม (หัวหน้า, จำนวนสมาชิก, กล้องหลัก, `BookingTeamRef`) · detail: สมาชิก + ประวัติ, เปลี่ยนหัวหน้า, กล้องที่ผูก | `/teams/*` | — |
-| **Users / Roles** | port `/users` (ตัด company) + role-permission matrix + ระงับบัญชี | `/users`, `/roles` | `session:revoked` |
+| **Users / Roles** | port `/users` (ตัด company) + role-permission matrix + ระงับบัญชี · **`COMPANY_ADMIN` (DL51)**: เห็นบัญชี `ADMIN` ในรายการแต่ไม่มีปุ่ม (ตาม `availableActions` ต่อแถว) · dropdown บทบาทไม่มี `ADMIN` · แผนกไม่บังคับสำหรับ `ADMIN` / `COMPANY_ADMIN` / `TEAM_LEADER` · matrix: คอลัมน์ `ADMIN` ล็อก, ช่อง `reservedPermissions` ล็อกในคอลัมน์ role อื่น, ผู้ไม่มี `roles:manage` เห็นแบบอ่านอย่างเดียว (ไม่มีปุ่มบันทึก) · แบบหน้าจอ [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §5.5–5.7 | `/users`, `/roles` | `session:revoked` |
 | Notifications, Audit, Settings | port | | `alert:new` |
 | **ใช้งานผ่านแอปมือถือ** (`/mobile-only`) | สำหรับ `TEAM_LEADER` ที่ login web (DL47): ข้อความว่าบัญชีนี้ใช้กับแอปมือถือ + ปุ่มออกจากระบบ · ไม่มีเมนู ไม่มีข้อมูลงาน | `/auth/me` | — |
 

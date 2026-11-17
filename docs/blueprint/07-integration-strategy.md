@@ -31,7 +31,7 @@
 | Booking job มี identifier ของทีม/หัวหน้าทีม/รถ | [Assumption] — **ความเสี่ยงอันดับ 1** | ถ้าไม่มี matching อัตโนมัติทำไม่ได้ ⇒ session ค้าง `AwaitingMatch` / `NoTeam` (ไม่มี manual link — DL33) |
 | Booking job มีเวลาเริ่ม/จบตามแผน | [Assumption] | ไม่มี ⇒ ใช้ทั้งวันของ `ScheduledDate` (confidence ลดเป็น MEDIUM) |
 | หัวหน้าทีมดูใบงานของทีมในแอปมือถือของระบบนี้ | **[Confirmed]** requirement ฉบับ 2026-11-12 (DL47) | scope `team` อาศัย `BookingJobs.TeamId` / `LeaderEmployeeId` ที่ resolve จาก `teamRef` / `leaderRef` ⇒ ref ที่ map ไม่ได้ = หัวหน้าทีมไม่เห็นใบงานนั้น (`MappingIssues`) |
-| Booking app เปิดดูหลักฐานของใบงานผ่าน deep link | [Assumption] (DL31 · คงเดิม) | §7.9 · ผู้เปิดต้องมีบัญชีเว็บ (`ADMIN` / `OPERATOR` / `VIEWER`) |
+| Booking app เปิดดูหลักฐานของใบงานผ่าน deep link | [Assumption] (DL31 · คงเดิม) | §7.9 · ผู้เปิดต้องมีบัญชีเว็บ (`ADMIN` / `COMPANY_ADMIN` / `OPERATOR` / `VIEWER`) |
 | Auth ขาเข้า (Booking → เรา) | [Assumption] — ตกลงกับ Booking | HMAC-SHA256 (default) หรือ API key · §7.4 |
 | Auth ขาออก (เรา → Booking เฉพาะ read API) | [Assumption] | OAuth2 client credentials / API key / mTLS |
 
@@ -409,7 +409,7 @@ https://{host}/work-orders/by-booking/{externalJobId}
 ```
 
 - SPA เรียก `GET /api/work-orders/by-booking/:externalJobId` → ได้ `{ id }` แล้ว redirect ไป `/work-orders/:id` (Part 5 §5.2, Part 6 §6.3)
-- ใช้กับผู้ใช้ **เว็บ** เท่านั้น: ผู้เปิดต้อง login ด้วยบัญชี `ADMIN` / `OPERATOR` / `VIEWER` + data scope ตามปกติ · ไม่พบหรือนอก scope = 404
+- ใช้กับผู้ใช้ **เว็บ** เท่านั้น: ผู้เปิดต้อง login ด้วยบัญชี `ADMIN` / `COMPANY_ADMIN` / `OPERATOR` / `VIEWER` + data scope ตามปกติ · ไม่พบหรือนอก scope = 404
 - `TEAM_LEADER` ไม่มี web UI (login เว็บแล้วเห็นหน้า "ใช้งานผ่านแอปมือถือ" — DL47) · หัวหน้าทีมดูรายละเอียดใบงานในแอปมือถือแทน (`/mobile/jobs/:workOrderId`)
 - deep link ไม่ต้องให้ระบบเรารู้ URL ของ Booking หรือเก็บ token ขาออก
 

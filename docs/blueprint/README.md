@@ -34,7 +34,7 @@
 - **สถานะใบงานตาม Booking check-in/check-out** — check-out ⇒ ปิดใบงาน · Booking ยกเลิก ⇒ Cancelled · ระบบเราไม่มีปุ่มปิด/reopen/void (หัวหน้าทีม/แอดมินทำฝั่ง Booking)
 - จับคู่ไม่ได้ ⇒ session ค้าง `AwaitingMatch` รอ Booking แล้ว rematch อัตโนมัติเมื่อข้อมูลเปลี่ยน · ไม่มีการผูกด้วยมือ ไม่มีคิวตรวจสอบ (DL33) · กล้องชาร์จที่ฐาน ⇒ session `IdleOrCharging`
 - **เมนูหลัก = Live** (live wall + talk) **และ หลักฐาน** (`/evidence`: ใบงาน → กล้อง + ช่วงเวลา → playback / ดาวน์โหลด MP4) (DL36) · session ที่ไม่มีใบงานค้นได้จาก `/recordings` · GPS history และ talk เป็น Must แม้ requirement จัดเป็น Optional (DL48)
-- ผู้ใช้ **web** = `ADMIN` (แอดมินฝ่ายความปลอดภัยใน requirement), `OPERATOR` (ผู้จัดการแผนก/ฝ่าย · scope แผนก), `VIEWER` — ฝั่ง monitoring และตรวจหลักฐาน · ไม่เปลี่ยนชื่อ role และไม่ใช้คำว่า Safety (DL48)
+- ผู้ใช้ **web** = `ADMIN` (super admin · แอดมินฝ่ายความปลอดภัยใน requirement), `COMPANY_ADMIN` (ผู้ดูแลบริษัท · scope ทั้งบริษัท · จัดการผู้ใช้ทุก role ยกเว้น `ADMIN` · ไม่มี audit / งานตั้งค่าระบบ — DL51), `OPERATOR` (ผู้จัดการแผนก/ฝ่าย · scope แผนก), `VIEWER` — ฝั่ง monitoring และตรวจหลักฐาน · ไม่เปลี่ยนชื่อ role และไม่ใช้คำว่า Safety (DL48)
 - ผู้ใช้ **mobile** = **หัวหน้าทีม** role `TEAM_LEADER` (scope `team`) เท่านั้น: ดู live กล้องของตัวเอง + รายละเอียดใบงานจาก Smart Booking ของทีม · ไม่มี playback / GPS / สถานะกล้อง / talk บนมือถือ · `TEAM_LEADER` ไม่มีเมนู web (DL47)
 - Retention: GPS 3 เดือน · ใบงาน 3 เดือน · audit 12 เดือน · ไม่ย้ายข้อมูลจากระบบเดิม
 - **ทั้งหมดอาจปรับตามข้อมูลจากทีม Booking** (ผู้ใช้ระบุ 2026-11-04)
@@ -54,6 +54,7 @@
 | **Smart Booking** | ระบบใบงานภายนอก (ต้นทางใบงานเดียว) · POST ใบงานเข้า inbound endpoint ของเรา (DL46) · ในโค้ดใช้ชื่อ `booking` / `BOOKING` |
 | **Inbound endpoint** | `POST /api/integration/booking/jobs` ใน process `api` ที่ Smart Booking เรียก · ตรวจ auth (HMAC / API key **[Assumption]**) → validate → บันทึก `IntegrationInbox` → ตอบ 202 (`accepted`) / 200 (`duplicate`) · map และ upsert ใน worker `integration` (DL46) |
 | **DO / SH** | เลขอ้างอิงที่มากับใบงาน **[Confirmed]** · ความหมาย = เลข Delivery Order / Shipment **[Assumption]** · เก็บใน `BookingJobs.DoNo` / `ShNo` ใช้แสดงและค้นหา ไม่ใช้จับคู่ |
+| **`COMPANY_ADMIN`** | ผู้ดูแลบริษัท (web, scope `all` — DL51) · งานแบบ `OPERATOR` ทั้งบริษัท + จัดการพนักงาน / แผนก / ผู้ใช้ (ยกเว้นบัญชี `ADMIN`) · ไม่ได้รับ permission สงวนของ `ADMIN` (audit, settings, matrix สิทธิ์, integration, จัดการ / sync กล้อง) · ไม่ bypass |
 | **`TEAM_LEADER` / scope `team`** | role ของหัวหน้าทีมที่ใช้แอปมือถือ (DL47) · scope `team` = ใบงานของทีมที่ตนเป็นหัวหน้า active (`TeamMembers.Role = 1 Leader`) หรือที่ระบุตนเป็นหัวหน้า + กล้องของทีม/ของใบงาน `Planned` / `Open` · นอก scope = 404 |
 | **Booking Check-in / Check-out** | หัวหน้าทีม/แอดมินกดเริ่ม/จบงานใน Smart Booking แล้วมากับ POST (`checkInAt` / `checkOutAt`) · check-out = ปิดใบงานในระบบเรา |
 | **Depot** | ฐาน/จุดชาร์จกล้อง — session ที่เกิดที่ฐานไม่นับเป็นงาน (ระบบตั้ง `IdleOrCharging` เอง) |
@@ -164,7 +165,7 @@ flowchart LR
 
 นอกจาก 34 ตารางนี้ DB เดียวกันมี `dss."RequestLogs"` (schema `dss`) ที่ DSS middleware สร้างและเขียนเองสำหรับเก็บประวัติ request — NestJS / drizzle ไม่ได้จัดการ (ดู Part 4 §4.4 I และ §4.7 ข้อ 8)
 
-Role `TEAM_LEADER` และ scope `team` เพิ่มผ่าน data migration (`Roles` / `RolePermissions`) ไม่มีตารางใหม่ · หัวหน้าทีมต้องผูก `Employees.UserId` (บังคับใน service — DL47)
+Role `TEAM_LEADER` และ scope `team` (DL47) และ role `COMPANY_ADMIN` (DL51) เพิ่มผ่าน data migration (`Roles` / `RolePermissions`) ไม่มีตารางใหม่ · หัวหน้าทีมต้องผูก `Employees.UserId` (บังคับใน service — DL47)
 
 Invariant สำคัญที่ DB บังคับ:
 - `UQ_TS_OpenPerDevice` + `EX_TS_NoOverlap` — 1 session เปิดต่ออุปกรณ์ ไม่ซ้อนเวลา

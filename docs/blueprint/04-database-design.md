@@ -360,14 +360,14 @@ erDiagram
 | FullName | varchar(200) | NN | |
 | AzureObjectId | varchar(64) | | `UQ_Users_AzureObjectId` partial · null = ยังไม่เคย link (ไม่ใช่ "ห้ามเข้า") |
 | RoleId | bigint | NN | FK → Roles |
-| DepartmentId | bigint | | FK → Departments (null ได้เฉพาะ role scope `all`) · role `TEAM_LEADER` (scope `team`) ต้องผูกพนักงานผ่าน `Employees.UserId` — **บังคับใน service ไม่ใช่ DB** (DL47) |
+| DepartmentId | bigint | | FK → Departments (null ได้เฉพาะ role scope `all` — `ADMIN`, `COMPANY_ADMIN`) · role `TEAM_LEADER` (scope `team`) ต้องผูกพนักงานผ่าน `Employees.UserId` — **บังคับใน service ไม่ใช่ DB** (DL47) |
 | Status | smallint | NN | default 1 |
 | FailedLoginCount | smallint | NN | default 0 |
 | LockedUntil | timestamptz | | |
 | LastLoginAt | timestamptz | | |
 | AUDIT, SOFT | | | |
 
-**Roles** (`Id`, `Code varchar(30) UQ`, `Name`, `IsSystem boolean`) — `ADMIN` · `OPERATOR` · `VIEWER` · `TEAM_LEADER` (DL47 — เพิ่มด้วย data migration) · **Permissions** (`Id`, `Code varchar(100) UQ` รูปแบบ `resource:action`, `Resource`, `Action`, `Description`) · **RolePermissions** (`RoleId`, `PermissionId`, PK composite)
+**Roles** (`Id`, `Code varchar(30) UQ`, `Name`, `IsSystem boolean`) — `ADMIN` · `COMPANY_ADMIN` (DL51 — scope `all`, web · เพิ่มด้วย data migration) · `OPERATOR` · `VIEWER` · `TEAM_LEADER` (DL47 — เพิ่มด้วย data migration) · data scope มาจาก `Code` (ไม่มีคอลัมน์ scope — Part 2 §2.8) · permission สงวนของ `ADMIN` (DL51) เป็นค่าคงที่ในโค้ด ไม่ใช่ข้อมูลใน DB · **Permissions** (`Id`, `Code varchar(100) UQ` รูปแบบ `resource:action`, `Resource`, `Action`, `Description`) · **RolePermissions** (`RoleId`, `PermissionId`, PK composite)
 
 **RefreshTokens** — port ตรงจาก reference: `Id`, `UserId NN`, `TokenHash char(64) UQ`, `ExpiresAt NN`, `RevokedAt`, `ReplacedByTokenId FK self`, `UserDeviceId FK`, `CreatedAt` · IX `(UserId, ExpiresAt)`
 
