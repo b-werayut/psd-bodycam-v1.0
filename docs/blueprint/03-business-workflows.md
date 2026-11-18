@@ -308,11 +308,11 @@ pass ระดับ WO ใน sweep เดียวกัน:
 | เงื่อนไข WO (Open) | การกระทำ |
 |---|---|
 | Booking check-out แล้ว | Closed (`BookingCheckout`) เวลา = `BookingCheckOutAt` — **ทางปิดหลัก** **[Confirmed — Q1, Q2]** |
-| ยังไม่ check-out · `now − OpenedAt ≥ workorder.stale-open-hours` (**36**) | **ไม่ปิด** · `NeedsReview` + alert `WORK_ORDER_NO_CHECKOUT` **[Confirmed — Q23]** |
+| ยังไม่ check-out · `now − OpenedAt ≥ workorder.stale-open-hours` (**36**) | **ไม่ปิด** · `NeedsReview` (NoCheckout) **[Confirmed — Q23]** · ไม่มี alert (DL58) |
 | ยังไม่ check-out · `now − OpenedAt ≥ workorder.force-close-after-hours` (168 = 7 วัน) | Closed (`SafetyTimeout`) + `NeedsReview` — กันใบงานค้างตลอดไป **[Confirmed — Q23]** |
 
 > `OpenedAt` = เวลา check-in ใน Booking · ใบ `Planned` (ยังไม่ check-in) ไม่เข้า pass นี้ (DL37) · ใบ Planned ปิดเมื่อ Booking ส่ง Completed / Cancelled มาเท่านั้น (ถาม Booking — Part 9 §9.4)
-> `NeedsReview` เป็นแค่ badge ข้อมูลบนหน้าใบงาน + alert ถึง Admin — **ไม่มีคิวตรวจสอบ ไม่มีปุ่ม clear ไม่มี SLA** (DL33)
+> `NeedsReview` เป็นแค่ badge ข้อมูลบนหน้าใบงาน ไม่มี alert (DL58) — **ไม่มีคิวตรวจสอบ ไม่มีปุ่ม clear ไม่มี SLA** (DL33)
 
 ---
 
@@ -424,11 +424,11 @@ sequenceDiagram
 | งานใหม่ (ยังไม่ check-in) | **สร้าง WO** สถานะ `Planned` (รอเริ่ม — DL37) 1 ต่อ 1 · re-match session ที่เกี่ยวข้อง | — | — |
 | Check-in | **สร้าง WO** สถานะ Open 1 ต่อ 1 (มีใบ `Planned` อยู่แล้ว ⇒ เปลี่ยนเป็น Open) · re-match session ที่เกี่ยวข้อง | อัปเดตข้อมูลแสดงผล · re-match | **reopen** (Source Booking) |
 | Check-out / Completed | สร้าง WO สถานะ Closed (`BookingCheckout`) — session ย้อนหลังที่ match ภายหลังเข้าใบนี้ได้ (Rule 1) | **Closed (`BookingCheckout`)** · split open session | อัปเดตเวลา check-out ถ้าเปลี่ยน |
-| Cancelled | สร้าง WO สถานะ `Cancelled` (ไม่เป็น candidate) | WO → `Cancelled` · split open session · `NeedsReview` ถ้ามี recording (alert `WORK_ORDER_CANCELLED_WITH_EVIDENCE`) — **ฝั่ง bodycam ตรวจสอบหลักฐานได้** **[Confirmed — Q6]** | `NeedsReview` |
-| เปลี่ยนทีม / หัวหน้า / เวลา / DeviceRefs | — (ถือเป็นงานใหม่) | re-match (§3.3.3) · `WorkOrders.TeamId` อัปเดตตาม Booking · ทีมใหม่ที่ยังไม่มี ⇒ สร้างจาก `teamRef` · หัวหน้าเปลี่ยน ⇒ ปิด / เปิดแถว Leader ใน `TeamMembers` (DL53) | `NeedsReview` (alert `BOOKING_JOB_CHANGED_AFTER_CLOSE`) |
+| Cancelled | สร้าง WO สถานะ `Cancelled` (ไม่เป็น candidate) | WO → `Cancelled` · split open session · `NeedsReview` ถ้ามี recording (badge เท่านั้น ไม่มี alert — DL58) — **ฝั่ง bodycam ตรวจสอบหลักฐานได้** **[Confirmed — Q6]** | `NeedsReview` |
+| เปลี่ยนทีม / หัวหน้า / เวลา / DeviceRefs | — (ถือเป็นงานใหม่) | re-match (§3.3.3) · `WorkOrders.TeamId` อัปเดตตาม Booking · ทีมใหม่ที่ยังไม่มี ⇒ สร้างจาก `teamRef` · หัวหน้าเปลี่ยน ⇒ ปิด / เปิดแถว Leader ใน `TeamMembers` (DL53) | `NeedsReview` |
 | หายจาก reconcile ตอนกลางคืน (เฉพาะเมื่อมี read API — DL46) | — | `SourceMissingSince` + `NeedsReview` | `SourceMissingSince` + `NeedsReview` |
 
-`NeedsReview` = badge ข้อมูลบนหน้าใบงาน + alert ถึง Admin เท่านั้น (ไม่มีคิวตรวจสอบ — DL33)
+`NeedsReview` = badge ข้อมูลบนหน้าใบงานเท่านั้น ไม่มี alert (DL58 · ไม่มีคิวตรวจสอบ — DL33)
 
 ---
 
@@ -531,12 +531,11 @@ User flow (DL47):
 | `matching.window-before-minutes` / `after` | 60 / 60 **[Confirmed — Q3]** | 0–240 | candidate window |
 | `matching.extended-window-minutes` | 180 **[Confirmed — Q3]** | ≥ window | MEDIUM — attach อัตโนมัติ (DL37) |
 | `matching.auto-switch-enabled` | true **[Confirmed — Q5]** | bool | A→B |
-| `workorder.stale-open-hours` | 36 **[Confirmed — Q23]** | 12–336 | alert ไม่มี check-out (นับจาก check-in) |
+| `workorder.stale-open-hours` | 36 **[Confirmed — Q23]** | 12–336 | badge `NeedsReview` NoCheckout (นับจาก check-in · ไม่มี alert — DL58) |
 | `workorder.force-close-after-hours` | 168 **[Confirmed — Q23]** | 24–720 | SafetyTimeout (นับจาก check-in) |
 | `booking.stale-after-minutes` | 15 | 5–240 | **ความหมายใหม่ (DL46)**: อายุของแถว `IntegrationInbox` ที่ยัง `Pending` / `Failed` ที่เก่าที่สุด (backlog ของ processor) เกินค่านี้ ⇒ ผล `ProjectionStale` + banner + alert 10 `BOOKING_SYNC_STALE` |
 | `booking.inbound-silence-alert-hours` | 24 | 0–168 (0 = ปิด) | ไม่มี POST จาก Smart Booking ที่รับได้นานเกินนี้ ⇒ alert 17 `BOOKING_INBOUND_SILENT` (DL46) |
 | `booking.rematch-horizon-hours` | 72 | 1–336 | re-match |
-| `alert.offline-during-job-minutes` | 10 | 1–120 | alert 5 |
 
 ไม่มี setting ของใบรวม / auto-void / SLA คิวตรวจสอบแล้ว (DL33) · ตัด `booking.sync-interval-seconds` (ไม่มี pull ทุก 2 นาทีแล้ว — DL46 · ยังไม่มีโค้ด จึงลบได้เลย)
 

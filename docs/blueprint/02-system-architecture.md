@@ -287,8 +287,8 @@ Evidence (dialog ดูวิดีโอ จากหน้า ใบงาน 
 | Role | Job | กลไก | ความถี่ | Lock / Concurrency |
 |---|---|---|---|---|
 | tracking | `GpsPoll` (DSS `/location` → GPS + online/offline — DL32) | timer | 15s (setting) | lock `gps:poll` · concurrency 8 |
-| tracking | `SessionSweep` (open/close/split session · pass ระดับ WO: alert ไม่มี check-out 36 ชม. / ปิด `SafetyTimeout` 7 วัน — ไม่สร้างใบงาน) | timer | 30s | lock `session:sweep` · ทุกอุปกรณ์ ORDER BY Id แบ่งหน้า |
-| tracking | `AlertSweep` (offline during work · inbox backlog — alert 10 · Booking ไม่ส่ง POST — alert 17) | timer | 60s | lock `alert:sweep` |
+| tracking | `SessionSweep` (open/close/split session · pass ระดับ WO: badge ไม่มี check-out 36 ชม. / ปิด `SafetyTimeout` 7 วัน — ไม่สร้างใบงาน) | timer | 30s | lock `session:sweep` · ทุกอุปกรณ์ ORDER BY Id แบ่งหน้า |
+| tracking | `AlertSweep` (inbox backlog — alert 10 · Booking ไม่ส่ง POST — alert 17 · ไม่มี alert กล้อง offline ระหว่างงานแล้ว — DL58) | timer | 60s | lock `alert:sweep` |
 | tracking | `DeviceSync` (DSS device list → upsert `Devices` ด้วย `device-sync.plan.ts` · เครื่องที่ DSS ไม่ส่งมา ⇒ `VendorMissingSince` + alert 13 `DEVICE_VENDOR_MISSING` · ไม่ลบ — DL53 แทนปุ่ม sync ด้วยมือ) | timer | ตอน worker start + รายชั่วโมง | lock `device:sync` · concurrency 1 |
 | integration | `booking-inbox` (map ด้วย `BookingInboundMapper` → upsert `BookingJobs` + `WorkOrders` 1:1) | BullMQ · `api` enqueue หลังรับ POST (DL46) | ทันที | concurrency 4 · ต่อ job ใช้ version guard |
 | integration | inbox retry sweep (`Failed` + `Pending` ที่เก่ากว่า 1 นาที → enqueue `booking-inbox` ซ้ำ · ครบ 10 ครั้ง ⇒ `Dead`) | BullMQ repeatable | 5 นาที | concurrency 1 |

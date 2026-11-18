@@ -442,16 +442,16 @@ Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLive
 | 2 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `BOOKING_MATCH_SUGGESTED` (LinkStatus) |
 | 3 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `BOOKING_MATCH_AMBIGUOUS` (LinkStatus) |
 | 4 | `CAMERA_ACTIVE_NO_TEAM` | Warning | Admin + Operator | กล้องเปิดใช้แต่ Booking ยังไม่ผูกกล้องนี้กับทีม/งาน (session `NoTeam` — ไม่สร้างใบงาน รอ Booking) |
-| 5 | `DEVICE_OFFLINE_DURING_JOB` | Warning | Operator | WO Open, Booking ช่วงงานยังไม่จบ, กล้อง offline ≥ `alert.offline-during-job-minutes` (10) |
-| 6 | `WORK_ORDER_AUTO_CLOSED` | Info | Operator | ปิดด้วย SafetyTimeout (ไม่มี check-out ครบ 7 วัน) |
-| 7 | `WORK_ORDER_CANCELLED_WITH_EVIDENCE` | Warning | Operator + Admin | Booking ยกเลิกแต่มี recording |
-| 8 | `BOOKING_JOB_CHANGED_AFTER_CLOSE` | Info | Operator | |
-| 9 | `RECORDING_OUTSIDE_WORK` | Warning | Operator | session ที่ไม่มี WO (`AwaitingMatch` / `NoTeam`) มี recording ≥ 10 นาที |
+| 5 | *(สงวน — เลิกใช้ DL58)* | | | เดิม `DEVICE_OFFLINE_DURING_JOB` (กล้อง offline ระหว่างใบงาน — หัวหน้าทีมอาจปิดกล้องประหยัดแบต) |
+| 6 | *(สงวน — เลิกใช้ DL58)* | | | เดิม `WORK_ORDER_AUTO_CLOSED` (ปิดด้วย SafetyTimeout — ยังปิดเหมือนเดิม แค่ไม่มี alert) |
+| 7 | *(สงวน — เลิกใช้ DL58)* | | | เดิม `WORK_ORDER_CANCELLED_WITH_EVIDENCE` (Booking ยกเลิกแต่มี recording — เหลือ badge `NeedsReview`) |
+| 8 | *(สงวน — เลิกใช้ DL58)* | | | เดิม `BOOKING_JOB_CHANGED_AFTER_CLOSE` (เหลือ badge `NeedsReview`) |
+| 9 | `RECORDING_OUTSIDE_WORK` | Warning | Operator | session ที่ไม่มี WO (`AwaitingMatch` / `NoTeam`) มี recording ≥ 30 นาที (DL58) |
 | 10 | `BOOKING_SYNC_STALE` | Warning / Critical | Admin | inbox backlog: แถว `IntegrationInbox` ที่ยัง `Pending` / `Failed` ที่เก่าที่สุดเก่ากว่า `booking.stale-after-minutes` (15) / > 60 นาที (ความหมายใหม่ — DL46 · code เดิม) |
 | 11 | `INTEGRATION_DEAD_LETTER` | Warning | Admin | inbox `Dead` · การแจ้งเตือนมีปุ่ม "ประมวลผลใหม่" (`POST /integration/inbox/:id/retry`) · ประมวลผลผ่านแล้ว resolve เอง (DL54) |
 | 12 | `BOOKING_MAPPING_ISSUES` | Info | Admin | รายวัน — สรุป ref ที่ map ไม่ได้ (leader / กล้อง / สถานะ) ใน `Data` ของ alert (ไม่มีหน้า integration — DL53) |
 | 13 | `DEVICE_VENDOR_MISSING` | Warning | Admin | job `DeviceSync` (worker — DL53) ไม่พบเครื่องใน DSS device list (`VendorMissingSince`) |
-| 14 | `WORK_ORDER_NO_CHECKOUT` | Warning | Operator | ใบงานไม่มี check-out เกิน 36 ชม. นับจาก `OpenedAt` (`workorder.stale-open-hours`) |
+| 14 | *(สงวน — เลิกใช้ DL58)* | | | เดิม `WORK_ORDER_NO_CHECKOUT` (ไม่มี check-out เกิน 36 ชม. — เหลือ badge `NeedsReview` NoCheckout) |
 | 15 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `WORK_ORDER_AUTO_VOIDED` (auto-void ใบที่ไม่มี recording) |
 | 16 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `REVIEW_QUEUE_OVERDUE` (SLA คิวตรวจสอบ) |
 | 17 | `BOOKING_INBOUND_SILENT` | Warning | Admin | ไม่ได้รับ POST จาก Smart Booking (ที่ผ่าน auth) นาน `booking.inbound-silence-alert-hours` (24 ชม. · 0 = ปิด) — อาจเป็นปัญหาฝั่งผู้ส่งที่เรามองไม่เห็น (DL46) |

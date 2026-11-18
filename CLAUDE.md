@@ -104,8 +104,9 @@ Client (`cd client`, Vite):
 - There are **no departments** (DL53, replaces DL38): no `Departments` table, no `DepartmentId` column anywhere, no Booking `departmentRef`.
 - Statuses: `Planned` (synced, no check-in yet, DL37) → `Open` (check-in) → `Closed` (check-out, `BookingCheckout`); a new check-in reopens; a Booking cancel sets `Cancelled`.
 - There is **no human close, reopen, link, unlink, merge or void** in this system.
-- Open work orders with no check-out raise an alert 36h after check-in and close after 7 days (`SafetyTimeout`). `Planned` ones close only when Booking says so.
-- `NeedsReview` is only an info badge + Admin alert. There is no review queue and no SLA.
+- Open work orders with no check-out get the `NeedsReview` badge 36h after check-in (no alert) and close after 7 days (`SafetyTimeout`). `Planned` ones close only when Booking says so.
+- `NeedsReview` is only an info badge, with no alert. There is no review queue and no SLA.
+- Alerts are about cameras and video, not work-order management (DL58): web users get only `CAMERA_ACTIVE_NO_TEAM` and `RECORDING_OUTSIDE_WORK` (≥ 30 min); `ADMIN` keeps the integration / device alerts. Alerts have "รับทราบ" and "ปิดเรื่อง" (DL57).
 
 **Unmatched sessions (DL33)**
 - No candidate, or several candidates ⇒ the session stays `AwaitingMatch` (or `NoTeam`). No work order is created.

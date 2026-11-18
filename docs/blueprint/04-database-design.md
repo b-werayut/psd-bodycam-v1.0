@@ -515,7 +515,7 @@ Constraints: `CK_TS_Window` (`EndedAt IS NULL OR EndedAt > StartedAt`) · `CK_TS
 | OpenedAt | timestamptz | | เวลา check-in ตาม Booking · null ขณะ `Planned` (DL37) · ใช้นับ `workorder.stale-open-hours` / `workorder.force-close-after-hours` |
 | LastActivityAt | timestamptz | | session ล่าสุดใน WO ยังเปิด = now / ปิด = EndedAt (แสดงผล/เรียงลำดับ) · null = ยังไม่มี session |
 | ClosedAt | timestamptz | | ปิดโดยระบบเท่านั้น (Booking check-out/cancel หรือ `SafetyTimeout`) |
-| NeedsReview | boolean | NN | default false · **badge ข้อมูล** แสดงในหน้าใบงาน + alert ถึง Admin — ไม่มีคิวตรวจสอบ / ปุ่มล้าง / SLA (DL33) |
+| NeedsReview | boolean | NN | default false · **badge ข้อมูล** แสดงในหน้าใบงาน (ไม่มี alert — DL58) — ไม่มีคิวตรวจสอบ / ปุ่มล้าง / SLA (DL33) |
 | ReviewReasons | smallint[] | | เหตุผลของ badge: 1 BookingChangedAfterClose · 2 CancelledWithEvidence · 3 NoCheckout (ไม่มี check-out เกิน 36 ชม.) · 4 AutoSwitched · 5 SourceMissing (งานหายจาก Booking) · 6 SafetyTimeout · 7 *(สงวน — เดิม NoBookingData · เลิกใช้ DL33)* · ห้ามใช้เลขที่สงวนซ้ำ |
 | Note | varchar(2000) | | หมายเหตุจากผู้ใช้ |
 | RowVersion | integer | NN | default 1 · optimistic concurrency (`If-Match`) |

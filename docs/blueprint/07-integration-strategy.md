@@ -332,7 +332,7 @@ RETURNING "Id", (xmax = 0) AS inserted;
 ### 7.5.4 Full reconcile (optional — ต้องมี read API)
 
 - รายคืน 02:00 และทันทีที่ breaker ปิดหลังเปิด: `fetchWindow(now − 7 วัน, now + 14 วัน)` → inbox `Channel = 2 Reconcile` — เก็บใบงานที่ POST หาย
-- งานที่มีใน DB (ช่วงเดียวกัน) แต่ไม่อยู่ในผล ⇒ `SourceMissingSince = now()` (**ไม่ลบ** · ตั้งค่านี้ได้จาก reconcile เท่านั้น) · WO ของงานนั้นได้ badge `NeedsReview` (ReviewReasons 5 SourceMissing) + alert Admin (ไม่มีคิวตรวจสอบ — DL33)
+- งานที่มีใน DB (ช่วงเดียวกัน) แต่ไม่อยู่ในผล ⇒ `SourceMissingSince = now()` (**ไม่ลบ** · ตั้งค่านี้ได้จาก reconcile เท่านั้น) · WO ของงานนั้นได้ badge `NeedsReview` (ReviewReasons 5 SourceMissing) ไม่มี alert (DL58 · ไม่มีคิวตรวจสอบ — DL33)
 - จบแล้ว rematch session `AwaitingMatch` / `NoTeam` ในช่วงนั้น (ภายใน `booking.rematch-horizon-hours`)
 - `BOOKING_PROVIDER_DRIVER=none` ⇒ ไม่มี reconcile · POST ที่หายกลับมาได้เฉพาะเมื่อ Booking ส่งซ้ำ (CSV import ยังไม่มีหน้า upload ในระยะแรก — DL53)
 

@@ -70,7 +70,7 @@
         <mxCell id="j_sw" parent="w_trk" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#82B366;strokeWidth=2;fillColor=#F1F8E9;" value="&lt;b&gt;SessionSweep 30s&lt;/b&gt;&lt;br&gt;FOR UPDATE + decide()" vertex="1">
           <mxGeometry height="52" width="190" x="15" y="102" as="geometry" />
         </mxCell>
-        <mxCell id="j_as" parent="w_trk" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#82B366;" value="&lt;b&gt;AlertSweep 60s&lt;/b&gt;&lt;br&gt;offline ระหว่างงาน · stale" vertex="1">
+        <mxCell id="j_as" parent="w_trk" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#82B366;" value="&lt;b&gt;AlertSweep 60s&lt;/b&gt;&lt;br&gt;Booking ค้าง · ไม่ได้รับใบงาน" vertex="1">
           <mxGeometry height="52" width="190" x="215" y="102" as="geometry" />
         </mxCell>
         <mxCell id="j_ret" parent="w_trk" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;verticalAlign=middle;fontSize=11;strokeColor=#82B366;" value="&lt;b&gt;Partition / Retention&lt;/b&gt; รายวัน&lt;br&gt;GPS 3 เดือน · ใบงาน 3 เดือน · audit 12 เดือน" vertex="1">

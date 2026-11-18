@@ -89,8 +89,8 @@ flowchart LR
 **Deliverables**
 - Session engine: pure `decide()` + sweep (ทุกอุปกรณ์, row lock, DB clock) + split rules ครบตาราง Part 3 §3.4.3 · ไม่มีการสร้างใบงานในเส้นทาง session (DL33)
 - กล้องชาร์จที่ฐาน (`Depots` + fix ล่าสุด) ⇒ ระบบตั้ง session เป็น `Classified` + `IdleOrCharging` เอง (logic + test ด้วย dev seed · production `Depots` ว่าง ⇒ ยังไม่ทำงาน — DL53)
-- WO read model: list/detail API + `availableActions` + `WorkOrderEvents` timeline · pass ระดับ WO ใน `SessionSweep` (alert ไม่มี check-out 36 ชม. · ปิด `SafetyTimeout` 7 วัน) · ใบงานใน P2 มาจาก `booking-simulator` ที่ POST เข้า inbound endpoint ของ P3a
-- Recording index job (ใช้ DSS recording search) · alerts `CAMERA_ACTIVE_NO_TEAM`, `RECORDING_OUTSIDE_WORK`, `WORK_ORDER_NO_CHECKOUT`, `WORK_ORDER_AUTO_CLOSED` (alert ที่ต้องใช้ matching / ช่วงเวลางานจาก Booking ⇒ P3b)
+- WO read model: list/detail API + `availableActions` + `WorkOrderEvents` timeline · pass ระดับ WO ใน `SessionSweep` (badge `NeedsReview` ไม่มี check-out 36 ชม. · ปิด `SafetyTimeout` 7 วัน) · ใบงานใน P2 มาจาก `booking-simulator` ที่ POST เข้า inbound endpoint ของ P3a
+- Recording index job (ใช้ DSS recording search) · alerts `CAMERA_ACTIVE_NO_TEAM`, `RECORDING_OUTSIDE_WORK` (alert เรื่องใบงานตัดออกแล้ว — DL58)
 - Client: หน้า ใบงาน `/work-orders` (ตาราง + แท็บสถานะ + คอลัมน์กล้อง · ปุ่ม ดูสด / ดูย้อนหลัง เปิดใน P4 — DL53) + `/work-orders/:id` (อ่านอย่างเดียว · ยังไม่มี Booking panel) · `workWindow` + `cameras[]` + filter `checkedIn` ใน WO list/detail API · ไม่มีหน้า Tracking sessions (DL53)
 
 **Acceptance criteria**
@@ -98,7 +98,7 @@ flowchart LR
 - รัน 2 worker พร้อมกัน 1,000 รอบ ⇒ ไม่มี session ซ้อน (constraint ไม่ถูกละเมิด, ไม่มี error ค้าง)
 - sweep ไม่สร้างแถว `WorkOrders` เลย — จำนวนใบงาน = จำนวน `BookingJobs` ที่รับมาเสมอ
 - กล้องชาร์จ/อยู่ฐาน (ทดสอบด้วย Depots) ⇒ session `IdleOrCharging` ไม่นับเป็นงาน
-- ใบงานจาก simulator ที่ไม่มี check-out ⇒ alert เมื่อครบ 36 ชม. และปิด `SafetyTimeout` เมื่อครบ 7 วัน (ใช้เวลา DB)
+- ใบงานจาก simulator ที่ไม่มี check-out ⇒ badge `NeedsReview` เมื่อครบ 36 ชม. (ไม่มี alert — DL58) และปิด `SafetyTimeout` เมื่อครบ 7 วัน (ใช้เวลา DB)
 
 ### P3a — Booking inbound endpoint, inbox, mapper v1, simulator, projection, WO upsert
 
@@ -115,7 +115,7 @@ flowchart LR
 
 ### P3b — Matching & Booking UI
 
-**Deliverables**: matcher อัตโนมัติ (`AlgoVersion` 1) + `MatchAttempts` · attach session เข้า WO ของ Booking job ตามลำดับ `DeviceRefs` → team ref → team-leader ref · ไม่มีหรือหลาย candidate ⇒ session ค้าง `AwaitingMatch` · re-match triggers (`matching.rematch` ภายใน `booking.rematch-horizon-hours`) · Booking panel ในหน้ารายละเอียดใบงาน (รวมเลข DO / SH · ปุ่ม refresh เฉพาะเมื่อมี read API · ไม่มีปุ่ม "ดูข้อมูลดิบ", ไม่มีหน้า `/booking-jobs` และ `/integration` — DL52, DL53) · badge `NeedsReview` ในหน้าใบงาน (ข้อมูลเท่านั้น ไม่มีคิว — DL33) · alerts `DEVICE_OFFLINE_DURING_JOB`, `WORK_ORDER_CANCELLED_WITH_EVIDENCE`, `BOOKING_JOB_CHANGED_AFTER_CLOSE`, `BOOKING_SYNC_STALE` (backlog ของ inbox), `BOOKING_INBOUND_SILENT` (17 — ไม่มี POST นาน `booking.inbound-silence-alert-hours`), `INTEGRATION_DEAD_LETTER` (+ ปุ่ม "ประมวลผลใหม่" → `POST /integration/inbox/:id/retry` และประมวลผลแถว `Dead` ใหม่อัตโนมัติหลัง `re-resolve` / รายวัน 03:00 — DL54), `BOOKING_MAPPING_ISSUES` (alert ถึง `ADMIN` เป็นช่องทางเดียวของสถานะการเชื่อมต่อ — DL53) · `integration:status` `{ source, isStale, lastReceivedAt }` + แถบ stale · job `re-resolve` เมื่อ `BookingEmployeeRef` ของพนักงานหรือทีม / หัวหน้าทีมเปลี่ยน
+**Deliverables**: matcher อัตโนมัติ (`AlgoVersion` 1) + `MatchAttempts` · attach session เข้า WO ของ Booking job ตามลำดับ `DeviceRefs` → team ref → team-leader ref · ไม่มีหรือหลาย candidate ⇒ session ค้าง `AwaitingMatch` · re-match triggers (`matching.rematch` ภายใน `booking.rematch-horizon-hours`) · Booking panel ในหน้ารายละเอียดใบงาน (รวมเลข DO / SH · ปุ่ม refresh เฉพาะเมื่อมี read API · ไม่มีปุ่ม "ดูข้อมูลดิบ", ไม่มีหน้า `/booking-jobs` และ `/integration` — DL52, DL53) · badge `NeedsReview` ในหน้าใบงาน (ข้อมูลเท่านั้น ไม่มีคิว — DL33) · alerts `BOOKING_SYNC_STALE` (backlog ของ inbox), `BOOKING_INBOUND_SILENT` (17 — ไม่มี POST นาน `booking.inbound-silence-alert-hours`), `INTEGRATION_DEAD_LETTER` (+ ปุ่ม "ประมวลผลใหม่" → `POST /integration/inbox/:id/retry` และประมวลผลแถว `Dead` ใหม่อัตโนมัติหลัง `re-resolve` / รายวัน 03:00 — DL54), `BOOKING_MAPPING_ISSUES` (alert ถึง `ADMIN` เป็นช่องทางเดียวของสถานะการเชื่อมต่อ — DL53) · `integration:status` `{ source, isStale, lastReceivedAt }` + แถบ stale · job `re-resolve` เมื่อ `BookingEmployeeRef` ของพนักงานหรือทีม / หัวหน้าทีมเปลี่ยน
 
 **Acceptance**: ทุก scenario ใน Part 3 §3.3 ผ่านด้วย simulator · ไม่มี/หลาย candidate ⇒ ไม่เกิดใบงานใหม่ และ session match เองเมื่อ Booking POST ข้อมูลใหม่ · session ที่เปิดก่อนใบงานมาถึง ⇒ match เองเมื่อ POST ถูกประมวลผล (`matching.rematch`) · WO ถูกปิดด้วย check-out (simulator) ⇒ session split ภายใน 1 รอบ sweep และเวลาจบ = `ClosedAt` · simulator หยุดส่งแล้วกลับมาส่ง ⇒ session ที่ค้าง `AwaitingMatch` match ได้ถูก · ไม่มี POST นานเกิน `booking.inbound-silence-alert-hours` ⇒ alert 17 · ทุก attach อธิบายได้จาก `MatchAttempts`
 
