@@ -13,8 +13,6 @@ function user(roleCode: AuthUser['roleCode'], permissions: string[]): AuthUser {
     email: null,
     roleCode,
     roleName: roleCode,
-    departmentId: null,
-    departmentName: null,
     permissions,
   };
 }
@@ -35,6 +33,11 @@ describe('usePermission', () => {
   it('ADMIN with no permissions is allowed', () => {
     useAuthStore.setState({ user: user('ADMIN', []) });
     expect(renderHook(() => usePermission('anything:manage')).result.current).toBe(true);
+  });
+  it('COMPANY_ADMIN has no bypass: it checks codes like any other role', () => {
+    useAuthStore.setState({ user: user('COMPANY_ADMIN', ['users:manage']) });
+    expect(renderHook(() => usePermission('users:manage')).result.current).toBe(true);
+    expect(renderHook(() => usePermission('settings:manage')).result.current).toBe(false);
   });
   it('<Can> renders children or fallback', () => {
     useAuthStore.setState({ user: user('VIEWER', ['org:read']) });

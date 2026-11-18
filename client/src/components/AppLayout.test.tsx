@@ -68,8 +68,6 @@ const operator: AuthUser = {
   email: 'somchai@example.com',
   roleCode: 'OPERATOR',
   roleName: 'ผู้ปฏิบัติงาน',
-  departmentId: 'd1',
-  departmentName: 'ฝ่ายปฏิบัติการ',
   permissions: ['dashboard:view', 'org:read', 'tracking:view'],
 };
 
@@ -182,6 +180,29 @@ describe('AppLayout', () => {
     );
   });
 
+  it('shows the visible items under their menu groups and drops empty groups', () => {
+    render(<AppLayoutHarness />);
+    const nav = screen.getByRole('navigation', { name: t('navigation.label') });
+    expect(within(nav).getAllByRole('button').map((head) => head.textContent)).toEqual([
+      t('navigation.group.overview'),
+      t('navigation.group.operations'),
+      t('navigation.group.people'),
+    ]);
+  });
+
+  it('shows ADMIN all 12 menu items in four groups', () => {
+    useAuthStore.setState({ user: { ...operator, roleCode: 'ADMIN', permissions: [] } });
+    render(<AppLayoutHarness />);
+    const nav = screen.getByRole('navigation', { name: t('navigation.label') });
+    expect(within(nav).getAllByRole('button').map((head) => head.textContent)).toEqual([
+      t('navigation.group.overview'),
+      t('navigation.group.operations'),
+      t('navigation.group.people'),
+      t('navigation.group.system'),
+    ]);
+    expect(within(nav).getAllByRole('link')).toHaveLength(12);
+  });
+
   it('hides nav items the user has no permission for', () => {
     render(<AppLayoutHarness />);
     const nav = screen.getByRole('navigation', { name: t('navigation.label') });
@@ -200,14 +221,16 @@ describe('AppLayout', () => {
     expect(useAuthStore.getState().notice).toBeNull();
   });
 
-  it('shows full name, role and department in the user menu and has no notification bell', async () => {
+  it('shows only full name and role in the user menu and has no notification bell', async () => {
     render(<AppLayoutHarness />);
     await openUserMenu();
 
     const menu = screen.getByRole('menu');
     expect(within(menu).getByText('สมชาย ใจดี')).toBeInTheDocument();
     expect(within(menu).getByText('ผู้ปฏิบัติงาน')).toBeInTheDocument();
-    expect(within(menu).getByText('ฝ่ายปฏิบัติการ')).toBeInTheDocument();
+    // the identity label holds one line per fact: name and role, nothing else
+    const identity = within(menu).getByText('สมชาย ใจดี').parentElement?.parentElement;
+    expect(identity?.children).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /การแจ้งเตือน/ })).toBeNull();
   });
 

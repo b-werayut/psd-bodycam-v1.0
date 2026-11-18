@@ -308,7 +308,7 @@ export function LoginPage() {
             <header className="auth-login-card-header text-center">
               <span className="auth-login-brand mx-auto mb-4 flex h-16 w-40 items-center justify-center p-3 [@media(max-height:780px)]:mb-2 [@media(max-height:780px)]:h-14">
                 <ThemeLogo
-                  alt="PSD Sentinel"
+                  alt="PSD"
                   width={932}
                   height={235}
                   className="h-auto w-full object-contain"

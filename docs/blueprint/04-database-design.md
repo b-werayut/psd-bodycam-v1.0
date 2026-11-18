@@ -16,8 +16,8 @@
 | D5 | เก็บข้อมูล Booking **เท่าที่ต้องใช้ match + แสดงผล** + `Raw jsonb` สำหรับ audit/debug | หลีกเลี่ยง duplicate ข้อมูล Booking โดยไม่จำเป็น · ลด PDPA exposure |
 | D6 | **Invariant บังคับที่ DB**: partial unique, exclusion constraint (`btree_gist`), CHECK | race condition ระหว่าง API/worker ไม่สามารถสร้างข้อมูลผิด invariant ได้ แม้ logic มี bug |
 | D7 | Hot state แยกตาราง: `DeviceState` (อัปเดตทุก poll) ออกจาก `Devices` (master) | ลด row churn / lock contention บน master |
-| D8 | Soft delete เฉพาะ **master data** (Users, Employees, Teams, Devices, Departments) · fact/log tables **ไม่มี soft delete** (ใช้ status เช่น `Cancelled`) | ประวัติหลักฐานต้องไม่หาย |
-| D9 | ไม่มี `CompanyId` (บริษัทเดียว) · scope ผ่าน `all`, `DepartmentId` (subtree) หรือ `team` · ผู้ใช้ภาคสนามมีแล้ว = `TEAM_LEADER` บนแอปมือถือ (scope `team` = ทีมที่ตนเป็นหัวหน้า active ผ่าน `Employees.UserId` → `TeamMembers` — DL47 แทน DL14/DL16) | ตัดปัญหา `CompanyId = null` 3 ความหมายของ reference · scope `team` คำนวณจากข้อมูลที่มีอยู่ ไม่ต้องเพิ่มคอลัมน์ |
+| D8 | Soft delete เฉพาะ **master data** (Users, Employees, Teams, Devices) · fact/log tables **ไม่มี soft delete** (ใช้ status เช่น `Cancelled`) | ประวัติหลักฐานต้องไม่หาย |
+| D9 | ไม่มี `CompanyId` (บริษัทเดียว) และ**ไม่มีแผนก** (ระบบใช้กับฝ่าย จป. ฝ่ายเดียว — DL53 ตัด `Departments` และคอลัมน์ `DepartmentId` ทุกตาราง) · scope มี 2 ระดับ: `all` (ทุก role web) และ `team` (`TEAM_LEADER` บนแอปมือถือ = ทีมที่ตนเป็นหัวหน้า active ผ่าน `Employees.UserId` → `TeamMembers` — DL47) | ตัดปัญหา `CompanyId = null` 3 ความหมายของ reference · scope `team` คำนวณจากข้อมูลที่มีอยู่ ไม่ต้องเพิ่มคอลัมน์ |
 | D10 | `GpsLocations` และ `AuditLogs` **partition รายเดือน** · retention = `DROP PARTITION` | แทน batched ctid DELETE ของ reference (`retention.service.ts`) |
 | D11 | เลขใบงานจาก **counter table** (`WorkOrderCounters`) แบบ atomic upsert | แทน `SELECT max + 1` + retry ของ reference |
 
@@ -27,14 +27,12 @@ Extensions ที่ต้องมี: `btree_gist` (exclusion constraint) — 
 
 ## 4.2 ERD
 
+> ฉบับ draw.io (ทุกตาราง ทุกคอลัมน์ + เส้นความสัมพันธ์): `docs/diagrams/database-erd.drawio` — หน้า 1 ภาพรวม PK/FK · หน้า 2–4 รายละเอียดตามกลุ่มเดียวกับ §4.2.1–4.2.3 · ใช้นำเสนอลูกค้า จึงไม่มีโน้ตภายใน/สถานะ phase
+
 ### 4.2.1 Organization, Teams, Devices
 
 ```mermaid
 erDiagram
-  Departments ||--o{ Departments : "parent of"
-  Departments ||--o{ Employees : employs
-  Departments ||--o{ Teams : owns
-  Departments ||--o{ Devices : owns
   Users ||--o| Employees : "login of"
   Roles ||--o{ Users : has
   Roles ||--o{ RolePermissions : grants
@@ -48,18 +46,10 @@ erDiagram
   Devices ||--o{ DeviceAssignments : "assignment history"
   Devices ||--|| DeviceState : "hot state"
   Devices ||--o{ DeviceStatusHistory : transitions
-  Departments ||--o{ Depots : "base of"
 
-  Departments {
-    bigint Id PK
-    varchar Code UK
-    varchar Name
-    bigint ParentId FK
-  }
   Employees {
     bigint Id PK
     varchar EmployeeCode UK
-    bigint DepartmentId FK
     bigint UserId FK "nullable, unique"
     varchar BookingEmployeeRef UK "map to Booking"
     smallint Status
@@ -69,13 +59,11 @@ erDiagram
     varchar Username UK
     varchar AzureObjectId UK
     bigint RoleId FK
-    bigint DepartmentId FK
     smallint Status
   }
   Teams {
     bigint Id PK
     varchar Code UK
-    bigint DepartmentId FK
     varchar BookingTeamRef UK "map to Booking"
   }
   TeamMembers {
@@ -92,7 +80,6 @@ erDiagram
     varchar VendorDeviceId UK
     smallint Kind "1 Primary 2 Spare"
     smallint Status
-    bigint DepartmentId FK
   }
   DeviceState {
     bigint DeviceId PK
@@ -157,7 +144,6 @@ erDiagram
     smallint Status
     bigint BookingJobId FK "not null, unique"
     bigint TeamId FK
-    bigint DepartmentId FK
     timestamptz OpenedAt
     timestamptz ClosedAt
   }
@@ -168,8 +154,6 @@ erDiagram
     varchar DoNo "DL46"
     varchar ShNo "DL46"
     smallint Status
-    varchar BookingDepartmentRef
-    bigint DepartmentId FK "resolved"
     varchar BookingTeamRef
     bigint TeamId FK "resolved"
     timestamptz PlannedStartAt
@@ -308,7 +292,7 @@ erDiagram
 | `MatchAttempts.Trigger` | 1 SessionOpened · 2 Sweep · 3 BookingChanged · 4 AssignmentChanged · 5 *(สงวน — เดิม Manual · เลิกใช้ DL33)* · 6 Reconcile · ห้ามใช้เลขที่สงวนซ้ำ |
 | `MatchAttempts.Result` | 1 Linked (attach เข้า WO ของ Booking job) · 2 *(สงวน — เดิม Suggested · เลิกใช้ DL33)* · 3 Ambiguous (หลาย candidate ⇒ `AwaitingMatch`) · 4 NoCandidate · 5 NoTeam · 6 *(สงวน — เดิม SkippedManual · เลิกใช้ DL33)* · 7 ProjectionStale · ห้ามใช้เลขที่สงวนซ้ำ |
 | `IntegrationInbox.Status` | 1 Pending · 2 Processed · 3 Failed · 4 Ignored (version เก่า/ซ้ำ) · 5 Dead |
-| `IntegrationInbox.Channel` | 1 Push (Smart Booking POST เข้ามา) · 2 Reconcile (read API ตอนกลางคืน — optional) · 3 CsvImport (admin upload CSV) · 4 Refresh (refresh ต่องานผ่าน read API — optional) (DL46) |
+| `IntegrationInbox.Channel` | 1 Push (Smart Booking POST เข้ามา) · 2 Reconcile (read API ตอนกลางคืน — optional) · 3 CsvImport (admin upload CSV — ระยะแรกยังไม่มีหน้า upload · DL53) · 4 Refresh (refresh ต่องานผ่าน read API — optional) (DL46) |
 | `IntegrationCallLogs.Outcome` | 1 Success · 2 HttpError · 3 Timeout · 4 NetworkError · 5 CircuitOpen · 6 InvalidResponse |
 | `Alerts.Severity` / `Alerts.Status` | 1 Info · 2 Warning · 3 Critical / 1 New · 2 Acknowledged · 3 Resolved · 4 Dismissed |
 | `Alerts.AlertType` | ดู [05-api-design.md §5.6](05-api-design.md#56-alert-types) |
@@ -326,29 +310,19 @@ erDiagram
 
 ### A. Identity & Access
 
-**Departments** — แผนก (tree)
-| Column | Type | Null | หมายเหตุ |
-|---|---|---|---|
-| Id | bigint identity | PK | |
-| Code | varchar(30) | NN | `UQ_Departments_Code` partial |
-| Name | varchar(200) | NN | |
-| ParentId | bigint | | FK → Departments.Id |
-| BookingDepartmentRef | varchar(64) | | รหัสแผนกใน Booking · `UQ_Departments_BookingRef` partial · ใช้ resolve แผนกของใบงาน (DL38) **[Assumption]** |
-| IsActive | boolean | NN | default true |
-| AUDIT, SOFT | | | |
+> ไม่มีตาราง `Departments` (DL53 — ไม่มีแผนก · migration `0002_drop_departments` ลบตารางเดิมพร้อม `Users.DepartmentId` / `Employees.DepartmentId`)
 
-**Employees** — พนักงาน
+**Employees** — พนักงาน (จัดการที่หน้า พนักงาน `/employees`)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
 | EmployeeCode | varchar(30) | NN | `UQ_Employees_Code` partial |
 | FirstName / LastName | varchar(100) | NN | |
 | Phone | varchar(30) | | |
-| DepartmentId | bigint | NN | FK → Departments |
 | UserId | bigint | | FK → Users · `UQ_Employees_User` WHERE UserId IS NOT NULL AND IsDeleted = false |
-| BookingEmployeeRef | varchar(64) | | รหัสพนักงานใน Booking · `UQ_Employees_BookingRef` partial **[Assumption: Booking มี employee id]** |
+| BookingEmployeeRef | varchar(64) | | รหัสพนักงานใน Booking · `UQ_Employees_BookingRef` partial · ใช้ map `leaderRef` ของใบงานเป็นหัวหน้าทีม (DL53) **[Assumption: Booking มี employee id]** |
 | Status | smallint | NN | default 1 |
-| AUDIT, SOFT | | | IX `IX_Employees_Department` |
+| AUDIT, SOFT | | | |
 
 **Users** — บัญชีเข้าระบบ (port จาก reference ตัด `CompanyId`)
 | Column | Type | Null | หมายเหตุ |
@@ -359,8 +333,7 @@ erDiagram
 | Email | varchar(200) | | `UQ_Users_Email` on `lower(Email)` partial |
 | FullName | varchar(200) | NN | |
 | AzureObjectId | varchar(64) | | `UQ_Users_AzureObjectId` partial · null = ยังไม่เคย link (ไม่ใช่ "ห้ามเข้า") |
-| RoleId | bigint | NN | FK → Roles |
-| DepartmentId | bigint | | FK → Departments (null ได้เฉพาะ role scope `all` — `ADMIN`, `COMPANY_ADMIN`) · role `TEAM_LEADER` (scope `team`) ต้องผูกพนักงานผ่าน `Employees.UserId` — **บังคับใน service ไม่ใช่ DB** (DL47) |
+| RoleId | bigint | NN | FK → Roles · role `TEAM_LEADER` (scope `team`) ต้องผูกพนักงานผ่าน `Employees.UserId` — **บังคับใน service ไม่ใช่ DB** (DL47) |
 | Status | smallint | NN | default 1 |
 | FailedLoginCount | smallint | NN | default 0 |
 | LockedUntil | timestamptz | | |
@@ -388,18 +361,19 @@ erDiagram
 
 ### B. Teams
 
+> **ไม่มีหน้าจัดการทีม** (DL53) — inbox processor สร้าง/อัปเดต `Teams` จาก `teamRef` และหัวหน้าทีม (`TeamMembers` Role 1) จาก leader ref ของใบงานที่ Smart Booking POST มา **[Assumption — Booking ส่งรหัสทีมและหัวหน้ามากับทุกใบ]** (Part 7 §7.5.2)
+
 **Teams**
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
-| Code | varchar(30) | NN | `UQ_Teams_Code` partial |
-| Name | varchar(200) | NN | |
-| DepartmentId | bigint | NN | FK → Departments (scope) |
-| BookingTeamRef | varchar(64) | | รหัสทีม/รถ/กะใน Booking · `UQ_Teams_BookingRef` partial **[Assumption]** |
+| Code | varchar(30) | NN | `UQ_Teams_Code` partial · ทีมที่ระบบสร้างเองใช้ค่า `teamRef` |
+| Name | varchar(200) | NN | ทีมที่ระบบสร้างเองใช้ค่า `teamRef` |
+| BookingTeamRef | varchar(64) | | รหัสทีม/รถ/กะใน Booking · `UQ_Teams_BookingRef` partial · ไม่พบแถวที่ตรง ⇒ inbox processor สร้างทีมใหม่ (DL53) **[Assumption]** |
 | IsActive | boolean | NN | default true |
 | AUDIT, SOFT | | | |
 
-**TeamMembers** — ประวัติสมาชิก (ไม่มี DELETE — ปิดด้วย `ValidTo`)
+**TeamMembers** — ประวัติสมาชิก (ไม่มี DELETE — ปิดด้วย `ValidTo`) · หัวหน้าทีมเปลี่ยนตาม leader ref ของใบงาน: ปิดแถว Leader เดิม + เปิดแถวใหม่ใน transaction เดียว (DL53)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
@@ -408,7 +382,7 @@ erDiagram
 | Role | smallint | NN | 1 Leader · 2 Member |
 | ValidFrom | timestamptz | NN | |
 | ValidTo | timestamptz | | null = ยัง active |
-| AssignedBy | bigint | | FK → Users |
+| AssignedBy | bigint | | FK → Users (null = ระบบ — inbox processor) |
 | Note | varchar(500) | | |
 | CreatedAt | timestamptz | NN | |
 
@@ -416,7 +390,7 @@ Constraints: `CK_TeamMembers_Window` (`ValidTo IS NULL OR ValidTo > ValidFrom`) 
 
 ### C. Devices
 
-**Devices** — master ของ bodycam
+**Devices** — master ของ bodycam · **สร้าง/อัปเดตโดย job `DeviceSync` ใน worker เท่านั้น** (DSS device list + `device-sync.plan.ts` · ไม่มีหน้าแก้ไข / sync ด้วยมือ / ปลดระวาง — DL53)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
@@ -427,10 +401,9 @@ Constraints: `CK_TeamMembers_Window` (`ValidTo IS NULL OR ValidTo > ValidFrom`) 
 | SimNumber | varchar(30) | | |
 | Kind | smallint | NN | 1 Primary · 2 Spare |
 | Status | smallint | NN | default 1 |
-| DepartmentId | bigint | NN | FK → Departments (เจ้าของ — ใช้ scope กล้องที่ยังไม่ผูกทีม) |
-| StreamingEnabled | boolean | NN | default true (toggle ต่ออุปกรณ์จาก reference) |
-| VendorSeenAt / VendorMissingSince | timestamptz | | จาก device sync |
-| AUDIT, SOFT | | | IX `(Status)`, `(DepartmentId)` |
+| StreamingEnabled | boolean | NN | default true (toggle ต่ออุปกรณ์จาก reference · ระยะแรกไม่มีหน้าแก้ไข — คงค่า default · DL53) |
+| VendorSeenAt / VendorMissingSince | timestamptz | | จาก `DeviceSync` · DSS ไม่ส่งเครื่องนี้มา ⇒ ตั้ง `VendorMissingSince` (ไม่ลบ) + alert `DEVICE_VENDOR_MISSING` |
+| AUDIT, SOFT | | | IX `(Status)` |
 
 **DeviceState** — hot row 1:1 (UPDATE ทุก observation)
 | Column | Type | Null | หมายเหตุ |
@@ -473,13 +446,12 @@ IX `IX_DeviceState_PlatformState (PlatformState)`
 
 Constraints: `CK_DevAsg_Window` · `EX_DevAsg_NoOverlap` EXCLUDE gist (`DeviceId =`, `tstzrange(ValidFrom, ValidTo) &&`) · `UQ_DevAsg_DeviceActive (DeviceId) WHERE ValidTo IS NULL` (fallback ถ้าไม่มี gist) · `UQ_DevAsg_TeamActivePrimary (TeamId) WHERE Kind = 1 AND ValidTo IS NULL` · IX `(TeamId, ValidFrom DESC)`
 
-**Depots** — ฐาน/จุดชาร์จกล้อง (ใช้ตรวจ "อยู่ฐาน" ตาม Q15) — ใหม่ · **รองรับหลายจุด · dev seed พิกัด mock ไว้ก่อน (Q22)**
+**Depots** — ฐาน/จุดชาร์จกล้อง (ใช้ตรวจ "อยู่ฐาน" ตาม Q15) — ใหม่ · รองรับหลายจุด · **ระยะแรกไม่มีหน้าจัดการ ⇒ ตารางว่างใน production ⇒ กฎ `IdleOrCharging` ยังไม่ทำงาน** (DL53) · dev seed พิกัด mock ไว้ทดสอบ (Q22)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
 | Code | varchar(30) | NN | `UQ_Depots_Code` partial |
 | Name | varchar(200) | NN | |
-| DepartmentId | bigint | | FK → Departments (null = ใช้ร่วมทุกแผนก) |
 | Lat / Lng | double precision | NN | |
 | RadiusM | integer | NN | default 150 · `CK_Depots_Radius` 20–2000 |
 | IsActive | boolean | NN | default true |
@@ -509,8 +481,7 @@ PK `PK_GpsLocations (DeviceId, RecordedAt)` (รวม partition key ⇒ `ON CON
 | Id | bigint identity | PK | |
 | DeviceId | bigint | NN | FK → Devices |
 | TeamId | bigint | | FK → Teams (ทีม ณ เวลาเริ่ม · null = กล้องไม่ผูกทีม) |
-| DepartmentId | bigint | NN | FK → Departments (snapshot สำหรับ scope) |
-| WorkOrderId | bigint | | FK → WorkOrders · null = ยังไม่มีใบงาน (รอข้อมูล Booking — ดูหลักฐานได้จาก `/recordings`) |
+| WorkOrderId | bigint | | FK → WorkOrders · null = ยังไม่มีใบงาน (รอข้อมูล Booking — ไม่มีหน้าค้นวิดีโอย้อนหลังรายกล้อง ดูได้เฉพาะภาพสดเมื่อกล้องออนไลน์ · DL53) |
 | StartedAt | timestamptz | NN | |
 | EndedAt | timestamptz | | null = เปิดอยู่ |
 | StartInferred | smallint | NN | |
@@ -540,7 +511,6 @@ Constraints: `CK_TS_Window` (`EndedAt IS NULL OR EndedAt > StartedAt`) · `CK_TS
 | CloseReason | smallint | | |
 | BookingJobId | bigint | NN | FK → BookingJobs · `UQ_WO_BookingJob` (1 Booking ↔ 1 WO) |
 | TeamId | bigint | | FK → Teams · ทีมจาก Booking job (`BookingJobs.TeamId`) · ว่างได้เมื่อ ref ทีมยัง map ไม่ได้ (matching ผ่าน `DeviceRefs` ไม่ต้องรู้ทีม) |
-| DepartmentId | bigint | NN | FK → Departments · มาจากแผนกที่ Booking ส่งมา (`BookingJobs.DepartmentId` — DL38) · อัปเดตทุกครั้งที่ได้รับงาน · ใช้ data scope · map ไม่ได้ ⇒ แผนก root (เห็นเฉพาะ scope `all`) + `MappingIssues` 6 + alert `BOOKING_MAPPING_ISSUES` จนกว่า admin เติม `Departments.BookingDepartmentRef` |
 | LeaderEmployeeId | bigint | | FK → Employees (จาก Booking job — `BookingJobs.LeaderEmployeeId`) |
 | OpenedAt | timestamptz | | เวลา check-in ตาม Booking · null ขณะ `Planned` (DL37) · ใช้นับ `workorder.stale-open-hours` / `workorder.force-close-after-hours` |
 | LastActivityAt | timestamptz | | session ล่าสุดใน WO ยังเปิด = now / ปิด = EndedAt (แสดงผล/เรียงลำดับ) · null = ยังไม่มี session |
@@ -554,7 +524,9 @@ Constraints: `CK_TS_Window` (`EndedAt IS NULL OR EndedAt > StartedAt`) · `CK_TS
 Constraints:
 - `CK_WO_Closed` — `Status = 1 OR ClosedAt IS NOT NULL`
 - **`UQ_WO_BookingJob (BookingJobId)`** — unique ธรรมดา (ไม่มี `WHERE`) — 1 Booking ↔ 1 WO
-- IX `(Status, OpenedAt DESC)`, `(TeamId, OpenedAt DESC)`, `(DepartmentId, OpenedAt DESC)`
+- IX `(Status, OpenedAt DESC)`, `(TeamId, OpenedAt DESC)`
+
+> ตัดออกตาม DL53 (ยังไม่มีโค้ด): `WorkOrders.DepartmentId` + `IX_WO_Dept_Opened` · `TrackingSessions.DepartmentId` · `Teams.DepartmentId` · `Devices.DepartmentId` · `Depots.DepartmentId` · `BookingJobs.BookingDepartmentRef` / `DepartmentId`
 
 > ตัดออกตาม DL33 (ยังไม่มีโค้ด จึงไม่ต้อง migrate): คอลัมน์ `LinkStatus`, `LinkSource`, `LinkConfidence`, `SuggestedBookingJobId`, `LinkedAt`, `LinkedBy`, `SourceDeviceId`, `ClosedBy`, `CloseNote`, `MergedIntoWorkOrderId`, `ReviewSince`, `ReviewOverdueAlertedAt` · constraint `CK_WO_LinkConsistency`, `CK_WO_Merged`, `CK_WO_LinkedHasTeam`, `UQ_WO_OpenUnlinkedPerTeam`, `UQ_WO_OpenUnlinkedPerDevice` · index `IX_WO_ReviewQueue` · `TrackingSessions.LinkSource`, `TrackingSessions.ClassifiedBy`
 
@@ -584,10 +556,8 @@ RETURNING "LastValue";
 | Status | smallint | NN | canonical |
 | RawStatus | varchar(50) | | ค่าดิบจาก Booking |
 | Title | varchar(300) | | |
-| BookingDepartmentRef | varchar(64) | | แผนกเจ้าของงานที่ Booking ส่งมา (DL38) **[Assumption]** |
-| DepartmentId | bigint | | FK → Departments · **cache** ที่ resolve จาก `Departments.BookingDepartmentRef` · map ไม่ได้ ⇒ `MappingIssues` 6 |
 | BookingTeamRef | varchar(64) | | **matching key** |
-| TeamId | bigint | | FK → Teams · **cache** ที่ resolve จาก `Teams.BookingTeamRef` (อัปเดตโดย job re-resolve เมื่อ ref เปลี่ยน) |
+| TeamId | bigint | | FK → Teams · **cache** ที่ resolve จาก `Teams.BookingTeamRef` · ไม่พบทีม ⇒ inbox processor สร้างทีมจาก `teamRef` ก่อน (DL53) |
 | BookingLeaderRef | varchar(64) | | **matching key** |
 | LeaderEmployeeId | bigint | | FK → Employees · **cache** ที่ resolve จาก `Employees.BookingEmployeeRef` |
 | ScheduledDate | date | | วันที่ของงาน (Asia/Bangkok) — fallback เมื่อไม่มีเวลาตามแผน |
@@ -599,7 +569,7 @@ RETURNING "LastValue";
 | SiteLat / SiteLng | double precision | | ใช้เป็น tie-breaker เท่านั้น |
 | Raw | jsonb | NN | payload ล่าสุด (redact ข้อมูลส่วนบุคคลที่ไม่จำเป็นก่อนเก็บ) |
 | PayloadHash | char(64) | NN | SHA-256 — ไม่เปลี่ยน = ไม่ต้อง re-match |
-| MappingIssues | smallint[] | | 1 UnknownTeamRef · 2 UnknownLeaderRef · 3 UnmappedStatus · 4 MissingWindow · 5 UnknownDeviceRef · 6 UnknownDepartmentRef (DL38) |
+| MappingIssues | smallint[] | | 1 *(สงวน — เดิม UnknownTeamRef · เลิกใช้ DL53: ไม่พบทีม ⇒ สร้างจาก `teamRef`)* · 2 UnknownLeaderRef (ไม่มีพนักงานที่ `BookingEmployeeRef` ตรง ⇒ ไม่ตั้งหัวหน้าทีม) · 3 UnmappedStatus · 4 MissingWindow · 5 UnknownDeviceRef · 6 *(สงวน — เดิม UnknownDepartmentRef · เลิกใช้ DL53)* · ห้ามใช้เลขที่สงวนซ้ำ |
 | FirstSyncedAt / LastSyncedAt | timestamptz | NN | ครั้งแรก / ครั้งล่าสุดที่ได้รับข้อมูลงานนี้ (POST / reconcile / CSV) · ชื่อคอลัมน์คงเดิม |
 | SourceMissingSince | timestamptz | | หายจาก reconcile ตอนกลางคืน (ไม่ลบ) — ตั้งได้เฉพาะเมื่อมี read API (`BOOKING_PROVIDER_DRIVER` ≠ `none` — DL46) |
 
@@ -614,7 +584,7 @@ IX GIN `(DeviceRefs)`, `(BookingTeamRef, PlannedStartAt)`, `(BookingLeaderRef, P
 **IntegrationSyncState** — สถานะรับข้อมูลขาเข้า + read API (optional) + circuit breaker snapshot
 PK `(Source, Resource)` · `LastReceivedAt` (POST ขาเข้าล่าสุดที่รับได้ — ใช้ alert `BOOKING_INBOUND_SILENT` · DL46), `LastAttemptAt`, `LastSuccessAt` (เรียก read API ล่าสุด — outbound), `LastFullSyncAt` (reconcile ล่าสุด), `LastErrorAt`, `LastError text`, `ConsecutiveFailures integer NN default 0`, `BreakerOpenUntil` · ตัด `Cursor` แล้ว (ไม่มี change feed — DL46 · ยังไม่มีโค้ด จึงลบได้เลย)
 
-**IntegrationCallLogs** — log ทุก request ไป/มาจาก Booking (redacted, ตัดที่ 4 KB) · **ทุก POST ขาเข้าเขียน 1 แถว** `Direction = 2 Inbound`, `Operation = 'inbound.job'` (รวมที่ตอบ 400 / 401 — ใช้นับ inbound failure ในหน้า Integration) · ห้ามเก็บ secret / signature / body เต็ม (DL46)
+**IntegrationCallLogs** — log ทุก request ไป/มาจาก Booking (redacted, ตัดที่ 4 KB) · **ทุก POST ขาเข้าเขียน 1 แถว** `Direction = 2 Inbound`, `Operation = 'inbound.job'` (รวมที่ตอบ 400 / 401 — ใช้นับ inbound failure ใน metrics / dashboard · ไม่มีหน้า Integration — DL53) · ห้ามเก็บ secret / signature / body เต็ม (DL46)
 `Id`, `Source NN`, `Direction smallint NN` (1 Outbound · 2 Inbound), `Operation varchar(50) NN`, `HttpMethod varchar(10)`, `Url varchar(500)` (ไม่มี secret/query token), `HttpStatus smallint`, `LatencyMs integer`, `CorrelationId varchar(64)`, `Outcome NN`, `ErrorMessage varchar(1000)`, `RequestExcerpt text`, `ResponseExcerpt text`, `OccurredAt NN` · IX `(Source, OccurredAt DESC)`, `(Outcome, OccurredAt DESC)` · retention 30 วัน
 
 ### G. Media (port จาก reference)
@@ -630,11 +600,11 @@ PK `(Source, Resource)` · `LastReceivedAt` (POST ขาเข้าล่าส
 - **AuditLogs** — partitioned รายเดือนตาม `OccurredAt` · คอลัมน์ตาม reference (`UserId`, `ActorUsername`, `ActorRole`, `Action`, `ResourceType`, `ResourceId`, `Changes jsonb`, `HttpMethod`, `RequestPath`, `Result`, `Ip`, `UserAgent`, `OccurredAt`) + `CorrelationId` · PK `(OccurredAt, Id)`
 - **Settings** — port ตรง (`SettingKey UQ`, `SettingValue text`, `ValueType`, `Category`, `IsSystem`) · bounds อยู่ในโค้ด (`setting-spec.ts`)
 
-รวม **34 ตาราง** (reference 33) — ตัดตารางที่ผูก dashcam/approval/company/site และเพิ่มตารางสำหรับ team, depot, session, Booking integration · ไม่มี `IntegrationOutbox` (ไม่มี write-back ไป Booking — DL31, DL46) · ไม่มีตารางใหม่จาก DL46/DL47 (เพิ่มแค่คอลัมน์) · รายการครบอยู่ใน README (Recommended Database Schema)
+รวม **33 ตาราง** (reference 33) — ตัดตารางที่ผูก dashcam/approval/company/site/แผนก (`Departments` — DL53) และเพิ่มตารางสำหรับ team, depot, session, Booking integration · ไม่มี `IntegrationOutbox` (ไม่มี write-back ไป Booking — DL31, DL46) · ไม่มีตารางใหม่จาก DL46/DL47 (เพิ่มแค่คอลัมน์) · รายการครบอยู่ใน README (Recommended Database Schema)
 
 ### I. DSS middleware (schema `dss` — ไม่ใช่ของ NestJS)
 
-- **`dss."RequestLogs"`** — ประวัติ request หลักที่เข้า DSS middleware (`psd-bwc-dss-services`) สำหรับดูสถิติการใช้งานและ monitor · DSS middleware เป็นผู้สร้างและเขียนเองผ่าน `REQUEST_LOG_DATABASE_URL` (ว่าง = ไม่เก็บ) · NestJS ไม่อ่าน/ไม่เขียน และ**ไม่นับรวมใน 34 ตารางข้างบน**
+- **`dss."RequestLogs"`** — ประวัติ request หลักที่เข้า DSS middleware (`psd-bwc-dss-services`) สำหรับดูสถิติการใช้งานและ monitor · DSS middleware เป็นผู้สร้างและเขียนเองผ่าน `REQUEST_LOG_DATABASE_URL` (ว่าง = ไม่เก็บ) · NestJS ไม่อ่าน/ไม่เขียน และ**ไม่นับรวมใน 33 ตารางข้างบน**
 - คอลัมน์: `Id bigint identity PK`, `OccurredAt timestamptz NN`, `Client varchar(50)` (ชื่อผู้เรียกจาก JWT `kid` เช่น `smart-booking`), `Method varchar(10) NN` (`WS` = WebSocket), `Path varchar(300) NN`, `DeviceCode varchar(64)`, `StatusCode smallint NN`, `ResultCode integer` (`code` ของ DSS — DSS ตอบ HTTP 200 แม้ล้มเหลว), `DurationMs integer NN`, `ClientIp varchar(45)`, `UserAgent varchar(300)`, `Detail varchar(300)` · IX `IX_RequestLogs_Occurred (OccurredAt DESC)`, `IX_RequestLogs_Device (DeviceCode, OccurredAt DESC)`
 - ไม่เก็บ polling / request ที่ถี่มาก: `/health`, `/body-camera/proxy` (HLS), `/api/v1/location` (GpsPoll ทุก 15s) — ตั้งได้ที่ `REQUEST_LOG_EXCLUDE_PATHS` · DDL อยู่ที่ `psd-bwc-dss-services/deploy/request-logs.sql`
 
@@ -654,13 +624,13 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 | AuditLogs | 12 เดือน | `DROP PARTITION` | |
 | StreamingSessions / TalkSessions / EvidenceExports (แถว) | 12 เดือน (ตาม audit) | DELETE batch | ใครดู/ดึงอะไรเมื่อไร · ไฟล์ MP4 บน Local disk PVC ลบหลัง 24 ชม. (`EvidenceCleanup` — DL34) |
 | Notifications / Alerts | 90 วัน | DELETE batch | |
-| IntegrationInbox | 30 วัน (Dead เก็บจนกว่าจะ resolve) | DELETE batch | |
+| IntegrationInbox | 30 วัน (Dead เก็บจนกว่าจะ resolve — ประมวลผลใหม่จาก `Payload` ได้ DL54) | DELETE batch | |
 | IntegrationCallLogs | 30 วัน | DELETE batch | |
 | `dss."RequestLogs"` | 90 วัน (`REQUEST_LOG_RETENTION_DAYS`) | DELETE batch รายวัน (ชุดละ 5000) โดย DSS middleware | ไม่ใช่ job ของ NestJS · `0` = ไม่ลบ |
 
 > หลักฐานที่ต้องเก็บนานกว่า 3 เดือน ให้ export MP4 ออกไปเก็บนอกระบบก่อนครบกำหนด — ระบบแสดงวันที่ข้อมูลจะถูกลบในหน้าใบงาน
 
-ประมาณปริมาณ GPS: 300 กล้อง × poll ทุก 15s ⇒ สูงสุด ~1.7M แถว/วัน ถ้าทุกตัวมี fix ตลอด 24 ชม. · ใช้งานจริง (≈30% มี fix ~10 ชม./วัน) ≈ 0.2M แถว/วัน ≈ 6–7M แถว/เดือน — partition รายเดือนเหมาะสม
+ประมาณปริมาณ GPS: 100 กล้อง (DL56) × poll ทุก 15s ⇒ สูงสุด ~0.58M แถว/วัน ถ้าทุกตัวมี fix ตลอด 24 ชม. · ใช้งานจริง (≈30% มี fix ~10 ชม./วัน) ≈ 72k แถว/วัน ≈ 2.2M แถว/เดือน — partition รายเดือนเหมาะสม
 
 ---
 
@@ -676,13 +646,13 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 
 ## 4.7 Migration Strategy
 
-1. **Baseline** `0000_baseline` จาก `drizzle-kit generate` — ตารางของ P0 ใน `schema.ts` (Departments, Roles, Users, Employees, Permissions, RolePermissions, UserDevices, RefreshTokens, PushTokens, Settings) · **ช่วง dev (ก่อน go-live production ครั้งแรก) ข้อมูลใน DB ทิ้งได้** — แก้ / รวม / generate migration ใหม่ทั้งชุด และ drop-recreate DB ได้ (DL50) · **หลัง go-live: append-only** ไม่แก้ไฟล์ที่ apply แล้ว เพิ่มไฟล์ใหม่ต่อท้ายเท่านั้น
+1. **Baseline** `0000_baseline` จาก `drizzle-kit generate` — ตารางของ P0 ใน `schema.ts` (Roles, Users, Employees, Permissions, RolePermissions, UserDevices, RefreshTokens, PushTokens, Settings + `Departments` เดิม) · **`0002_drop_departments`** (DL53): ลบ FK / index / คอลัมน์ `Users.DepartmentId`, `Employees.DepartmentId` แล้ว `DROP TABLE "Departments"` (ไม่ใช้ `CASCADE` — มี object อื่นอ้างถึงให้ migration fail แทนการลบเงียบ) · **ช่วง dev (ก่อน go-live production ครั้งแรก) ข้อมูลใน DB ทิ้งได้** — แก้ / รวม / generate migration ใหม่ทั้งชุด และ drop-recreate DB ได้ (DL50) · **หลัง go-live: append-only** ไม่แก้ไฟล์ที่ apply แล้ว เพิ่มไฟล์ใหม่ต่อท้ายเท่านั้น
 2. **`0001_extensions_partitions` (custom SQL — P0)**: `CREATE EXTENSION btree_gist` · `AuditLogs` แบบ `PARTITION BY RANGE ("OccurredAt")` (PK `(OccurredAt, Id)`, `Id` ใช้ sequence `AuditLogs_Id_seq`) + partition `AuditLogs_default` + block `DO $$` สร้าง `AuditLogs_YYYYMM` ของเดือนปัจจุบันและ 2 เดือนถัดไป (ขอบเดือน UTC) + index `IX_AuditLogs_Occurred (OccurredAt DESC)`, `IX_AuditLogs_User (UserId, OccurredAt DESC)` บนตารางแม่
 3. **Custom SQL ของ phase ถัดไป** (ช่วง dev จะเพิ่มลง `0001` เดิมแล้ว reset DB หรือแยกไฟล์ใหม่ก็ได้ — DL50): `GpsLocations` partitioned + BRIN — P1 (pattern เดียวกับ `AuditLogs`) · exclusion constraints ใส่ใน migration ของ phase ที่สร้างตารางนั้น เพราะ drizzle-kit generate `EXCLUDE` ไม่ได้: `EX_TeamMembers_LeaderNoOverlap` (P1) · `EX_TS_NoOverlap` (P2) · `EX_DevAsg_NoOverlap` (phase ที่สร้าง `DeviceAssignments`) — ตัวอย่างใน §4.9
 4. **Reference data ผ่าน custom data migration** (`npm run db:generate -- --custom`, ทุก statement `ON CONFLICT DO NOTHING`): roles, permissions, role-permissions, settings defaults — **seed ใช้เฉพาะ dev** (แก้กับดัก "ห้ามรัน seed ใน production" ของ reference)
 5. **Partitioned tables** ประกาศ `pgTable` ใน `server/src/db/schema.partitioned.ts` ซึ่ง **ไม่อยู่ใน `schema` path ของ `drizzle.config.ts`** ⇒ drizzle-kit ไม่ generate DDL ให้ แต่ query แบบ typed ได้ · ตอนนี้มี `AuditLogs` · `GpsLocations` เพิ่มใน P1
 6. **Drift gate**: port `guardMigrationsOrExit()` (`server/src/db/migration-status.ts`, `assert-migrations.ts`) + advisory lock ตอน migrate · production รัน migrate เป็น step แยกก่อน deploy (reference ยังไม่มีใน Dockerfile — ต้องทำ)
-7. **ไม่ย้ายข้อมูลจากระบบเดิม** **[Confirmed — Q13]** — เป็นระบบใหม่ทั้งหมด ระบบเดิมใช้เป็น reference เท่านั้น · master data (อุปกรณ์ ผ่าน vendor sync, พนักงาน, ผู้ใช้, ทีม, ฐาน) ตั้งใหม่ในระบบนี้
+7. **ไม่ย้ายข้อมูลจากระบบเดิม** **[Confirmed — Q13]** — เป็นระบบใหม่ทั้งหมด ระบบเดิมใช้เป็น reference เท่านั้น · master data ตั้งใหม่ในระบบนี้: พนักงาน, ผู้ใช้ (รวมสร้างจาก Entra) ตั้งผ่านหน้าจอ · อุปกรณ์ sync จาก DSS อัตโนมัติ · ทีม / หัวหน้าทีมเกิดจากใบงาน Booking · ฐานยังไม่มีหน้าจัดการ (DL53)
 8. **Schema `dss` อยู่นอก drizzle** — `drizzle.config.ts` ไม่ได้ตั้ง `schemaFilter` ⇒ drizzle-kit ดูแค่ `public` จึงไม่ยุ่งกับ `dss."RequestLogs"` · **อย่าเพิ่ม `dss` ใน `schemaFilter`** (drizzle-kit จะเห็นตารางนี้เป็นส่วนเกินและเสนอให้ลบ) · DSS middleware สร้าง schema + ตารางเองตอนเขียนครั้งแรก (`CREATE SCHEMA/TABLE IF NOT EXISTS`) และสร้างใหม่เองถ้าตารางหายระหว่างรัน ⇒ drop-recreate DB ช่วง dev (DL50) ไม่ต้อง restart DSS middleware · ถ้า DB user ไม่มีสิทธิ์ `CREATE` ให้ DBA รัน `deploy/request-logs.sql` ของ `psd-bwc-dss-services` และ GRANT ก่อน
 
 ---
@@ -706,8 +676,7 @@ export const Teams = pgTable('Teams', {
   Id: pkId(),
   Code: varchar('Code', { length: 30 }).notNull(),
   Name: varchar('Name', { length: 200 }).notNull(),
-  DepartmentId: ref('DepartmentId', () => Departments.Id).notNull(),
-  BookingTeamRef: varchar('BookingTeamRef', { length: 64 }),
+  BookingTeamRef: varchar('BookingTeamRef', { length: 64 }), // inbox processor สร้างทีมจาก teamRef (DL53)
   IsActive: boolean('IsActive').notNull().default(true),
   CreatedAt: createdAt(),
   UpdatedAt: updatedAt(),
@@ -730,8 +699,6 @@ export const BookingJobs = pgTable('BookingJobs', {
   Status: smallint('Status').notNull(),
   RawStatus: varchar('RawStatus', { length: 50 }),
   Title: varchar('Title', { length: 300 }),
-  BookingDepartmentRef: varchar('BookingDepartmentRef', { length: 64 }), // DL38
-  DepartmentId: ref('DepartmentId', () => Departments.Id),
   BookingTeamRef: varchar('BookingTeamRef', { length: 64 }),
   TeamId: ref('TeamId', () => Teams.Id),
   BookingLeaderRef: varchar('BookingLeaderRef', { length: 64 }),
@@ -766,7 +733,6 @@ export const WorkOrders = pgTable('WorkOrders', {
   CloseReason: smallint('CloseReason'),
   BookingJobId: ref('BookingJobId', () => BookingJobs.Id).notNull(),
   TeamId: ref('TeamId', () => Teams.Id),
-  DepartmentId: ref('DepartmentId', () => Departments.Id).notNull(),
   LeaderEmployeeId: ref('LeaderEmployeeId', () => Employees.Id),
   OpenedAt: tstz('OpenedAt'),
   LastActivityAt: tstz('LastActivityAt'),
@@ -781,7 +747,6 @@ export const WorkOrders = pgTable('WorkOrders', {
   uniqueIndex('UQ_WO_No').on(t.WorkOrderNo),
   unique('UQ_WO_BookingJob').on(t.BookingJobId),
   index('IX_WO_Team_Opened').on(t.TeamId, t.OpenedAt.desc()),
-  index('IX_WO_Dept_Opened').on(t.DepartmentId, t.OpenedAt.desc()),
   check('CK_WO_Closed', sql`"Status" = 1 OR "ClosedAt" IS NOT NULL`),
 ]);
 
@@ -789,7 +754,6 @@ export const TrackingSessions = pgTable('TrackingSessions', {
   Id: pkId(),
   DeviceId: ref('DeviceId', () => Devices.Id).notNull(),
   TeamId: ref('TeamId', () => Teams.Id),
-  DepartmentId: ref('DepartmentId', () => Departments.Id).notNull(),
   WorkOrderId: ref('WorkOrderId', () => WorkOrders.Id),
   StartedAt: tstz('StartedAt').notNull(),
   EndedAt: tstz('EndedAt'),

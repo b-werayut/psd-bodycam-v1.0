@@ -5,28 +5,21 @@ export type RouteAccess = {
   allOf?: readonly string[];
 };
 
-/** Keyed by path without a leading slash; the empty key is the dashboard. */
+/**
+ * Keyed by path without a leading slash; the empty key is the dashboard.
+ * `evidence` is the video playback page (work order -> camera -> playback / MP4 download).
+ */
 export const ROUTE_ACCESS = {
   '': { anyOf: ['dashboard:view'] },
   tracking: { anyOf: ['tracking:view'] },
   'tracking/history': { anyOf: ['tracking:history'] },
   'live-wall': { anyOf: ['streaming:live-wall'], allOf: ['streaming:view-live'] },
-  sessions: { anyOf: ['sessions:read'] },
   'work-orders': { anyOf: ['work-orders:read'] },
-  'work-orders/review': { anyOf: ['work-orders:link'] },
   'work-orders/:id': { anyOf: ['work-orders:read'] },
-  'booking-jobs': { anyOf: ['booking:read'] },
-  'booking-jobs/:id': { anyOf: ['booking:read'] },
-  recordings: { anyOf: ['playback:view'] },
-  devices: { anyOf: ['devices:read'] },
-  'devices/:id': { anyOf: ['devices:read'] },
-  teams: { anyOf: ['teams:read'] },
-  'teams/:id': { anyOf: ['teams:read'] },
-  depots: { anyOf: ['devices:read'] },
+  evidence: { anyOf: ['playback:view'], allOf: ['work-orders:read'] },
   employees: { anyOf: ['org:read'] },
-  departments: { anyOf: ['org:read'] },
   users: { anyOf: ['users:read'] },
-  integration: { anyOf: ['integration:view'] },
+  'entra-users': { anyOf: ['users:manage'] },
   notifications: { anyOf: ['notifications:read', 'alerts:view'] },
   'audit-logs': { anyOf: ['audit:view'] },
   settings: { anyOf: ['settings:manage'] },

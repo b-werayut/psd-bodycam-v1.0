@@ -2,10 +2,11 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { TranslationKey } from '@/i18n/locales/th';
+import { en } from '@/i18n/locales/en';
+import { th, type TranslationKey } from '@/i18n/locales/th';
 import { translate } from '@/i18n/translate';
 import { api } from '@/lib/apiClient';
-import { PERMISSION_CATALOG } from '../permissionCatalog';
+import { groupPermissions, PERMISSION_CATALOG } from '../permissionCatalog';
 import { renderWithProviders, signIn, signOut } from '../testUtils';
 import { RolePermissionsPanel } from './RolePermissionsPanel';
 
@@ -40,7 +41,61 @@ afterEach(signOut);
 const cell = (code: string, role: string) =>
   screen.getByRole('checkbox', { name: t('users.roles.cell', { permission: code, role }) });
 
+describe('PERMISSION_CATALOG', () => {
+  it('is exactly the 24 codes of the reduced menu, in matrix order', () => {
+    expect(PERMISSION_CATALOG).toEqual([
+      'dashboard:view',
+      'tracking:view',
+      'tracking:history',
+      'work-orders:read',
+      'work-orders:edit-note',
+      'booking:read',
+      'booking:refresh',
+      'devices:read',
+      'org:read',
+      'org:manage',
+      'users:read',
+      'users:manage',
+      'roles:manage',
+      'streaming:view-live',
+      'streaming:live-wall',
+      'streaming:talk',
+      'playback:view',
+      'evidence:export',
+      'evidence:download',
+      'notifications:read',
+      'alerts:view',
+      'alerts:manage',
+      'audit:view',
+      'settings:manage',
+    ]);
+  });
+
+  it('has a th and en label for every resource group, and no label without a group', () => {
+    const resources = groupPermissions().map((g) => g.resource);
+    for (const dict of [th, en]) {
+      const labelled = Object.keys(dict)
+        .filter((key) => key.startsWith('users.resource.'))
+        .map((key) => key.slice('users.resource.'.length));
+      expect(labelled.sort()).toEqual([...resources].sort());
+    }
+  });
+});
+
 describe('RolePermissionsPanel', () => {
+  it('shows each resource group under its label (org reads as employees)', async () => {
+    renderWithProviders(<RolePermissionsPanel />);
+    await screen.findByRole('checkbox', {
+      name: t('users.roles.cell', { permission: 'dashboard:view', role: 'เจ้าหน้าที่' }),
+    });
+    expect(screen.getByRole('cell', { name: 'พนักงาน' })).toBeInTheDocument();
+    for (const group of groupPermissions()) {
+      expect(
+        screen.getByRole('cell', { name: t(`users.resource.${group.resource}` as TranslationKey) }),
+      ).toBeInTheDocument();
+    }
+  });
+
   it('lists all catalog permissions and locks the ADMIN column with a reason', async () => {
     renderWithProviders(<RolePermissionsPanel />);
     await screen.findByRole('checkbox', {

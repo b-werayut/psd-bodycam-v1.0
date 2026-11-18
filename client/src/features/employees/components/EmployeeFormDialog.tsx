@@ -17,11 +17,6 @@ import { FormField, FormRequirementNote } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { SearchSelect } from '@/components/ui/search-select';
 import { Select } from '@/components/ui/select';
-import {
-  DEPARTMENTS_TREE_KEY,
-  departmentsApi,
-  flattenDepartments,
-} from '@/features/departments/departments.api';
 import { usersApi } from '@/features/users/users.api';
 import { useLanguage } from '@/i18n/useLanguage';
 import { apiErrorOf } from '@/lib/apiError';
@@ -40,7 +35,6 @@ const FIELD_ORDER: ReadonlyArray<readonly [keyof EmployeeFormValues, string]> = 
   ['employeeCode', 'employee-code'],
   ['firstName', 'employee-first-name'],
   ['lastName', 'employee-last-name'],
-  ['departmentId', 'employee-department'],
 ];
 
 const USER_OPTIONS_PAGE_SIZE = 100;
@@ -63,12 +57,10 @@ export function EmployeeFormDialog({
   const [codeTaken, setCodeTaken] = useState<string | null>(null);
   const [userLinked, setUserLinked] = useState<string | null>(null);
 
-  const departments = useQuery({ queryKey: DEPARTMENTS_TREE_KEY, queryFn: departmentsApi.tree });
   const users = useQuery({
     queryKey: ['users', 'options'],
     queryFn: () => usersApi.list({ page: 1, pageSize: USER_OPTIONS_PAGE_SIZE }),
   });
-  const departmentOptions = flattenDepartments(departments.data ?? []);
   const userOptions = (users.data?.data ?? []).map((user) => ({
     value: user.id,
     label: `${user.fullName} (${user.username})`,
@@ -140,6 +132,7 @@ export function EmployeeFormDialog({
             id="employee-code"
             label={t('employees.form.code')}
             error={codeTaken ?? errorOf('employeeCode')}
+            className="sm:col-span-2"
           >
             <Input
               id="employee-code"
@@ -152,25 +145,6 @@ export function EmployeeFormDialog({
               autoComplete="off"
               className="min-h-11"
             />
-          </FormField>
-          <FormField
-            id="employee-department"
-            label={t('employees.form.department')}
-            error={errorOf('departmentId')}
-          >
-            <Select
-              id="employee-department"
-              value={values.departmentId}
-              onChange={(e) => set('departmentId', e.target.value)}
-              disabled={departments.isPending}
-            >
-              <option value="">{t('employees.form.selectDepartment')}</option>
-              {departmentOptions.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.label}
-                </option>
-              ))}
-            </Select>
           </FormField>
           <FormField
             id="employee-first-name"

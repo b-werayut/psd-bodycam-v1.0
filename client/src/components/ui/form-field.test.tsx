@@ -62,20 +62,20 @@ describe('FormField', () => {
 
   it('forwards validation semantics through composite controls', () => {
     render(
-      <FormField id="department" label="Department" error="Choose a department">
+      <FormField id="linked-user" label="Linked user" error="Choose a user">
         <SearchSelect
-          id="department"
+          id="linked-user"
           value=""
           onChange={() => undefined}
           options={[]}
-          emptyText="No departments"
+          emptyText="No users"
           clearLabel="Clear"
         />
       </FormField>,
     );
 
-    const combobox = screen.getByRole('combobox', { name: 'Department' });
+    const combobox = screen.getByRole('combobox', { name: 'Linked user' });
     expect(combobox).toHaveAttribute('aria-invalid', 'true');
-    expect(combobox).toHaveAttribute('aria-describedby', 'department-error');
+    expect(combobox).toHaveAttribute('aria-describedby', 'linked-user-error');
   });
 });

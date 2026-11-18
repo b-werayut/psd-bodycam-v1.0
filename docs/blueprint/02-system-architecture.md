@@ -6,7 +6,7 @@
 
 | เกณฑ์ | Modular Monolith (เลือก) | Microservices |
 |---|---|---|
-| ขนาดทีม / ระบบ | เหมาะกับทีมเล็ก กล้อง 100–300 ตัว | overhead สูงเกินขนาดงาน |
+| ขนาดทีม / ระบบ | เหมาะกับทีมเล็ก กล้องประมาณ 100 ตัว · ผู้ใช้พร้อมกัน 100 คน (DL56) | overhead สูงเกินขนาดงาน |
 | Reuse จาก reference | port โค้ด NestJS เดิมได้ตรง (`server/src/common/*`, auth, tracking, streaming) | ต้องแตกโค้ดเดิมใหม่ทั้งหมด |
 | Transaction ข้าม domain | session + work order + events อยู่ใน transaction เดียวได้ | ต้องใช้ saga/distributed tx |
 | Failure isolation | ได้จาก **process role + queue แยก + circuit breaker** (ดู 2.6) | ได้โดยธรรมชาติ |
@@ -138,9 +138,9 @@ flowchart TB
   subgraph Domain["Domain modules"]
     AUTH["auth"]
     USERS["users + roles"]
-    ORG["org: departments, employees"]
-    TEAMS["teams"]
-    DEV["devices + device-assignments"]
+    ORG["org: employees"]
+    TEAMS["teams<br/>จากใบงาน Booking"]
+    DEV["devices + device-assignments<br/>DeviceSync จาก DSS"]
     DSTAT["device-status<br/>observation ingest"]
     TRK["tracking<br/>GPS pipeline + history"]
     SES["sessions<br/>session engine"]
@@ -154,8 +154,9 @@ flowchart TB
     C1["db · scope · settings · lock · queue · rate-limit"]
     C2["audit · context · storage · push · realtime-bus · vendor clients"]
   end
-  REST --> AUTH & USERS & ORG & TEAMS & DEV & TRK & SES & WO & BKG & MEDIA & NOTI & DASH
+  REST --> AUTH & USERS & ORG & DEV & TRK & WO & BKG & MEDIA & NOTI & DASH
   INB -- "เขียน IntegrationInbox เท่านั้น" --> BKG
+  BKG -- "upsert ทีม + หัวหน้าทีม จาก ref ของใบงาน" --> TEAMS
   DSTAT --> DEV
   TRK --> DEV
   SES --> DEV & TEAMS & WO
@@ -174,15 +175,15 @@ flowchart TB
 | Module | Responsibility | Reuse จาก reference |
 |---|---|---|
 | `auth` | login password + Entra SSO, refresh rotation, lockout, ทะเบียนเครื่องมือถือ (ไม่มี PIN) | `modules/auth` เกือบทั้งหมด |
-| `users` | ผู้ใช้, role, role-permission matrix, ระงับบัญชี (`cutAllSessions`) · บัญชี `TEAM_LEADER` ต้องผูก employee (`Employees.UserId`) — ตรวจใน service (DL47) | `modules/users` (ตัด company) |
-| `org` | departments (tree), employees, link employee ↔ user, `BookingEmployeeRef` | `departments`, `employees` |
-| `teams` | ทีม, สมาชิก, เปลี่ยนหัวหน้าทีม (ประวัติ), `BookingTeamRef` | ใหม่ |
-| `devices` | ทะเบียน bodycam, vendor sync (`device-sync.plan.ts`), streaming toggle, Depots · การผูกกล้อง → ทีม **มาจากข้อมูล Booking เท่านั้น** (ไม่มีหน้าจอผูกเอง — Q20) · สถานะกล้องที่แสดงบนหน้าจอ `api` ถาม DSS middleware ตอน request (DL35) ผ่าน cache Redis (DL45) | `devices`, `device-assignments` (refactor เป็น read-only projection) |
+| `users` | ผู้ใช้, role, role-permission matrix, ระงับบัญชี (`cutAllSessions`) · ผู้ใช้จาก Entra (`GET /users/entra-directory`, `POST /users/sync-entra` ผ่าน Microsoft Graph — DL53) · บัญชี `TEAM_LEADER` ต้องผูก employee (`Employees.UserId`) — ตรวจใน service (DL47) | `modules/users` (ตัด company · รวม `entra-user-sync.*`, `graph-users.client.ts`) |
+| `org` | employees, link employee ↔ user, `BookingEmployeeRef` · ไม่มีแผนก (DL53) | `employees` |
+| `teams` | ทีม + หัวหน้าทีม (ประวัติใน `TeamMembers`) — สร้าง/อัปเดตโดย inbox processor จาก `teamRef` / leader ref ของใบงาน **[Assumption]** · ไม่มีหน้าจัดการทีม (DL53) · `BookingTeamRef` | ใหม่ |
+| `devices` | ทะเบียน bodycam — job `DeviceSync` ใน worker sync จาก DSS device list ตามรอบ (`device-sync.plan.ts` · ไม่มีหน้าแก้ไข / sync ด้วยมือ / ปลดระวาง — DL53) · `Depots` (ไม่มีหน้าจัดการ ⇒ ตารางว่าง — DL53) · การผูกกล้อง → ทีม **มาจากข้อมูล Booking เท่านั้น** (ไม่มีหน้าจอผูกเอง — Q20) · สถานะกล้องที่แสดงบนหน้าจอ `api` ถาม DSS middleware ตอน request (DL35) ผ่าน cache Redis (DL45) | `devices`, `device-assignments` (refactor เป็น read-only projection) |
 | `device-status` | **Device Event Processing**: รับ observation จาก GpsPoll (`/location` ให้ทั้ง GPS และ online/offline — DL32) → `DeviceState` + `DeviceStatusHistory` ให้ session engine ใช้ภายใน · ไม่ push สถานะขึ้นหน้าจอ (ไม่มี `device:status` — DL35) · ไม่มี business logic | แยกจาก `GpsPoll.applyVendorStatuses` (ไม่ port `brms-mq.service.ts` — DL30) |
 | `tracking` | GPS ingestion pipeline (`ingestLocations`), positions snapshot, route history | `modules/tracking` (ตัด road-match) |
 | `sessions` | **Session engine** (sweep, pure `decide()`, open/close/split) · เป็น writer เดียวของ lifecycle session · ไม่สร้างใบงาน — match ไม่ได้ ⇒ session ค้าง `AwaitingMatch` / `NoTeam` · กล้องชาร์จที่ฐาน ⇒ ระบบตั้ง `Classified` + `IdleOrCharging` · recording index | ใหม่ (แทน `camera-session.service.ts`) |
-| `work-orders` | WO **1:1 กับ `BookingJobs`** สร้าง/อัปเดตจากข้อมูลที่ Smart Booking ส่งเข้ามาเท่านั้น (inbox processor เรียก writer ของ module นี้ — DL33, DL46) · สถานะตาม Booking (check-in / check-out / ยกเลิก) · **matching อัตโนมัติ** attach session เข้า WO ของ Booking job (อ่าน `BookingJobs`) · read model ใบงาน (list/detail, หน้า หลักฐาน) · read model ของ mobile (`/mobile/jobs` scope `team` — DL47) · ไม่มี link / unlink / merge / void / คิวตรวจสอบ (DL33) | ใหม่ |
-| `booking-integration` | **inbound endpoint** `POST /api/integration/booking/jobs` (รันใน `api`: auth `BookingInboundAuthGuard` + validate + insert `IntegrationInbox` แล้ว enqueue `booking-inbox` — DL46) · **inbox processor** ใน worker `integration` (`BookingInboundMapper` → upsert `BookingJobs` + `WorkOrders` 1:1 ใน transaction เดียว) · `BookingProvider` port (read API optional: `none` / `mock` / `http`) สำหรับ refresh รายใบ / full reconcile · CSV import · circuit breaker (เฉพาะ read API) · mapping · monitoring endpoints | ใหม่ (ใช้ pattern provider/driver ของ reference) |
+| `work-orders` | WO **1:1 กับ `BookingJobs`** สร้าง/อัปเดตจากข้อมูลที่ Smart Booking ส่งเข้ามาเท่านั้น (inbox processor เรียก writer ของ module นี้ — DL33, DL46) · สถานะตาม Booking (check-in / check-out / ยกเลิก) · **matching อัตโนมัติ** attach session เข้า WO ของ Booking job (อ่าน `BookingJobs`) · read model ใบงาน (หน้า ใบงาน / วิดีโอย้อนหลัง / รายละเอียด) · read model ของ mobile (`/mobile/jobs` scope `team` — DL47) · ไม่มี link / unlink / merge / void / คิวตรวจสอบ (DL33) | ใหม่ |
+| `booking-integration` | **inbound endpoint** `POST /api/integration/booking/jobs` (รันใน `api`: auth `BookingInboundAuthGuard` + validate + insert `IntegrationInbox` แล้ว enqueue `booking-inbox` — DL46) · **inbox processor** ใน worker `integration` (`BookingInboundMapper` → upsert `BookingJobs` + `WorkOrders` 1:1 ใน transaction เดียว) · `BookingProvider` port (read API optional: `none` / `mock` / `http`) สำหรับ refresh รายใบ / full reconcile · CSV import (ระยะแรกยังไม่มีหน้า upload — DL53) · circuit breaker (เฉพาะ read API) · mapping · upsert ทีม / หัวหน้าทีมจาก ref ของใบงาน (DL53) · ไม่มี endpoint / หน้า monitoring (DL53 — แจ้งด้วย alert ถึง `ADMIN`) | ใหม่ (ใช้ pattern provider/driver ของ reference) |
 | `streaming` / `evidence` / `talk` | live, playback, recording search, MP4 export (ไฟล์บน Local disk PVC — DL34 · ช่วงเดิมที่ยังใช้ได้ ⇒ reuse job เดิม — DL36), two-way talk, quota, role/device access | port ทั้งหมด |
 | `notifications` | alert engine (dedupe), in-app inbox, FCM push via BullMQ — push ถึงหัวหน้าทีมเมื่อมีใบงานใหม่ของทีม · alert ไม่ push ขึ้นมือถือ (DL47) | port + alert types ใหม่ |
 | `dashboard` | overview cards | refactor |
@@ -191,7 +192,7 @@ flowchart TB
 
 ### กติกา dependency (บังคับด้วย lint rule `no-restricted-imports` หรือ dependency-cruiser)
 
-1. `booking-integration` **ห้าม import** `sessions` และ matcher ของ `work-orders` — ส่งงาน match ต่อผ่าน BullMQ queue `matching` เท่านั้น · ข้อยกเว้นเดียว: inbox processor เรียก writer ของ `work-orders` เพื่อ upsert `WorkOrders` 1:1 กับ `BookingJobs` (+ สถานะตาม Booking) ใน transaction เดียวกับ projection — writer นี้ lock แค่แถว `WorkOrders` ไม่แตะ session / `DeviceState` (DL33)
+1. `booking-integration` **ห้าม import** `sessions` และ matcher ของ `work-orders` — ส่งงาน match ต่อผ่าน BullMQ queue `matching` เท่านั้น · ข้อยกเว้นเดียว: inbox processor เรียก writer ของ `work-orders` เพื่อ upsert `WorkOrders` 1:1 กับ `BookingJobs` (+ สถานะตาม Booking) ใน transaction เดียวกับ projection — writer นี้ lock แค่แถว `WorkOrders` ไม่แตะ session / `DeviceState` (DL33) · การ upsert `Teams` / `TeamMembers` จาก ref ของใบงาน (DL53) เรียก writer ของ `teams` ได้ (ไม่ขัดกติกานี้) และทำก่อน resolve `BookingJobs.TeamId` ใน transaction เดียวกัน
 2. `work-orders` อ่าน `BookingJobs` ผ่าน `BookingReadModel` (read-only repository ของ `work-orders` เอง — ไม่ import `booking-integration` จึงไม่เกิด import วน) — ไม่เรียก Booking API
 3. `tracking` / `device-status` / `sessions` **ห้ามเรียกระบบภายนอกที่ไม่ใช่ vendor กล้อง** — real-time path ไม่ขึ้นกับ Booking
 4. ทุก write ที่แตะ session ของอุปกรณ์ต้องถือ row lock `DeviceState` ของอุปกรณ์นั้น (lock order: `DeviceId` จากน้อยไปมาก → `WorkOrders` → `TrackingSessions`)
@@ -216,7 +217,7 @@ flowchart LR
   BUS --> GW["Socket.IO"] --> WEB["Map (ตำแหน่งสด)"]
 ```
 
-- สถานะ online/offline **ไม่ถูก push ขึ้นหน้าจอ** (ไม่มี `device:status` — DL35) · `DeviceState` ใช้ภายในโดย session engine · หน้าจอที่แสดงสถานะกล้อง (รายการ/รายละเอียดอุปกรณ์, ก่อนเปิด live) ให้ `api` ถาม DSS middleware ตอนเปิดหน้า
+- สถานะ online/offline **ไม่ถูก push ขึ้นหน้าจอ** (ไม่มี `device:status` — DL35) · `DeviceState` ใช้ภายในโดย session engine · หน้าจอที่แสดงสถานะกล้อง (ภาพสดหลายจอ, คอลัมน์กล้องในหน้า ใบงาน, ก่อนเปิด live) ให้ `api` ถาม DSS middleware ตอนเปิดหน้า
 - **cache สถานะกล้อง (DL45)**: `api` เก็บผลจาก DSS ใน Redis key `device-status:{deviceId}` (prefix ต่อ environment) อายุ `status.display-cache-seconds` (10s) ใช้ร่วมทุก api pod · `GET /devices` อ่านทีละหลาย key (`MGET`) แล้วถาม DSS เฉพาะกล้องที่ไม่มีใน cache · หลายคนเปิดหน้าพร้อมกันจึงไม่ยิง DSS ซ้ำ · session engine ไม่ใช้ cache นี้ (ใช้ `DeviceState` จาก GpsPoll)
 
 ### (B) Session → Work Order ของ Booking job
@@ -262,7 +263,7 @@ flowchart LR
 
 Browser → `POST /api/streams/live` → `StreamingService` ตรวจสิทธิ์สด + scope + `StreamingEnabled` + quota → ขอ URL จาก DSS middleware (ชี้กลับ `/proxy` ของ middleware) → seal AES-GCM → browser เล่นผ่าน proxy `/api/streams/:token/playlist.m3u8` (port จาก reference ทั้ง flow)
 
-Evidence (หน้า หลักฐาน `/evidence` — DL36): เลือกใบงาน → กล้อง + ช่วงเวลาจาก session ของใบงาน → playback หรือ `POST /api/evidence-exports` (device + channel + start/end เดิมที่ยัง queued / processing / ready ไม่หมดอายุ ⇒ ใช้ job เดิม) → `worker-media` ดึง HLS → ffmpeg → เขียน MP4 ลง Local disk (PVC) → ดาวน์โหลดผ่าน ticket จาก `api` (DL34)
+Evidence (dialog ดูวิดีโอ จากหน้า ใบงาน `/work-orders` หรือ วิดีโอย้อนหลัง `/evidence` — DL36, DL52, DL53): เลือกใบงาน → กล้อง (sessions + `DeviceRefs`) + ไฟล์ย้อนหลังที่ทับช่วง check-in – check-out ของ Booking ติดป้าย "อยู่ในช่วงใบงาน" → playback หรือ `POST /api/evidence-exports` (device + channel + start/end เดิมที่ยัง queued / processing / ready ไม่หมดอายุ ⇒ ใช้ job เดิม) → `worker-media` ดึง HLS → ffmpeg → เขียน MP4 ลง Local disk (PVC) → ดาวน์โหลดผ่าน ticket จาก `api` (DL34)
 
 ---
 
@@ -288,6 +289,7 @@ Evidence (หน้า หลักฐาน `/evidence` — DL36): เลือ
 | tracking | `GpsPoll` (DSS `/location` → GPS + online/offline — DL32) | timer | 15s (setting) | lock `gps:poll` · concurrency 8 |
 | tracking | `SessionSweep` (open/close/split session · pass ระดับ WO: alert ไม่มี check-out 36 ชม. / ปิด `SafetyTimeout` 7 วัน — ไม่สร้างใบงาน) | timer | 30s | lock `session:sweep` · ทุกอุปกรณ์ ORDER BY Id แบ่งหน้า |
 | tracking | `AlertSweep` (offline during work · inbox backlog — alert 10 · Booking ไม่ส่ง POST — alert 17) | timer | 60s | lock `alert:sweep` |
+| tracking | `DeviceSync` (DSS device list → upsert `Devices` ด้วย `device-sync.plan.ts` · เครื่องที่ DSS ไม่ส่งมา ⇒ `VendorMissingSince` + alert 13 `DEVICE_VENDOR_MISSING` · ไม่ลบ — DL53 แทนปุ่ม sync ด้วยมือ) | timer | ตอน worker start + รายชั่วโมง | lock `device:sync` · concurrency 1 |
 | integration | `booking-inbox` (map ด้วย `BookingInboundMapper` → upsert `BookingJobs` + `WorkOrders` 1:1) | BullMQ · `api` enqueue หลังรับ POST (DL46) | ทันที | concurrency 4 · ต่อ job ใช้ version guard |
 | integration | inbox retry sweep (`Failed` + `Pending` ที่เก่ากว่า 1 นาที → enqueue `booking-inbox` ซ้ำ · ครบ 10 ครั้ง ⇒ `Dead`) | BullMQ repeatable | 5 นาที | concurrency 1 |
 | integration | `booking-sync` full reconcile — **เฉพาะเมื่อมี read API** (`BOOKING_PROVIDER_DRIVER` ≠ `none` — DL46) | BullMQ repeatable | รายคืน 02:00 + ทันทีที่ breaker ปิด | concurrency 1 · ข้ามเมื่อ breaker เปิด |
@@ -309,26 +311,26 @@ Evidence (หน้า หลักฐาน `/evidence` — DL36): เลือ
 
 | Role | Data scope | ใช้ทำอะไร |
 |---|---|---|
-| `ADMIN` | all | super admin — ทุกอย่าง รวม settings, integration, roles, audit · bypass permission/scope |
-| `COMPANY_ADMIN` | all | ผู้ดูแลบริษัท (web — DL51): งานแบบ `OPERATOR` ทั้งบริษัท + จัดการพนักงาน / แผนก (`org:manage`) + จัดการผู้ใช้ทุก role **ยกเว้น `ADMIN`** · ไม่มี audit, settings, matrix สิทธิ์, integration, จัดการ / sync กล้อง (permission สงวนของ `ADMIN`) · ไม่ bypass |
-| `OPERATOR` | department (รวมแผนกย่อย) | ศูนย์ควบคุม (web): เฝ้าดู (แผนที่/live/live wall/talk), playback / export หลักฐาน, จัดการทีม, ack alert · ไม่มีคิวตรวจสอบ / link / classify (DL33) |
-| `VIEWER` | department | อ่านอย่างเดียว (web) |
+| `ADMIN` | all | super admin — ทุกอย่าง รวม settings, roles, audit · bypass permission/scope |
+| `COMPANY_ADMIN` | all | ผู้ดูแลบริษัท (web — DL51): งานแบบ `OPERATOR` + จัดการพนักงาน (`org:manage`) + จัดการผู้ใช้ทุก role **ยกเว้น `ADMIN`** (รวมผู้ใช้จาก Entra) · ไม่มี audit, settings, แก้ matrix สิทธิ์ (permission สงวนของ `ADMIN` — DL53 เหลือ 3 ตัว) · ไม่ bypass |
+| `OPERATOR` | all | ศูนย์ควบคุม (web): เฝ้าดู (แผนที่ / ภาพสดหลายจอ / ดูสดจากหน้า ใบงาน / talk), playback / export หลักฐาน, ack alert · ไม่มีคิวตรวจสอบ / link / classify (DL33) · ไม่มีงานจัดการทีม (ทีมมาจาก Booking — DL53) |
+| `VIEWER` | all | อ่านอย่างเดียว (web) |
 | `TEAM_LEADER` | team | **แอปมือถือเท่านั้น**: live กล้องของตัวเอง/ทีม + รายละเอียดใบงานของทีมจาก Smart Booking · ไม่มี web UI (login เว็บเห็นหน้า "ใช้งานผ่านแอปมือถือ") · ไม่มี playback / หลักฐาน / GPS / สถานะกล้อง / talk / alert (DL47) |
 
 - `OPERATOR` แทน `SUPERVISOR` + `DISPATCHER` ของ reference — ระบบใหม่ไม่มีงานสร้าง/อนุมัติ/มอบหมายใบงาน จึงไม่ต้องแยก 2 บทบาท (Part 9 DL14)
-- ชื่อ role เป็นชื่อกลาง ไม่ใช้คำว่า Safety (DL48): "แอดมินฝ่ายความปลอดภัย" ใน requirement = `ADMIN` · "ผู้จัดการแผนก/ฝ่าย" = `OPERATOR` (scope department) · `VIEWER` คงไว้
-- **`COMPANY_ADMIN` (DL51)** — กันยกระดับสิทธิ์ใน service ไม่พึ่ง UI: (1) permission สงวนของ `ADMIN` (`audit:view`, `settings:manage`, `roles:manage`, `integration:*`, `devices:manage`, `devices:sync`) ให้ role อื่นที่ไม่ใช่ `ADMIN` ไม่ได้ — `PUT /roles/:id/permissions` ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN` (2) ผู้ใช้ที่ไม่ใช่ `ADMIN` แก้ / ระงับ / ลบบัญชี `ADMIN` หรือกำหนด role `ADMIN` ไม่ได้ ⇒ 403 `ADMIN_ACCOUNT_PROTECTED`
-- Data scope ตาม role code: `ADMIN`, `COMPANY_ADMIN` = `all` · `OPERATOR`, `VIEWER` = `department` · `TEAM_LEADER` = `team`
+- ชื่อ role เป็นชื่อกลาง ไม่ใช้คำว่า Safety (DL48): "แอดมินฝ่ายความปลอดภัย" ใน requirement = `COMPANY_ADMIN` (DL55 — `ADMIN` เป็นบัญชี super admin ของฝั่ง dev ไม่ใช่บทบาทของลูกค้า) · "ผู้จัดการแผนก/ฝ่าย" = `OPERATOR` (scope `all` — ไม่มีแผนก DL53) · `VIEWER` คงไว้
+- **`COMPANY_ADMIN` (DL51)** — กันยกระดับสิทธิ์ใน service ไม่พึ่ง UI: (1) permission สงวนของ `ADMIN` (`audit:view`, `settings:manage`, `roles:manage` — DL53) ให้ role อื่นที่ไม่ใช่ `ADMIN` ไม่ได้ — `PUT /roles/:id/permissions` ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN` (2) ผู้ใช้ที่ไม่ใช่ `ADMIN` กำหนด role `ADMIN` ไม่ได้ (รวมการสร้างบัญชีจาก Entra) ⇒ 403 `ADMIN_ACCOUNT_PROTECTED` (3) ผู้ใช้ที่ไม่ใช่ `ADMIN` **มองไม่เห็นบัญชี `ADMIN`** (DL55): `GET /users`, หน้า ผู้ใช้จาก Entra และตัวเลือกบัญชีในหน้า พนักงาน ไม่คืนบัญชี role `ADMIN` · `GET` / `PATCH` / `DELETE /users/:id` และ `/users/:id/access` ที่ชี้บัญชี `ADMIN` ⇒ **404** (เหมือนนอก scope) · `GET /roles` ไม่คืน role `ADMIN`
+- Data scope ตาม role code: `ADMIN`, `COMPANY_ADMIN`, `OPERATOR`, `VIEWER` = `all` · `TEAM_LEADER` = `team` · ไม่มี scope `department` (ไม่มีแผนก — DL53)
 - **ไม่มีการสร้าง/ปิด/reopen/void ใบงานโดยคนในระบบนี้** — ใบงานทุกใบมาจาก Booking และเปลี่ยนสถานะตาม check-in / check-out / ยกเลิกของ Booking (หัวหน้าทีม/แอดมินทำฝั่ง Booking) **[Confirmed — DL13, DL15, DL33]**
 - **หัวหน้าทีมใช้แอปมือถือของระบบนี้** (role `TEAM_LEADER`) — check-in / check-out ยังทำใน Smart Booking app **[Confirmed — requirement ฉบับ 2026-11-12 · DL47 แทน DL4 / DL16]**
   - บัญชีสร้างโดย `ADMIN` หรือ `COMPANY_ADMIN` (DL51) ใน User Management และต้องผูก employee (`Employees.UserId`) · login ได้ทั้ง Entra SSO (มีบัญชี Entra) และ username/password แบบ reference (ไม่มี Entra) **[Confirmed — DL49]**
 
-- **Scope** port `server/src/common/scope/*` แล้วเปลี่ยน level เป็น `all` / `department` / `team` · นอก scope = 404 (กติกาเดิม)
-  - `department` = subtree ด้วย recursive CTE + cache 60s
+- **Scope** port `server/src/common/scope/*` แล้วเปลี่ยน level เป็น `all` / `team` (DL53 ตัด `department`) · นอก scope = 404 (กติกาเดิม)
+  - `all` = ไม่เติมเงื่อนไข scope (ทุก role web)
   - `team` (DL47) = ทีมที่ employee ของผู้ใช้ (`Employees.UserId = me`) เป็นหัวหน้าที่ active (`TeamMembers.Role = 1 Leader`) · เปลี่ยนหัวหน้ามีผลทันที (DL22)
     - ใบงาน: `BookingJobs.TeamId = myTeam` หรือ `BookingJobs.LeaderEmployeeId = myEmployee`
     - อุปกรณ์: `DeviceAssignments` ที่ active ของทีม + อุปกรณ์ใน `DeviceRefs` ของใบงานที่ `Planned` / `Open`
-    - ไม่มีทีม / ไม่ได้เป็นหัวหน้า ⇒ รายการว่าง (ไม่ error)
+    - ไม่มีทีม / ไม่ได้เป็นหัวหน้า ⇒ รายการว่าง (ไม่ error) · หัวหน้าทีมเปลี่ยนตาม leader ref ของใบงานที่ Booking POST มา (DL53)
 - Permission catalog ดู [05-api-design.md §5.7](05-api-design.md#57-permission-catalog)
 - **Service-to-service**:
   - Smart Booking → เรา (DL46): `POST /api/integration/booking/jobs` ตรวจด้วย HMAC-SHA256 (default) หรือ API key (`BOOKING_INBOUND_AUTH`) + IP allowlist (optional) **[Assumption — ตกลงกับ Booking]** · รายละเอียด Part 7 §7.4

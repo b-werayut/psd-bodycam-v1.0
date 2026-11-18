@@ -1,5 +1,5 @@
 ---
-name: PSD Sentinel Precision Plate
+name: PSD Body worn camera Precision Plate
 description: A calm operational workspace built from a graphite command rail, compact neutral plates, and restrained cobalt states.
 colors:
   cobalt: "oklch(0.52 0.2 258)"
@@ -115,13 +115,13 @@ components:
     two-line-row-height: "52-60px"
 ---
 
-# Design System: PSD Sentinel Precision Plate
+# Design System: PSD Body worn camera Precision Plate
 
 ## Overview
 
 **Creative North Star: "Graphite Command Rail + Precision Plates"**
 
-PSD Sentinel is an operational interface whose premium character comes from exact alignment, controlled density, and immediate status legibility. The graphite rail anchors the application while opaque neutral work surfaces, hairline dividers, and compact page spacing keep attention on live operations rather than decoration.
+PSD Body worn camera is an operational interface whose premium character comes from exact alignment, controlled density, and immediate status legibility. The graphite rail anchors the application while opaque neutral work surfaces, hairline dividers, and compact page spacing keep attention on live operations rather than decoration.
 
 The Precision Plate dashboard extends the existing Operational Precision foundation without changing product truth. It adapts the shipped fleet aggregates, GPS activity, work-order stages, overdue work, and recent events into an instrument-panel hierarchy; it does not imply a device-level register that the production data contract does not provide. Cobalt remains deliberately scarce and marks navigation selection, actions, links, and focus. Green, yellow, red, blue, and gray remain semantic status colors paired with text or icons.
 

@@ -2,7 +2,6 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { DepartmentNode } from '@/features/departments/departments.api';
 import type { TranslationKey } from '@/i18n/locales/th';
 import { translate } from '@/i18n/translate';
 import { api } from '@/lib/apiClient';
@@ -23,24 +22,16 @@ const emp = (over: Partial<EmployeeRow>): EmployeeRow => ({
   firstName: 'สมชาย',
   lastName: 'ใจดี',
   phone: '0812345678',
-  departmentId: '3',
-  departmentName: 'ศูนย์ควบคุม',
   userId: null,
   bookingEmployeeRef: null,
   status: 1,
   ...over,
 });
 
-const TREE: DepartmentNode[] = [
-  { id: '3', code: 'CC', name: 'ศูนย์ควบคุม', parentId: null, isActive: true, children: [] },
-  { id: '4', code: 'IT', name: 'ไอที', parentId: null, isActive: true, children: [] },
-];
-
 function mockGets(rows: EmployeeRow[] = [emp({})]) {
   vi.mocked(api.get).mockImplementation((url: string) => {
     if (url === '/employees')
       return Promise.resolve({ data: { data: rows, page: 1, pageSize: 50, total: rows.length } });
-    if (url === '/departments/tree') return Promise.resolve({ data: { data: TREE, total: 2 } });
     if (url === '/users')
       return Promise.resolve({ data: { data: [], page: 1, pageSize: 100, total: 0 } });
     return Promise.reject(new Error(`unmocked GET ${url}`));
@@ -63,16 +54,23 @@ describe('EmployeesPage', () => {
     expect(screen.getByText(t('employees.summary', { shown: 1, total: 1 }))).toBeInTheDocument();
   });
 
-  it('filtering by department updates the query params', async () => {
+  it('has only the status filter and no department column', async () => {
     signIn(['org:read']);
     renderWithProviders(<EmployeesPage />);
     await screen.findByText('E001');
-    await userEvent.selectOptions(screen.getByLabelText(t('employees.filter.department')), '4');
-    await waitFor(() =>
-      expect(api.get).toHaveBeenCalledWith('/employees', {
-        params: { page: 1, pageSize: 50, departmentId: '4' },
-      }),
-    );
+    const toolbar = screen.getByRole('toolbar', { name: t('employees.toolbar') });
+    expect(within(toolbar).getAllByRole('combobox')).toEqual([
+      screen.getByLabelText(t('employees.filter.status')),
+    ]);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      t('employees.column.code'),
+      t('employees.column.name'),
+      t('employees.column.phone'),
+      t('employees.column.account'),
+      t('employees.column.booking'),
+      t('employees.column.status'),
+    ]);
+    expect(api.get).toHaveBeenCalledWith('/employees', { params: { page: 1, pageSize: 50 } });
   });
 
   it('filtering by status updates the query params', async () => {
@@ -107,7 +105,7 @@ describe('EmployeesPage', () => {
     mockGets([]);
     renderWithProviders(<EmployeesPage />);
     expect(await screen.findByText(t('employees.empty'))).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText(t('employees.filter.department')), '4');
+    await userEvent.selectOptions(screen.getByLabelText(t('employees.filter.status')), '3');
     expect(await screen.findByText(t('employees.filteredEmpty'))).toBeInTheDocument();
     expect(screen.queryByText(t('employees.empty'))).toBeNull();
   });
@@ -151,14 +149,12 @@ describe('EmployeesPage', () => {
     await userEvent.type(await screen.findByLabelText(t('employees.form.code')), 'E001');
     await userEvent.type(screen.getByLabelText(t('employees.form.firstName')), 'ก');
     await userEvent.type(screen.getByLabelText(t('employees.form.lastName')), 'ข');
-    await userEvent.selectOptions(screen.getByLabelText(t('employees.form.department')), '3');
     await userEvent.click(screen.getByRole('button', { name: t('employees.form.create') }));
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/employees', {
         employeeCode: 'E001',
         firstName: 'ก',
         lastName: 'ข',
-        departmentId: '3',
       }),
     );
     expect((await screen.findAllByText('รหัสพนักงานนี้ถูกใช้แล้ว')).length).toBeGreaterThan(0);

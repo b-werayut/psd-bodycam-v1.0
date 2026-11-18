@@ -203,7 +203,6 @@ export function UsersPage() {
                 <TableHead>{t('users.column.username')}</TableHead>
                 <TableHead>{t('users.column.fullName')}</TableHead>
                 <TableHead>{t('users.column.role')}</TableHead>
-                <TableHead>{t('users.column.department')}</TableHead>
                 <TableHead>{t('users.column.email')}</TableHead>
                 <TableHead>{t('users.column.azure')}</TableHead>
                 <TableHead>{t('users.column.statusLastLogin')}</TableHead>
@@ -224,7 +223,6 @@ export function UsersPage() {
                     <TableCell className="font-mono text-xs">{user.username}</TableCell>
                     <TableCell className="font-medium">{user.fullName}</TableCell>
                     <TableCell className="text-sm">{user.roleName}</TableCell>
-                    <TableCell className="text-sm">{user.departmentName ?? '—'}</TableCell>
                     <TableCell className="font-mono text-xs">{user.email ?? '—'}</TableCell>
                     <TableCell>
                       <StatusBadge tone={user.azureLinked ? 'success' : 'neutral'}>

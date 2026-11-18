@@ -3,15 +3,16 @@ import type { TranslationKey } from '@/i18n/locales/th';
 
 export type AuthNotice = { key: TranslationKey; params?: Record<string, string> };
 
+/** Web roles plus TEAM_LEADER (mobile only; it has no web menu but the API can still return it). */
+export type RoleCode = 'ADMIN' | 'COMPANY_ADMIN' | 'OPERATOR' | 'VIEWER' | 'TEAM_LEADER';
+
 export type AuthUser = {
   id: string;
   username: string;
   fullName: string;
   email: string | null;
-  roleCode: 'ADMIN' | 'OPERATOR' | 'VIEWER';
+  roleCode: RoleCode;
   roleName: string;
-  departmentId: string | null;
-  departmentName: string | null;
   permissions: string[];
 };
 

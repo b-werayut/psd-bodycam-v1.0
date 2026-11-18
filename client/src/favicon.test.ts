@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import indexHtml from '../index.html?raw';
 
 describe('application favicon', () => {
-  it('publishes the selected PSD Sentinel aperture mark', () => {
+  it('publishes the selected PSD aperture mark', () => {
     const document = new DOMParser().parseFromString(indexHtml, 'text/html');
     const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
 

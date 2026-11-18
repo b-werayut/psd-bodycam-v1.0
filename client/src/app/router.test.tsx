@@ -38,8 +38,6 @@ function signIn(permissions: string[], roleCode: AuthUser['roleCode'] = 'OPERATO
       email: null,
       roleCode,
       roleName: roleCode,
-      departmentId: null,
-      departmentName: null,
       permissions,
     },
   });
@@ -71,6 +69,12 @@ describe('router', () => {
   it('renders the 404 page for an unknown authenticated path', async () => {
     signIn(['dashboard:view']);
     renderAt('/nope');
+    expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument();
+  });
+
+  it('removed pages have no route: /departments is a 404 even with org:read', async () => {
+    signIn(['org:read']);
+    renderAt('/departments');
     expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument();
   });
 
@@ -115,6 +119,7 @@ describe('router', () => {
   it('allows a guarded route with permission', async () => {
     signIn(['users:read']);
     renderAt('/users');
+    // the page title matches its menu item ("ผู้ใช้ระบบ")
     expect(await screen.findByRole('heading', { name: t('navigation.users') })).toBeInTheDocument();
   });
 });

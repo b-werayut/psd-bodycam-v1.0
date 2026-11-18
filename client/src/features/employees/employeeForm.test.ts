@@ -15,21 +15,21 @@ const row: EmployeeRow = {
   firstName: 'สมชาย',
   lastName: 'ใจดี',
   phone: null,
-  departmentId: '3',
-  departmentName: 'ศูนย์ควบคุม',
   userId: null,
   bookingEmployeeRef: null,
   status: 1,
 };
 
 describe('validateEmployeeForm', () => {
-  it('requires code, names and department', () => {
+  it('requires code and names only', () => {
     expect(validateEmployeeForm(emptyEmployeeForm())).toEqual({
       employeeCode: 'employees.form.errorCodeRequired',
       firstName: 'employees.form.errorFirstNameRequired',
       lastName: 'employees.form.errorLastNameRequired',
-      departmentId: 'employees.form.errorDepartmentRequired',
     });
+    expect(
+      validateEmployeeForm({ ...emptyEmployeeForm(), employeeCode: 'E1', firstName: 'ก', lastName: 'ข' }),
+    ).toEqual({});
   });
   it('limits code length', () => {
     const v = { ...emptyEmployeeForm(), employeeCode: 'x'.repeat(21) };
@@ -45,9 +45,8 @@ describe('payloads', () => {
         employeeCode: ' E1 ',
         firstName: 'ก',
         lastName: 'ข',
-        departmentId: '3',
       }),
-    ).toEqual({ employeeCode: 'E1', firstName: 'ก', lastName: 'ข', departmentId: '3' });
+    ).toEqual({ employeeCode: 'E1', firstName: 'ก', lastName: 'ข' });
   });
   it('includes optionals when filled', () => {
     expect(
@@ -56,7 +55,6 @@ describe('payloads', () => {
         employeeCode: 'E1',
         firstName: 'ก',
         lastName: 'ข',
-        departmentId: '3',
         phone: '081',
         userId: '7',
         bookingEmployeeRef: 'B-1',

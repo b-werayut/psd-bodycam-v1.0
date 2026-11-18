@@ -20,8 +20,6 @@ export function signIn(
       email: null,
       roleCode: 'OPERATOR',
       roleName: 'OPERATOR',
-      departmentId: null,
-      departmentName: null,
       permissions,
       ...overrides,
     },

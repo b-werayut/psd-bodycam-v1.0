@@ -23,10 +23,10 @@
 
 | Code | ใช้เมื่อ |
 |---|---|
-| 400 | validation / ค่าไม่ถูกต้องตามกติกาธุรกิจ (เช่น ตั้ง Temporary assignment ให้กล้องที่ Retired) · `VALIDATION_FAILED` เมื่อ body ที่ Smart Booking POST มาขาด field บังคับ (DL46) · **`PERMISSION_RESERVED_FOR_ADMIN`** = ให้ permission สงวนของ `ADMIN` กับ role อื่น (DL51 · §5.7) |
-| 401 / 403 | ไม่ได้ login / ไม่มี permission · **`INBOUND_AUTH_FAILED` (401)** = ลายเซ็น HMAC / api-key / IP ของ Smart Booking ไม่ผ่านที่ `POST /integration/booking/jobs` (DL46) · **`ADMIN_ACCOUNT_PROTECTED` (403)** = ผู้ใช้ที่ไม่ใช่ `ADMIN` แก้ / ระงับ / ลบบัญชี `ADMIN` หรือกำหนด role `ADMIN` (DL51) |
+| 400 | validation / ค่าไม่ถูกต้องตามกติกาธุรกิจ (เช่น ขอ playback ช่วงเกิน 24 ชม.) · `VALIDATION_FAILED` เมื่อ body ที่ Smart Booking POST มาขาด field บังคับ (DL46) · **`PERMISSION_RESERVED_FOR_ADMIN`** = ให้ permission สงวนของ `ADMIN` กับ role อื่น (DL51 · §5.7) |
+| 401 / 403 | ไม่ได้ login / ไม่มี permission · **`INBOUND_AUTH_FAILED` (401)** = ลายเซ็น HMAC / api-key / IP ของ Smart Booking ไม่ผ่านที่ `POST /integration/booking/jobs` (DL46) · **`ADMIN_ACCOUNT_PROTECTED` (403)** = ผู้ใช้ที่ไม่ใช่ `ADMIN` กำหนด role `ADMIN` (สร้าง / แก้ผู้ใช้ / สร้างจาก Entra — DL51) · บัญชี `ADMIN` เองถูกซ่อนจากผู้ใช้ที่ไม่ใช่ `ADMIN` ⇒ 404 (DL55) |
 | **404** | ไม่พบ **หรืออยู่นอก data scope** (ไม่ยืนยันว่ามี record — กติกาเดิม) |
-| 409 | สถานะหรือข้อมูลขัดกัน (เช่น `DEPARTMENT_IN_USE` — ลบแผนกที่ยังมีข้อมูลอ้างอิง) · ใบงานไม่มี action เปลี่ยนสถานะ เพราะสถานะตาม Booking เท่านั้น (DL33) · **`INTEGRATION_READ_API_DISABLED`** = เรียก refresh รายใบ / full reconcile ขณะไม่มี read API (`BOOKING_PROVIDER_DRIVER=none` — DL46) |
+| 409 | สถานะหรือข้อมูลขัดกัน · ใบงานไม่มี action เปลี่ยนสถานะ เพราะสถานะตาม Booking เท่านั้น (DL33) · **`INTEGRATION_READ_API_DISABLED`** = เรียก refresh รายใบ / full reconcile ขณะไม่มี read API (`BOOKING_PROVIDER_DRIVER=none` — DL46) |
 | 412 | `If-Match` ไม่ตรง `RowVersion` |
 | 413 / 415 | body ใหญ่เกิน (inbound จาก Smart Booking ≤ 256 KB) / `Content-Type` ไม่ใช่ `application/json` (DL46) |
 | 429 | rate limit / เกินโควตาสตรีม (มี `Retry-After`) |
@@ -36,7 +36,7 @@
 
 ## 5.2 Endpoint Catalog
 
-> คอลัมน์ Permission = ต้องมีทุกตัวที่ระบุ · ทุก endpoint ใช้ data scope ตาม role — `all` (`ADMIN`, `COMPANY_ADMIN`) / `department` (`OPERATOR`, `VIEWER`) / `team` (`TEAM_LEADER` — DL47) (Part 2 §2.8) · ✱ = port จาก reference
+> คอลัมน์ Permission = ต้องมีทุกตัวที่ระบุ · ทุก endpoint ใช้ data scope ตาม role — `all` (ทุก role web: `ADMIN`, `COMPANY_ADMIN`, `OPERATOR`, `VIEWER` — ไม่มีแผนก DL53) / `team` (`TEAM_LEADER` — DL47) (Part 2 §2.8) · ✱ = port จาก reference · endpoint ที่ไม่มีหน้าจอเรียกแล้วตัดออกตาม DL53 (แผนก, ทีม, ฐาน, แก้ไข / sync กล้อง, tracking sessions, หน้า integration, `/booking-jobs`)
 
 ### Auth & Account ✱
 
@@ -47,64 +47,55 @@
 | POST | `/auth/azure` | Public | `{ idToken }` |
 | POST | `/auth/refresh` | Public | cookie (web) หรือ body (mobile) |
 | POST | `/auth/logout` | Public | ใช้ refresh token |
-| GET | `/auth/me` | login | user + role + permissions + department · web เห็น role `TEAM_LEADER` ⇒ เปิดหน้า "ใช้งานผ่านแอปมือถือ" (DL47) |
+| GET | `/auth/me` | login | user + role + permissions · web เห็น role `TEAM_LEADER` ⇒ เปิดหน้า "ใช้งานผ่านแอปมือถือ" (DL47) |
 | POST | `/auth/change-password` | login | |
 | GET / PATCH / DELETE | `/auth/devices[/:id]` | login | ทะเบียนเครื่องของตัวเอง (`deviceName`, `pushEnabled`) — **ไม่มี PIN** |
 
-### Users, Roles, Org, Teams
+### Users, Roles, Employees
 
 | Method | Path | Permission |
 |---|---|---|
-| GET / POST | `/users` | `users:read` / `users:manage` · POST `roleCode = ADMIN` โดยผู้ที่ไม่ใช่ `ADMIN` ⇒ 403 `ADMIN_ACCOUNT_PROTECTED` (DL51) |
-| GET / PATCH / DELETE | `/users/:id` | `users:read` / `users:manage` · เป้าหมายเป็นบัญชี `ADMIN` หรือเปลี่ยน role เป็น `ADMIN` โดยผู้ที่ไม่ใช่ `ADMIN` ⇒ 403 `ADMIN_ACCOUNT_PROTECTED` · list / detail คืน `availableActions` ต่อแถว (`edit`, `suspend`, `restore`, `delete`) ให้ UI ซ่อนปุ่มของบัญชี `ADMIN` และบัญชีตัวเอง |
+| GET / POST | `/users` | `users:read` / `users:manage` · GET ของผู้ที่ไม่ใช่ `ADMIN` ไม่คืนบัญชี role `ADMIN` (DL55) · POST `roleCode = ADMIN` โดยผู้ที่ไม่ใช่ `ADMIN` ⇒ 403 `ADMIN_ACCOUNT_PROTECTED` (DL51) · หน้า ผู้ใช้จาก Entra สร้างบัญชีจากแถว Entra ผ่าน POST นี้ (ทีละรายการ หรือหลายรายการ ≤ 50 ด้วยบทบาทเดียวกัน — DL53) |
+| GET / PATCH / DELETE | `/users/:id` | `users:read` / `users:manage` · ผู้ที่ไม่ใช่ `ADMIN`: เป้าหมายเป็นบัญชี `ADMIN` ⇒ 404 (ซ่อน — DL55) · เปลี่ยน role เป็น `ADMIN` ⇒ 403 `ADMIN_ACCOUNT_PROTECTED` · list / detail คืน `availableActions` ต่อแถว (`edit`, `suspend`, `restore`, `delete`) ให้ UI ซ่อนปุ่มระงับ / ลบของบัญชีตัวเอง |
 | PATCH | `/users/:id/access` | `users:manage` ✱ ระงับ/คืนสิทธิ์ (ตัด session ทันที) · กติกาบัญชี `ADMIN` เดียวกับแถวบน |
-| GET | `/roles`, `/roles/:id/permissions` | `users:read` · `/roles` คืน `reservedPermissions` (permission สงวนของ `ADMIN` — ช่องที่ matrix ต้องล็อก · DL51) · `COMPANY_ADMIN` ใช้ดู matrix แบบอ่านอย่างเดียว |
+| GET | `/roles`, `/roles/:id/permissions` | `users:read` · ผู้ที่ไม่ใช่ `ADMIN` ไม่เห็น role `ADMIN` ใน `/roles` (DL55) · `/roles` คืน `reservedPermissions` (permission สงวนของ `ADMIN` — ช่องที่ matrix ต้องล็อก · DL51) · `COMPANY_ADMIN` ใช้ดู matrix แบบอ่านอย่างเดียว |
 | PUT | `/roles/:id/permissions` | `roles:manage` (`ADMIN` เท่านั้น) · ใส่ permission สงวนให้ role ที่ไม่ใช่ `ADMIN` ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN` (DL51) |
-| GET / POST / PATCH / DELETE | `/departments[/:id]` | `org:read` / `org:manage` · body มี `bookingDepartmentRef` สำหรับ map แผนกจาก Booking (DL38) |
-| GET / POST / PATCH / DELETE | `/employees[/:id]` | `org:read` / `org:manage` |
-| GET / POST | `/teams` | `teams:read` / `teams:manage` |
-| GET / PATCH / DELETE | `/teams/:id` | `teams:read` / `teams:manage` |
-| GET | `/teams/:id/members?activeOnly=` | `teams:read` |
-| POST | `/teams/:id/members` | `teams:manage` `{ employeeId, role, validFrom? }` |
-| POST | `/teams/:id/members/:memberId/end` | `teams:manage` `{ validTo?, note }` |
-| POST | `/teams/:id/leader` | `teams:manage` `{ employeeId, effectiveAt? }` ปิดหัวหน้าเดิม + เปิดคนใหม่ใน transaction เดียว |
+| GET | `/users/entra-directory` | `users:manage` ✱ · รายชื่อผู้ใช้จาก Microsoft Graph เทียบกับบัญชีในระบบ (= `sync-entra` แบบ dry run) · สถานะต่อแถว `update` / `keptLocal` / `linked` / `missing` (ยังไม่มีบัญชี — สร้างได้) / `conflict` (DL53) |
+| POST | `/users/sync-entra` | `users:manage` ✱ · `{ dryRun, matchByUsername? }` · จับคู่บัญชีด้วย `AzureObjectId` → email = UPN (→ username = ส่วนหน้า `@` ของ UPN สำหรับบัญชีที่ไม่มี email เมื่อ `matchByUsername`) แล้วผูก `AzureObjectId` + เติม email / ชื่อเฉพาะช่องที่ยังว่าง · `dryRun` (default true) = คืนแผนอย่างเดียว · ไม่สร้างบัญชีเอง (DL53) |
+| GET / POST / PATCH / DELETE | `/employees[/:id]` | `org:read` / `org:manage` · body มี `bookingEmployeeRef` (ใช้ map หัวหน้าทีมจากใบงาน — DL53) |
 
-### Devices & Assignments
+ไม่มี endpoint แผนก (ไม่มีแผนก) และทีม (ทีม / หัวหน้าทีมสร้างจากใบงาน Booking — Part 7 §7.5.2) ตาม DL53 · `entra-directory` / `sync-entra` เรียก Microsoft Graph ด้วย app registration แยกจากแอป SSO (env `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` · application permission `User.Read.All` + admin consent · กรองโดเมนด้วย `GRAPH_ALLOWED_DOMAINS` — แบบ reference) · ไม่ได้ตั้ง ⇒ 400 พร้อมข้อความบอก env ที่ขาด
+
+### Devices
 
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
-| GET | `/devices` | `devices:read` | filter `status`, `kind`, `teamId`, `online`, `q` · รวม state ปัจจุบัน + ทีมปัจจุบัน |
-| POST / PATCH / DELETE | `/devices[/:id]` | `devices:manage` | |
-| GET | `/devices/:id` | `devices:read` | master + state + ทีม + session ล่าสุด |
-| POST | `/devices/sync-vendor` | `devices:sync` ✱ | `{ dryRun }` |
-| GET | `/devices/:id/status-history?from&to` | `devices:read` | `DeviceStatusHistory` |
-| GET | `/devices/:id/assignments` | `devices:read` | ประวัติผูกทีม (projection จาก Booking — read-only) |
-| PATCH | `/devices/:id/streaming-access` | `devices:manage` ✱ | `{ enabled }` ตัด session ที่เปิดอยู่ |
-| GET / POST / PATCH / DELETE | `/depots[/:id]` | `devices:read` / `devices:manage` | ฐาน/จุดชาร์จ `{ code, name, departmentId?, lat, lng, radiusM }` (Q15) |
+| GET | `/devices` | `devices:read` | filter `status`, `kind`, `teamId`, `online`, `q` · รวม state ปัจจุบัน + ทีมปัจจุบัน · ใช้โดย ภาพสดหลายจอ, ประวัติเส้นทาง (เลือกกล้อง), แอปหัวหน้าทีม |
 
-**สถานะกล้องบนหน้าจอ (DL35):** สถานะ platform (online / offline) ใน `GET /devices` และ `GET /devices/:id` — `api` ดึงจาก DSS ผ่าน DSS middleware ตอน request · หน้า device list, device detail และก่อนเปิด live เรียกตอนเปิดหน้า · ไม่มี push `device:status` ทาง Socket.IO (`DeviceState` ยังอัปเดตโดย GpsPoll และใช้ภายใน session engine)
+อุปกรณ์มาจาก DSS อัตโนมัติ (job `DeviceSync` ใน worker — DL53) · ไม่มี endpoint แก้ไข / sync ด้วยมือ / ปลดระวาง / ตั้งสิทธิ์ดูภาพต่อเครื่อง / ฐาน (`/depots`) / ประวัติสถานะ / ประวัติผูกทีม
+
+**สถานะกล้องบนหน้าจอ (DL35):** สถานะ platform (online / offline) ใน `GET /devices` และคอลัมน์กล้องของ `GET /work-orders` — `api` ดึงจาก DSS ผ่าน DSS middleware ตอน request · ภาพสดหลายจอ, หน้า ใบงาน และก่อนเปิด live เรียกตอนเปิดหน้า · ไม่มี push `device:status` ทาง Socket.IO (`DeviceState` ยังอัปเดตโดย GpsPoll และใช้ภายใน session engine)
 - **cache (DL45)**: ผลจาก DSS เก็บใน Redis key `device-status:{deviceId}` อายุ `status.display-cache-seconds` (10s) ใช้ร่วมทุก api pod · ถาม DSS เฉพาะกล้องที่ไม่มีใน cache · Redis ล่ม ⇒ ถาม DSS ตรง (fail-open)
 - ทุกอุปกรณ์ใน response มี `platformStatusFetchedAt` = เวลาที่ได้สถานะจาก DSS (ค่าจาก cache เก่าได้ ≤ 10s) ให้หน้าจอแสดงว่าอัปเดตเมื่อไร
+- `platformState` ใน view model = `"online" | "offline" | "unknown"` (unknown คำนวณที่ server จาก `LastObservedAt`)
 
-### Tracking & Sessions
+### Tracking
 
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
 | GET | `/tracking/positions` | `tracking:view` ✱ | snapshot ทุกอุปกรณ์ใน scope |
 | GET | `/tracking/devices/:id/history?from&to` | `tracking:history` ✱ | polyline segments + stops (ไม่มี road-match) · ช่วง ≤ 24 ชม. |
-| GET | `/tracking-sessions` | `sessions:read` | filter `open=true`, `deviceId`, `teamId`, `workOrderId`, `matchState`, `from`, `to` |
-| GET | `/tracking-sessions/:id` | `sessions:read` | + recordings + match attempts |
 
-Session อ่านอย่างเดียว — ผูกกับใบงานโดย matching อัตโนมัติเท่านั้น · session ที่ยังไม่มีใบงาน (`AwaitingMatch` / `NoTeam`) รอข้อมูล Booking และดูภาพได้จาก `/streams/recordings?deviceId` · ไม่มี attach / classify ด้วยมือ (DL33)
+Session อ่านอย่างเดียว — ผูกกับใบงานโดย matching อัตโนมัติเท่านั้น · ไม่มี endpoint รายการ session (ไม่มีหน้า Tracking sessions — DL53) · session ของใบงานดูผ่าน `/work-orders/:id/sessions` · session ที่ยังไม่มีใบงาน (`AwaitingMatch` / `NoTeam`) รอข้อมูล Booking — ไม่มีหน้าค้นวิดีโอย้อนหลังรายกล้อง ดูได้เฉพาะภาพสดเมื่อกล้องออนไลน์ (DL53) · ไม่มี attach / classify ด้วยมือ (DL33)
 
 ### Work Orders
 
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
-| GET | `/work-orders` | `work-orders:read` | filter `status`, `teamId`, `needsReview`, `from`, `to`, `q` (เลข WO / เลข Booking / เลข DO / เลข SH / ชื่อทีม — DL46) |
+| GET | `/work-orders` | `work-orders:read` | ตารางของหน้า ใบงาน และ วิดีโอย้อนหลัง (`checkedIn=true` = เฉพาะใบที่ check-in แล้ว — DL53) · filter `status`, `teamId`, `needsReview`, `checkedIn`, `from`, `to`, `q` (เลข WO / เลข Booking / เลข DO / เลข SH / ชื่อทีม — DL46) · แต่ละแถวมี `workWindow` + `booking.siteName` + `cameras[]` (กล้องจาก sessions + `DeviceRefs` พร้อม `platformState` จาก cache สถานะกล้อง DL45 — ใช้แสดงปุ่ม ดูสด) |
 | GET | `/work-orders/by-booking/:externalJobId` | `work-orders:read` | deep link จาก Booking app (Part 7 §7.9 — ผู้ใช้ web เท่านั้น) → `{ id }` · ไม่พบ / นอก scope = 404 |
 | GET | `/work-orders/:id` | `work-orders:read` | detail + booking + team + summary |
-| GET | `/work-orders/:id/sessions` | `work-orders:read` | ใช้เลือกกล้อง + ช่วงเวลาในหน้า หลักฐาน (DL36) |
+| GET | `/work-orders/:id/sessions` | `work-orders:read` | ใช้เลือกกล้อง + ช่วงเวลาใน dialog ดูวิดีโอ (หน้า ใบงาน / วิดีโอย้อนหลัง / รายละเอียดใบงาน — DL36, DL53) |
 | GET | `/work-orders/:id/events` | `work-orders:read` | timeline |
 | GET | `/work-orders/:id/match-attempts` | `work-orders:read` | |
 | PATCH | `/work-orders/:id` | `work-orders:edit-note` | `{ note }` + `If-Match` (แก้ได้แค่หมายเหตุ) |
@@ -116,14 +107,10 @@ Session อ่านอย่างเดียว — ผูกกับใบ�
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
 | POST | `/integration/booking/jobs` | Booking (HMAC) — `@Public()` + `BookingInboundAuthGuard` (ไม่ใช้ JWT / user permission) | **รับใบงานที่ Smart Booking POST เข้ามา** (DL46) · upsert ทั้ง snapshot ผ่าน `IntegrationInbox` (`Channel = 1 Push`) · 202 accepted / 200 duplicate · rate-limit group `booking-inbound` (600 req/min) · body ≤ 256 KB · `@Audit` ลง `IntegrationCallLogs` (`Direction = 2 Inbound`) · contract ดู §5.3 |
-| GET | `/booking-jobs` | `booking:read` | projection · filter `from`, `to`, `teamId`, `status`, `q` (เลข Booking / เลข DO / เลข SH — DL46) |
-| GET | `/booking-jobs/:id` | `booking:read` | + ใบงานของงานนี้ + `doNo` / `shNo` + `raw` (เฉพาะ `integration:view`) |
 | POST | `/booking-jobs/:id/refresh` | `booking:refresh` | `fetchJob` สดจาก read API (timeout 5s · 503 `BOOKING_UNAVAILABLE` ถ้าไม่ได้) · **ใช้ได้เฉพาะเมื่อมี read API** (`BOOKING_PROVIDER_DRIVER ≠ none`) ไม่งั้น 409 `INTEGRATION_READ_API_DISABLED` และไม่อยู่ใน `availableActions` (DL46) |
-| GET | `/integration/status` | `integration:view` | POST ล่าสุด (`lastReceivedAt`), จำนวน inbound ตามผล, inbox backlog, breaker ของ read API (เฉพาะเมื่อเปิดใช้) |
-| GET | `/integration/inbox?status&channel` · `/integration/call-logs` | `integration:view` | call logs มีทั้ง inbound (POST จาก Smart Booking) และ outbound (read API) |
-| POST | `/integration/inbox/:id/retry` | `integration:manage` | |
-| POST | `/integration/booking/sync` | `integration:manage` | `{ mode: 'full', from?, to? }` → 202 · full reconcile ผ่าน read API (`fetchWindow`) · `BOOKING_PROVIDER_DRIVER=none` ⇒ 409 `INTEGRATION_READ_API_DISABLED` · ไม่มี mode `incremental` แล้ว (DL46) |
-| GET | `/integration/mapping-issues` | `integration:view` | ref ที่ map ไม่ได้ |
+
+- ข้อมูล Booking ของใบงาน (รวม `doNo` / `shNo`) มากับ `GET /work-orders/:id` · ไม่มี `GET /booking-jobs` (list / detail) และไม่มีปุ่ม "ดูข้อมูลดิบ" (`raw`) — ไม่มีหน้า `/booking-jobs` และไม่มี permission `integration:view` แล้ว (DL52, DL53)
+- **ไม่มีหน้า / endpoint ดูแล integration ในระยะแรก** (ตัด `/integration/status`, `/integration/inbox`, `/integration/call-logs`, `/integration/booking/sync`, `/integration/mapping-issues` พร้อม `integration:view` / `integration:manage` — DL53): สถานะการเชื่อมต่อแจ้งด้วย alert ถึง `ADMIN` (10, 11, 12, 17 — §5.6) + แถบ stale จาก Socket.IO `integration:status` · inbox retry อัตโนมัติด้วย retry sweep · แถว `Dead` ประมวลผลใหม่อัตโนมัติ (`re-resolve` / รายวัน) หรือจากปุ่มบนการแจ้งเตือน → `POST /integration/inbox/:id/retry` (`settings:manage` — `ADMIN` · DL54) · full reconcile รันตามรอบเองเมื่อมี read API (Part 7 §7.5.4)
 
 read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือไม่ = **[Assumption]** — ถ้าไม่มี ใบงานที่ POST หายจะกลับมาได้เมื่อ Smart Booking ส่งซ้ำเท่านั้น (Part 7)
 
@@ -135,13 +122,13 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
 | POST | `/streams/playback` `{ deviceCode, startAt, endAt }` (≤ 24 ชม.) | `playback:view` |
 | GET | `/streams/:token/playlist.m3u8`, `/streams/:token/segment` | Public (sealed token) |
 | POST | `/streams/:token/stop` · GET `/streams/sessions` | `streaming:view-live` |
-| GET | `/streams/recordings?deviceId&from&to` · `?workOrderId=` | `playback:view` |
+| GET | `/streams/recordings?deviceId&from&to` · `?workOrderId=` | `playback:view` · ใช้ใน dialog ดูวิดีโอของใบงาน (หน้า ใบงาน / วิดีโอย้อนหลัง / รายละเอียดใบงาน) ซึ่งติดป้าย "อยู่ในช่วงใบงาน" ให้ไฟล์ที่ทับ `workWindow` (DL52) · ไม่มีหน้าค้นรายกล้อง (DL53) |
 | GET / PATCH | `/streams/role-access` | `roles:manage` |
 | GET | `/evidence-exports/policy` · POST `/evidence-exports` · GET `/evidence-exports/:id` | `evidence:export` |
 | POST | `/evidence-exports/:id/download-ticket` · GET `/evidence-exports/download?ticket=` | `evidence:download` / Public (ticket) |
 | POST | `/talk/sessions` `{ streamSessionToken }` · WS `/api/talk/ws?ticket=` | `streaming:talk` |
 
-`POST /evidence-exports` ใช้ job เดิมเมื่อ device + channel + start/end ตรงกันพอดีและ job ยัง `Queued` / `Processing` / `Ready` ที่ยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่ (port `evidence-export-rules.ts` · ใช้จากหน้า หลักฐาน และ `/recordings` — DL36)
+`POST /evidence-exports` ใช้ job เดิมเมื่อ device + channel + start/end ตรงกันพอดีและ job ยัง `Queued` / `Processing` / `Ready` ที่ยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่ (port `evidence-export-rules.ts` · ใช้จาก dialog ดูวิดีโอของใบงาน — DL36, DL53)
 
 `TEAM_LEADER` ใช้ได้เฉพาะ `POST /streams/live` (+ `/streams/:token/stop` ของตัวเอง) กับกล้องใน scope `team` — ไม่มี playback / export / talk / live wall (DL47 · §5.4)
 
@@ -175,11 +162,15 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
       "needsReview": false,
       "team": { "id": "7", "code": "TEAM-07", "name": "ทีมติดตั้ง 7" },
       "leader": { "id": "315", "name": "สมชาย ใจดี" },
-      "booking": { "id": "8801", "externalJobNo": "BK-2611-0193", "doNo": "DO-6911-0042", "shNo": "SH-6911-0107", "plannedStartAt": "2026-11-03T02:00:00.000Z" },
+      "booking": { "id": "8801", "externalJobNo": "BK-2611-0193", "doNo": "DO-6911-0042", "shNo": "SH-6911-0107", "plannedStartAt": "2026-11-03T02:00:00.000Z", "siteName": "อาคาร B" },
+      "workWindow": { "from": "2026-11-03T01:58:40.000Z", "to": null },
       "openedAt": "2026-11-03T00:41:12.000Z",
       "lastActivityAt": "2026-11-03T03:10:00.000Z",
       "openSessionCount": 1,
-      "deviceCodes": ["BWC-0031"],
+      "cameras": [
+        { "deviceId": "31", "deviceCode": "BWC-0031", "platformState": "online", "fromSession": true },
+        { "deviceId": "90", "deviceCode": "BWC-0090", "platformState": "offline", "fromSession": false }
+      ],
       "rowVersion": 3
     }
   ],
@@ -188,6 +179,8 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
   "total": 1
 }
 ```
+
+`cameras` = กล้องจาก sessions ของใบงาน (`fromSession: true`) + กล้องใน `DeviceRefs` ที่ยังไม่มี session · `platformState` อ่านจาก cache สถานะกล้อง (DL45) — หน้า ใบงาน แสดงปุ่ม ดูสด เมื่อ `online` และผู้ใช้มี `streaming:view-live` (DL53)
 
 ### GET `/api/work-orders/1042`
 
@@ -218,7 +211,7 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
   },
   "team": { "id": "7", "code": "TEAM-07", "name": "ทีมติดตั้ง 7" },
   "leader": { "id": "315", "name": "สมชาย ใจดี" },
-  "department": { "id": "3", "name": "งานติดตั้ง" },
+  "workWindow": { "from": "2026-11-03T01:58:40.000Z", "to": null },
   "openedAt": "2026-11-03T00:41:12.000Z",
   "lastActivityAt": "2026-11-03T03:10:00.000Z",
   "closedAt": null,
@@ -233,57 +226,9 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
 
 `availableActions` คำนวณที่ server (pattern จาก `/my-jobs` ของ reference) — client ไม่เดากติกาเอง · **ไม่มีปุ่มปิด/reopen/link/void** เพราะใบงานและสถานะมาจาก Booking เท่านั้น (DL33 · `closedAt` = เวลา check-out) · `refreshBooking` อยู่ในรายการเฉพาะเมื่อมี read API (`BOOKING_PROVIDER_DRIVER ≠ none`) และผู้ใช้มี `booking:refresh` (DL46)
 
+`workWindow` = ช่วงปฏิบัติงานจริงตาม Booking คำนวณที่ server (DL52): `from` = `BookingJobs.BookingCheckInAt` (null ⇒ ยังไม่ check-in ⇒ `workWindow = null`) · `to` = `BookingCheckOutAt` ?? `WorkOrders.ClosedAt` (ยกเลิก / `SafetyTimeout`) ?? `null` (ยังดำเนินการ — client ใช้เวลาปัจจุบัน) · ใช้แสดง "ปฏิบัติงานจริง" ในตารางหน้า ใบงาน / วิดีโอย้อนหลัง และติดป้าย "อยู่ในช่วงใบงาน" ให้ไฟล์ย้อนหลังที่ทับช่วงนี้ (`segment.startAt < to && segment.endAt > from`) · check-in ใหม่หลังปิด (reopen) ใช้คู่ check-in / check-out ล่าสุด
+
 `doNo` / `shNo` = เลข DO / SH จาก Smart Booking — มีในข้อมูลใบงาน **[Confirmed]** · ความหมาย (น่าจะเป็น Delivery Order / Shipment) **[Assumption]** · ใช้แสดงและค้นหาเท่านั้น ไม่ใช้จับคู่ session (DL46) · `lastSyncedAt` = เวลาที่ได้รับข้อมูลใบงานนี้ล่าสุด
-
-### GET `/api/tracking-sessions?open=true`
-
-```json
-{
-  "data": [
-    {
-      "id": "55120",
-      "device": { "id": "31", "code": "BWC-0031", "name": "กล้องทีม 7" },
-      "team": { "id": "7", "code": "TEAM-07" },
-      "workOrder": { "id": "1042", "workOrderNo": "WO-202611-00042" },
-      "startedAt": "2026-11-03T02:31:40.000Z",
-      "startInferred": 1,
-      "matchState": 1,
-      "deviceState": { "platformState": "online", "lastObservedAt": "2026-11-03T03:10:02.000Z", "lastFixAt": null }
-    }
-  ],
-  "page": 1, "pageSize": 50, "total": 1
-}
-```
-
-`platformState` ใน view model = `"online" | "offline" | "unknown"` (unknown คำนวณที่ server จาก `LastObservedAt`)
-
-### GET `/api/integration/status`
-
-```json
-{
-  "booking": {
-    "inbound": {
-      "authMode": "hmac",
-      "lastReceivedAt": "2026-11-12T03:08:00.000Z",
-      "last24h": { "accepted": 182, "duplicate": 6, "invalid": 1, "unauthorized": 0 }
-    },
-    "isStale": false,
-    "inbox": { "pending": 0, "failed": 1, "dead": 0, "oldestBacklogAt": null },
-    "mappingIssues": 2,
-    "readApi": {
-      "driver": "http",
-      "breaker": "closed",
-      "consecutiveFailures": 0,
-      "lastSuccessAt": "2026-11-12T02:40:00.000Z",
-      "lastFullSyncAt": "2026-11-11T19:00:04.000Z"
-    }
-  }
-}
-```
-
-- `inbound.lastReceivedAt` = POST ล่าสุดที่ผ่าน auth (`IntegrationSyncState.LastReceivedAt`) · `last24h` นับจาก `IntegrationCallLogs` (inbound) แยกตามผล accepted / duplicate / invalid (400) / unauthorized (401) (DL46)
-- `inbox.oldestBacklogAt` = `ReceivedAt` ของแถว `IntegrationInbox` ที่ยัง `Pending` / `Failed` ที่เก่าที่สุด · `isStale` = แถวนั้นเก่ากว่า `booking.stale-after-minutes` (15) = backlog ของ inbox processor (DL46)
-- `readApi` = `null` เมื่อ `BOOKING_PROVIDER_DRIVER=none` · breaker / retry ใช้กับ read API ขาออกเท่านั้น
 
 ### POST `/api/integration/booking/jobs` — Smart Booking ส่งใบงานเข้ามา (DL46)
 
@@ -313,7 +258,6 @@ X-Correlation-Id: 0f6c2b7e-…
     "version": 3,
     "updatedAt": "2026-11-12T01:58:00+07:00",
     "title": "ติดตั้งระบบ ลูกค้า A",
-    "departmentRef": "D-OPS-01",
     "teamRef": "T-07",
     "leaderRef": "EMP-1182",
     "scheduledDate": "2026-11-12",
@@ -330,6 +274,7 @@ X-Correlation-Id: 0f6c2b7e-…
 - `eventType` = `job.created` · `job.updated` · `job.checked-in` · `job.checked-out` · `job.cancelled` — ใช้เป็นข้อมูลเท่านั้น การประมวลผล upsert snapshot ทั้งใบเสมอ (version guard เดิม) · เวลาเป็น ISO 8601 พร้อม offset
 - บังคับ: `job.jobId`, `job.status` และ `job.version` หรือ `job.updatedAt` อย่างน้อยหนึ่งตัว · field ที่ไม่รู้จัก **เก็บไว้ใน raw แล้วข้าม** (ไม่ reject — Smart Booking เพิ่ม field ได้)
 - `ExternalEventId` = `eventId` ถ้ามี ไม่งั้น `{jobId}:{version ?? updatedAt}`
+- `teamRef` / `leaderRef` = ที่มาของทีมและหัวหน้าทีม — inbox processor สร้าง/อัปเดต `Teams` / `TeamMembers` จากค่านี้ (ไม่มีหน้าจัดการทีม — DL53) **[Assumption — Booking ส่งมากับทุกใบ]** · ไม่มี `departmentRef` (ไม่มีแผนก — DL53)
 
 **Auth** (env `BOOKING_INBOUND_AUTH=hmac|api-key`, default `hmac` · วิธีที่ใช้จริงตกลงกับ Booking **[Assumption]**)
 
@@ -454,7 +399,7 @@ Booking app ลิงก์มาที่ `https://{host}/work-orders/by-bookin
 }
 ```
 
-- `availableActions` อยู่ระดับกล้อง · `viewLive` = กล้องอยู่ใน scope `team` + เปิดสิทธิ์ดูภาพ (`/devices/:id/streaming-access`) + ผู้ใช้มี `streaming:view-live` · ไม่แสดงสถานะ online/offline ในแอป (monitoring สถานะกล้องอยู่บน web — requirement §4.3) · กล้อง offline ⇒ `/streams/live` ตอบ error ตามปกติและแอปแสดงข้อความ
+- `availableActions` อยู่ระดับกล้อง · `viewLive` = กล้องอยู่ใน scope `team` + `Devices.StreamingEnabled` + ผู้ใช้มี `streaming:view-live` · ไม่แสดงสถานะ online/offline ในแอป (monitoring สถานะกล้องอยู่บน web — requirement §4.3) · กล้อง offline ⇒ `/streams/live` ตอบ error ตามปกติและแอปแสดงข้อความ
 - **Push (FCM)**: "ใบงานใหม่ของทีม" เมื่อมีใบงานของทีมถูกสร้าง (หลัง commit ของ inbox processor) · deep link `bodycam://jobs/{workOrderId}` → หน้ารายละเอียดใบงาน · **ไม่ push alert เข้ามือถือแล้ว** (ผู้ใช้ web เห็น alert ที่กระดิ่งบน web) · `session:revoked` ⇒ logout
 - แอปมือถือพัฒนาโดยทีมเราเอง (DL49) — endpoint ข้างบนเป็นขอบเขตเริ่มต้น ทีมเพิ่ม / ลดฟังก์ชันได้ โดยเพิ่ม endpoint ใต้ `/api/mobile/*` + permission ของ `TEAM_LEADER` ผ่าน data migration · ทุก endpoint ใหม่ยังต้องมี `@RequirePermission` + `@Audit` + scope `team`
 
@@ -463,25 +408,27 @@ Booking app ลิงก์มาที่ `https://{host}/work-orders/by-bookin
 ## 5.5 WebSocket (Socket.IO namespace `/realtime`)
 
 - Auth: `handshake.auth.token` = access token (ตรวจใน `server.use` middleware — port) · หมดอายุ ⇒ client reconnect ด้วย token ใหม่
-- Rooms (ตัด company): `org` (ทุกคนที่ login) · `user:{id}` · `dept:{id}` (+ ทุกแผนกบรรพบุรุษ) · `dept:*` (scope all — `ADMIN`, `COMPANY_ADMIN`) · `dept:{id}:tracking` / `dept:*:tracking` (ต้องมี `tracking:view`) · `dept:{id}:alerts` (ต้องมี `alerts:view`) · **`team:{id}`** (DL47 — `TEAM_LEADER` ของทีมนั้น join · คำนวณทีมตอน connect)
-- `TEAM_LEADER` join เฉพาะ `org`, `user:{id}`, `team:{id}` — ไม่ join `dept:*` จึงไม่ได้ `gps:batch` / `session:*` / `alert:new` (DL47)
+- Rooms (ตัด company · ไม่มีแผนก — DL53): `org` (ทุกคนที่ login) · `user:{id}` · `tracking` (ผู้ใช้ web ที่มี `tracking:view`) · `alerts` (ผู้ใช้ web ที่มี `alerts:view`) · **`team:{id}`** (DL47 — `TEAM_LEADER` ของทีมนั้น join · คำนวณทีมตอน connect) · ไม่มี room `dept:*`
+- `TEAM_LEADER` join เฉพาะ `org`, `user:{id}`, `team:{id}` — ไม่ join `tracking` / `alerts` จึงไม่ได้ `gps:batch` / `session:*` / `alert:new` (DL47)
 - Worker emit ผ่าน `@socket.io/redis-emitter` (key `socket.io`, namespace `/realtime` ต้องตรงกันทั้งสองฝั่ง — กับดักเดิม)
 - **emit หลัง commit เท่านั้น**
 
 | Event | Room | Payload | ใช้ที่ |
 |---|---|---|---|
-| `gps:batch` ✱ | tracking rooms | `{ points: [{ deviceId, lat, lng, speedKph, heading, recordedAt, isValidFix }] }` | แผนที่ (throttle flush 1s ที่ client) |
-| `session:opened` | tracking rooms | `{ sessionId, deviceId, teamId, workOrderId, startedAt }` | Active sessions, dashboard |
-| `session:closed` | tracking rooms | `{ sessionId, deviceId, workOrderId, endedAt, endReason }` | |
-| `workorder:changed` | `dept:{id}` + `team:{teamId}` ของใบงาน (DL47) | `{ workOrderId, status, needsReview, rowVersion, change: 'created'\|'statusChanged'\|'sessionAttached'\|... }` | WO list/detail (invalidate query) · แอปหัวหน้าทีม (งานของฉัน / รายละเอียดใบงาน) |
-| `alert:new` ✱ | alert rooms / `user:{id}` | `{ alertId, alertType, severity, title, message, workOrderId?, deviceId? }` | toast, bell |
+| `gps:batch` ✱ | `tracking` | `{ points: [{ deviceId, lat, lng, speedKph, heading, recordedAt, isValidFix }] }` | แผนที่ (throttle flush 1s ที่ client) |
+| `session:opened` | `tracking` | `{ sessionId, deviceId, teamId, workOrderId, startedAt }` | dashboard, แผนที่ (halo), หน้า ใบงาน |
+| `session:closed` | `tracking` | `{ sessionId, deviceId, workOrderId, endedAt, endReason }` | |
+| `workorder:changed` | `tracking` + `team:{teamId}` ของใบงาน (DL47) | `{ workOrderId, status, needsReview, rowVersion, change: 'created'\|'statusChanged'\|'sessionAttached'\|... }` | หน้า ใบงาน / วิดีโอย้อนหลัง / รายละเอียด (invalidate query) · แอปหัวหน้าทีม (งานของฉัน / รายละเอียดใบงาน) |
+| `alert:new` ✱ | `alerts` / `user:{id}` | `{ alertId, alertType, severity, title, message, workOrderId?, deviceId? }` | toast, bell |
 | `stream:status` ✱ | `user:{id}` | `{ sessionToken, status, endReason }` | player |
-| `integration:status` | `org` (ทุกคน — payload ไม่มีข้อมูลอ่อนไหว) | `{ source: 'BOOKING', isStale, lastReceivedAt }` (DL46) · admin ดูรายละเอียด inbound / inbox backlog / breaker read API จาก `/integration/status` | banner "Booking data stale" ทุกหน้าที่แสดงข้อมูล Booking |
+| `integration:status` | `org` (ทุกคน — payload ไม่มีข้อมูลอ่อนไหว) | `{ source: 'BOOKING', isStale, lastReceivedAt }` (DL46) · ไม่มีหน้ารายละเอียด integration (DL53) — ปัญหาการเชื่อมต่อแจ้ง `ADMIN` ด้วย alert (§5.6) | banner "Booking data stale" ทุกหน้าที่แสดงข้อมูล Booking |
 | `session:revoked` ✱ | `user:{id}` | `{ scope: 'account' \| 'device', reason }` | logout ทันที |
 
 Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLivePositions` / `liveMerge` ของ reference) · `workorder:changed` → `queryClient.invalidateQueries(['work-orders'])` (debounce 800ms)
 
-ไม่มี event `device:status` — สถานะ online/offline ไม่ push ขึ้นหน้าจอ หน้าจอดึงตอนเปิด (DL35 · §5.2 Devices & Assignments)
+`workorder:changed` ส่งเข้า room `tracking` เพราะไม่มี room รวมของผู้ใช้ web แล้ว (`org` มี `TEAM_LEADER` ด้วย) — ผู้ใช้ web ทุก role ได้ `tracking:view` ตามค่าเริ่มต้น (§5.7) · role ที่ไม่มี `tracking:view` ได้ข้อมูลใหม่เมื่อ refetch
+
+ไม่มี event `device:status` — สถานะ online/offline ไม่ push ขึ้นหน้าจอ หน้าจอดึงตอนเปิด (DL35 · §5.2 Devices)
 
 ---
 
@@ -501,15 +448,15 @@ Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLive
 | 8 | `BOOKING_JOB_CHANGED_AFTER_CLOSE` | Info | Operator | |
 | 9 | `RECORDING_OUTSIDE_WORK` | Warning | Operator | session ที่ไม่มี WO (`AwaitingMatch` / `NoTeam`) มี recording ≥ 10 นาที |
 | 10 | `BOOKING_SYNC_STALE` | Warning / Critical | Admin | inbox backlog: แถว `IntegrationInbox` ที่ยัง `Pending` / `Failed` ที่เก่าที่สุดเก่ากว่า `booking.stale-after-minutes` (15) / > 60 นาที (ความหมายใหม่ — DL46 · code เดิม) |
-| 11 | `INTEGRATION_DEAD_LETTER` | Warning | Admin | inbox `Dead` |
-| 12 | `BOOKING_MAPPING_ISSUES` | Info | Admin | รายวัน |
-| 13 | `DEVICE_VENDOR_MISSING` | Warning | Admin | device sync ไม่พบเครื่องใน DSS |
+| 11 | `INTEGRATION_DEAD_LETTER` | Warning | Admin | inbox `Dead` · การแจ้งเตือนมีปุ่ม "ประมวลผลใหม่" (`POST /integration/inbox/:id/retry`) · ประมวลผลผ่านแล้ว resolve เอง (DL54) |
+| 12 | `BOOKING_MAPPING_ISSUES` | Info | Admin | รายวัน — สรุป ref ที่ map ไม่ได้ (leader / กล้อง / สถานะ) ใน `Data` ของ alert (ไม่มีหน้า integration — DL53) |
+| 13 | `DEVICE_VENDOR_MISSING` | Warning | Admin | job `DeviceSync` (worker — DL53) ไม่พบเครื่องใน DSS device list (`VendorMissingSince`) |
 | 14 | `WORK_ORDER_NO_CHECKOUT` | Warning | Operator | ใบงานไม่มี check-out เกิน 36 ชม. นับจาก `OpenedAt` (`workorder.stale-open-hours`) |
 | 15 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `WORK_ORDER_AUTO_VOIDED` (auto-void ใบที่ไม่มี recording) |
 | 16 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `REVIEW_QUEUE_OVERDUE` (SLA คิวตรวจสอบ) |
 | 17 | `BOOKING_INBOUND_SILENT` | Warning | Admin | ไม่ได้รับ POST จาก Smart Booking (ที่ผ่าน auth) นาน `booking.inbound-silence-alert-hours` (24 ชม. · 0 = ปิด) — อาจเป็นปัญหาฝั่งผู้ส่งที่เรามองไม่เห็น (DL46) |
 
-ผู้รับ **Operator** = ผู้ใช้ web ที่มี `alerts:view` ใน data scope ของ alert (room `dept:{id}:alerts`) — `COMPANY_ADMIN` (scope `all`) ได้ของทุกแผนก · ผู้รับ **Admin** = role `ADMIN` เท่านั้น (`user:{id}`) — `COMPANY_ADMIN` ไม่ได้รับ alert ระบบ / การเชื่อมต่อ (DL51)
+ผู้รับ **Operator** = ผู้ใช้ web ที่มี `alerts:view` (room `alerts` — ทุก role web เห็นทั้งบริษัท ไม่มีแผนก DL53) · ผู้รับ **Admin** = role `ADMIN` เท่านั้น (`user:{id}`) — `COMPANY_ADMIN` ไม่ได้รับ alert ระบบ / การเชื่อมต่อ (DL51) · ไม่มีหน้า integration แล้ว alert 10 / 11 / 12 / 17 จึงเป็นช่องทางเดียวที่ `ADMIN` รู้ปัญหาการเชื่อมต่อ Booking (DL53)
 
 alert ส่งให้ผู้ใช้ web เท่านั้น (กระดิ่ง + toast) — ไม่ push เข้าแอปหัวหน้าทีม (DL47)
 
@@ -519,42 +466,42 @@ alert ส่งให้ผู้ใช้ web เท่านั้น (กร�
 
 ## 5.7 Permission Catalog
 
-| Permission | ADMIN | COMPANY_ADMIN (scope `all` · DL51) | OPERATOR | VIEWER | TEAM_LEADER (scope `team` · มือถือ) |
-|---|:-:|:-:|:-:|:-:|:-:|
-| `dashboard:view` | ✓ | ✓ | ✓ | ✓ | |
-| `tracking:view` | ✓ | ✓ | ✓ | ✓ | |
-| `tracking:history` | ✓ | ✓ | ✓ | ✓ | |
-| `sessions:read` | ✓ | ✓ | ✓ | ✓ | |
-| `work-orders:read` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `work-orders:edit-note` | ✓ | ✓ | ✓ | | |
-| `booking:read` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `booking:refresh` | ✓ | ✓ | ✓ | | |
-| `integration:view` | ✓ | ✕ | | | |
-| `integration:manage` | ✓ | ✕ | | | |
-| `devices:read` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `devices:manage` / `devices:sync` (รวม depots) | ✓ | ✕ | | | |
-| `teams:read` | ✓ | ✓ | ✓ | ✓ | |
-| `teams:manage` | ✓ | ✓ | ✓ | | |
-| `org:read` | ✓ | ✓ | ✓ | ✓ | |
-| `org:manage` | ✓ | ✓ | | | |
-| `users:read` / `users:manage` | ✓ | ✓ ยกเว้นบัญชี `ADMIN` | | | |
-| `roles:manage` | ✓ | ✕ | | | |
-| `streaming:view-live` | ✓ | ✓ | ✓ | | ✓ |
-| `streaming:live-wall` | ✓ | ✓ | ✓ | | |
-| `streaming:talk` | ✓ | ✓ | ✓ | | |
-| `playback:view` | ✓ | ✓ | ✓ | | |
-| `evidence:export` / `evidence:download` | ✓ | ✓ | ✓ | | |
-| `notifications:read` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `alerts:view` | ✓ | ✓ | ✓ | ✓ | |
-| `alerts:manage` | ✓ | ✓ | ✓ | | |
-| `audit:view` | ✓ | ✕ | | | |
-| `settings:manage` | ✓ | ✕ | | | |
+Catalog มี **24 permission** (DL53) · ทุก role web ใช้ scope `all`
 
+| Permission | ADMIN | COMPANY_ADMIN (DL51) | OPERATOR | VIEWER | TEAM_LEADER (scope `team` · มือถือ) | ใช้ที่ (เมนู / หน้า) |
+|---|:-:|:-:|:-:|:-:|:-:|---|
+| `dashboard:view` | ✓ | ✓ | ✓ | ✓ | | แดชบอร์ด |
+| `tracking:view` | ✓ | ✓ | ✓ | ✓ | | แผนที่ติดตาม · room `tracking` |
+| `tracking:history` | ✓ | ✓ | ✓ | ✓ | | ประวัติเส้นทาง |
+| `work-orders:read` | ✓ | ✓ | ✓ | ✓ | ✓ | ใบงาน · รายละเอียดใบงาน · วิดีโอย้อนหลัง · `/mobile/jobs` |
+| `work-orders:edit-note` | ✓ | ✓ | ✓ | | | หมายเหตุใบงาน |
+| `booking:read` | ✓ | ✓ | ✓ | ✓ | ✓ | panel Booking ของใบงาน · `/mobile/jobs/:id` |
+| `booking:refresh` | ✓ | ✓ | ✓ | | | ปุ่ม refresh (เฉพาะมี read API) |
+| `devices:read` | ✓ | ✓ | ✓ | ✓ | ✓ | `GET /devices` (ภาพสดหลายจอ, ประวัติเส้นทาง, มือถือ) |
+| `org:read` | ✓ | ✓ | ✓ | ✓ | | พนักงาน |
+| `org:manage` | ✓ | ✓ | | | | แก้ไขพนักงาน |
+| `users:read` | ✓ | ✓ | | | | ผู้ใช้ระบบ (+ matrix สิทธิ์แบบอ่านอย่างเดียว) |
+| `users:manage` | ✓ | ✓ (ไม่เห็นบัญชี `ADMIN` — DL55) | | | | จัดการผู้ใช้ · ผู้ใช้จาก Entra |
+| `roles:manage` | ✓ | ✕ | | | | แก้ matrix สิทธิ์ · `/streams/role-access` |
+| `streaming:view-live` | ✓ | ✓ | ✓ | | ✓ | ปุ่ม ดูสด · ภาพสดหลายจอ · live ในแอป |
+| `streaming:live-wall` | ✓ | ✓ | ✓ | | | ภาพสดหลายจอ |
+| `streaming:talk` | ✓ | ✓ | ✓ | | | talk ในภาพสดหลายจอ |
+| `playback:view` | ✓ | ✓ | ✓ | | | ปุ่ม ดูย้อนหลัง / ดูวิดีโอ · วิดีโอย้อนหลัง |
+| `evidence:export` | ✓ | ✓ | ✓ | | | สร้างไฟล์ MP4 |
+| `evidence:download` | ✓ | ✓ | ✓ | | | ดาวน์โหลด MP4 |
+| `notifications:read` | ✓ | ✓ | ✓ | ✓ | ✓ | แจ้งเตือน · push token |
+| `alerts:view` | ✓ | ✓ | ✓ | ✓ | | แจ้งเตือน · room `alerts` |
+| `alerts:manage` | ✓ | ✓ | ✓ | | | รับทราบ / ปิด alert |
+| `audit:view` | ✓ | ✕ | | | | ประวัติการใช้งาน |
+| `settings:manage` | ✓ | ✕ | | | | ตั้งค่าระบบ |
+
+- ✕ = **permission สงวนของ `ADMIN`** (DL51 · เหลือ 3 ตัวตาม DL53): `audit:view`, `settings:manage`, `roles:manage`
+- **ตัดตาม DL53** (ยังไม่มีโค้ด — ไม่ต้องสงวน code): `sessions:read`, `teams:read`, `teams:manage`, `devices:manage`, `devices:sync`, `integration:view`, `integration:manage`
 - **ไม่มี permission ปิด/reopen ใบงาน** — สถานะใบงานตาม check-in/check-out ของ Booking **[Confirmed — Q1, Q2, Q9]**
-- **ไม่มี permission link / void ใบงาน หรือ classify session** — ใบงานมาจาก Booking เท่านั้น และ session ผูกกับใบงานโดย matching อัตโนมัติ (DL33) · OPERATOR = monitor (แผนที่, live, live wall, talk), ดูย้อนหลัง/export หลักฐาน, จัดการทีม, รับทราบ alert
+- **ไม่มี permission link / void ใบงาน หรือ classify session** — ใบงานมาจาก Booking เท่านั้น และ session ผูกกับใบงานโดย matching อัตโนมัติ (DL33) · OPERATOR = monitor (แผนที่, ภาพสดหลายจอ, talk), ดูย้อนหลัง/export หลักฐาน, รับทราบ alert · ไม่มีงานจัดการทีม (ทีมมาจาก Booking — DL53)
 - **role `TEAM_LEADER` (DL47)** — หัวหน้าทีมภาคสนาม ใช้ **แอปมือถือเท่านั้น** (live กล้องของตัวเอง + รายละเอียดใบงาน — §5.4) · ทุก permission ประเมินด้วย data scope **`team`** · **ไม่มี web UI** — login web แล้วเห็นหน้า "ใช้งานผ่านแอปมือถือ" (ไม่มีเมนู) · check-in/check-out ยังทำใน Booking app · role ใส่ผ่าน data migration · บัญชีต้องผูกพนักงาน (`Employees.UserId` — ตรวจใน service)
-- ชื่อ role ไม่เปลี่ยน (DL48): "แอดมินฝ่ายความปลอดภัย" ใน requirement = `ADMIN` · "ผู้จัดการแผนก/ฝ่าย" = `OPERATOR` (scope department) · `VIEWER` คงไว้
-- **role `COMPANY_ADMIN` (DL51)** — ผู้ดูแลบริษัท (web, scope `all`) = ชุดของ `OPERATOR` + `org:manage` + `users:read` / `users:manage` · **ไม่ bypass** permission · ✕ = **permission สงวนของ `ADMIN`** (`integration:*`, `devices:manage`, `devices:sync`, `roles:manage`, `audit:view`, `settings:manage`) — ให้ role ที่ไม่ใช่ `ADMIN` ไม่ได้ (`PUT /roles/:id/permissions` ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN` · matrix ล็อกช่องตาม `reservedPermissions` จาก `GET /roles`) · จัดการบัญชีทุก role ยกเว้น `ADMIN` (⇒ 403 `ADMIN_ACCOUNT_PROTECTED` · §5.2) · ดู matrix ได้อย่างเดียวผ่าน `users:read`
+- ชื่อ role ไม่เปลี่ยน (DL48): "แอดมินฝ่ายความปลอดภัย" ใน requirement = `COMPANY_ADMIN` (DL55 — `ADMIN` เป็นบัญชี super admin ของฝั่ง dev ไม่ใช่บทบาทของลูกค้า) · "ผู้จัดการแผนก/ฝ่าย" = `OPERATOR` (scope `all` — ไม่มีแผนก DL53) · `VIEWER` คงไว้
+- **role `COMPANY_ADMIN` (DL51)** — ผู้ดูแลบริษัท (web, scope `all`) = ชุดของ `OPERATOR` + `org:manage` + `users:read` / `users:manage` · **ไม่ bypass** permission · ต่างจาก `ADMIN` แค่ audit, settings, แก้ matrix สิทธิ์ และบัญชี `ADMIN` (DL53) · ✕ = **permission สงวนของ `ADMIN`** (`audit:view`, `settings:manage`, `roles:manage`) — ให้ role ที่ไม่ใช่ `ADMIN` ไม่ได้ (`PUT /roles/:id/permissions` ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN` · matrix ล็อกช่องตาม `reservedPermissions` จาก `GET /roles`) · จัดการบัญชีทุก role ยกเว้น `ADMIN` — บัญชี `ADMIN` ถูกซ่อน (⇒ 404) และกำหนด role `ADMIN` ไม่ได้ (⇒ 403 `ADMIN_ACCOUNT_PROTECTED` · §5.2 · DL55) · ดู matrix ได้อย่างเดียวผ่าน `users:read`
 - `POST /integration/booking/jobs` **ไม่ใช้ permission ของผู้ใช้** — ตรวจด้วย `BookingInboundAuthGuard` (HMAC / api-key ของ Smart Booking) แทน (DL46)
 - การผูกกล้องกับทีม/งาน (รวมกล้องสำรอง) **มาจาก Booking เท่านั้น** (`DeviceRefs` ในใบงานที่ Smart Booking POST มา) **[Confirmed — Q4, Q20]** — ไม่มี permission ผูกกล้องในระบบนี้
 - `audit:view` = `ADMIN` เท่านั้น **[Confirmed — Q19 · ยืนยันอีกครั้งโดย DL51: `COMPANY_ADMIN` ดู log ไม่ได้]**

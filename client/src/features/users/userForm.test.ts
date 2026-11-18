@@ -7,7 +7,6 @@ const valid = {
   username: 'somchai',
   fullName: 'สมชาย ใจดี',
   roleCode: 'OPERATOR',
-  departmentId: '3',
 };
 
 describe('validateUserForm', () => {
@@ -31,11 +30,10 @@ describe('validateUserForm', () => {
     expect(errors.roleCode).toBe('users.form.errorRoleRequired');
   });
 
-  it('requires a department for non-ADMIN roles only', () => {
-    expect(validateUserForm({ ...valid, departmentId: '' }).departmentId).toBe(
-      'users.form.errorDepartmentRequired',
-    );
-    expect(validateUserForm({ ...valid, roleCode: 'ADMIN', departmentId: '' })).toEqual({});
+  it('accepts every role with no extra field (single-department system)', () => {
+    for (const roleCode of ['ADMIN', 'COMPANY_ADMIN', 'OPERATOR', 'VIEWER', 'TEAM_LEADER']) {
+      expect(validateUserForm({ ...valid, roleCode })).toEqual({});
+    }
   });
 
   it('checks email format only when given', () => {
@@ -52,7 +50,6 @@ describe('toCreatePayload', () => {
       username: 'somchai',
       fullName: 'สมชาย ใจดี',
       roleCode: 'OPERATOR',
-      departmentId: '3',
     });
   });
 
@@ -73,6 +70,9 @@ describe('toUpdatePayload', () => {
     expect(toUpdatePayload(original, original)).toEqual({});
     expect(toUpdatePayload({ ...original, password: 'new-password' }, original)).toEqual({
       password: 'new-password',
+    });
+    expect(toUpdatePayload({ ...original, roleCode: 'VIEWER' }, original)).toEqual({
+      roleCode: 'VIEWER',
     });
   });
 });

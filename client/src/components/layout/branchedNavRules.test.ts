@@ -42,10 +42,11 @@ describe('สถานะพับกลุ่ม', () => {
   });
 
   it('จำกลุ่มที่พับไว้ และทิ้งค่าที่ไม่รู้จัก/ค่าเสีย', () => {
-    writeFoldedGroups(new Set(['assets']));
-    expect([...readFoldedGroups()]).toEqual(['assets']);
+    writeFoldedGroups(new Set(['people']));
+    expect([...readFoldedGroups()]).toEqual(['people']);
 
-    window.localStorage.setItem(FOLDED_GROUPS_STORAGE_KEY, '["system","hacked",3]');
+    // 'assets' was a group before the menu was cut down — a stale value is dropped too
+    window.localStorage.setItem(FOLDED_GROUPS_STORAGE_KEY, '["system","assets","hacked",3]');
     expect([...readFoldedGroups()]).toEqual(['system']);
 
     window.localStorage.setItem(FOLDED_GROUPS_STORAGE_KEY, '{not json');

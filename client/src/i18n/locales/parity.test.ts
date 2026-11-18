@@ -16,11 +16,13 @@ describe('locale parity', () => {
     }
   });
 
-  it('only uses P0 key prefixes and no company keys', () => {
-    const prefixes = /^(app|navigation|breadcrumb|header|language|theme|auth|permission|common|users|departments|employees|settings|audit)\./;
+  it('only uses P0 key prefixes and no company or department keys', () => {
+    const prefixes = /^(app|navigation|breadcrumb|header|language|theme|auth|permission|common|users|employees|settings|audit)\./;
     for (const key of Object.keys(th)) {
       expect(key).toMatch(prefixes);
       expect(key.toLowerCase()).not.toContain('compan');
+      // single-department system: no department keys at all
+      expect(key.toLowerCase()).not.toContain('department');
     }
   });
 });

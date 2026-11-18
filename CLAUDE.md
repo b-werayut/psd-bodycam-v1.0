@@ -17,7 +17,7 @@ Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopte
 ## Current state: P0 (foundation) in progress
 
 - Code exists in `server/` (NestJS) and `client/` (Vite + React). P0 task plans: `docs/superpowers/plans/2026-11-04-p0-server-foundation.md` and `2026-11-04-p0-client-foundation.md`. Check the code to see which tasks are done; the plan checkboxes are not kept up to date.
-- DB so far: P0 tables only (`server/src/db/schema.ts`) + migrations `0000_baseline` and `0001_extensions_partitions` (`btree_gist` + `AuditLogs`). Tables of later phases (`Devices`, `GpsLocations`, `TrackingSessions`, …) are not created yet.
+- DB so far: P0 tables only (`server/src/db/schema.ts`) + migrations `0000_baseline`, `0001_extensions_partitions` (`btree_gist` + `AuditLogs`) and `0002_drop_departments` (DL53: no `Departments` table, no `DepartmentId` columns). Tables of later phases (`Devices`, `GpsLocations`, `TrackingSessions`, …) are not created yet.
 - The design source of truth is **`docs/blueprint/`**. Read the relevant Part before designing or implementing anything:
 
 | Part | Use it for |
@@ -31,7 +31,7 @@ Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopte
 | `06-frontend-architecture.md` | Folder structure, routes, screens, component reuse, status→tone mapping |
 | `07-integration-strategy.md` | Booking push contract v1 (inbound endpoint, auth, responses), inbound mapper, optional read API, inbox, retry, idempotency, Confirmed vs Assumption |
 | `08-implementation-roadmap.md` | Phases P0–P6 with dependencies and acceptance criteria |
-| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL50) |
+| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL55) |
 
 - Implement in roadmap order.
 - P3c (Smart Booking go-live: agreed contract/auth, `smart-booking` mapper if their body is not our v1, optional read API adapter) is blocked until the Booking team provides a spec. Until then, build on our v1 contract, the `booking-simulator` and the `mock` driver (DL25, DL46).
@@ -44,7 +44,7 @@ Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopte
 - Its code is more reliable than its docs.
 - Main things to port (details and paths in Part 1 §1.5):
   - Server: `server/src/common/*`, `modules/auth`, `modules/realtime`, the GPS pipeline (`modules/tracking/tracking.service.ts`, `modules/scheduler/gps-poll.service.ts`), DSS providers, `modules/streaming` and `modules/talk`.
-  - Client: `client/src/styles/tailwind.css` (OKLCH tokens), `client/DESIGN.md`, `components/ui`, `components/command-center`, the app shell, `lib/apiClient.ts`, `features/evidence` (DL36).
+  - Client: `client/src/styles/tailwind.css` (OKLCH tokens), `client/DESIGN.md`, `components/ui`, `components/command-center`, the app shell, `lib/apiClient.ts`, `features/evidence` (DL36), `features/users/EntraUsersPage.tsx` (DL53).
 - Its `scheduler/camera-session.service.ts` is the **anti-pattern** being replaced: a pseudo work order plus reserved seed rows, `.limit(100)` with no `ORDER BY`, and a reopen loop.
 
 ## Commands
@@ -77,9 +77,11 @@ Client (`cd client`, Vite):
   - Optional read API only if Booking offers one: `BookingProvider` (`none` | `mock` | `http`, default `none`) for per-job refresh and a nightly reconcile. The circuit breaker covers only these outbound calls. `csv` import is a manual fallback.
   - Jobs carry DO / SH numbers (`BookingJobs.DoNo` / `ShNo`, meaning still an Assumption) for display and search only, plus check-in / check-out times.
   - Lost POSTs are invisible to us: rely on Booking retries, alert `BOOKING_INBOUND_SILENT`, and the optional reconcile.
+  - A POST we received is never lost: its raw body stays in `IntegrationInbox.Payload`. Rows that end `Dead` (10 failed attempts) are reprocessed from that payload, never by asking Booking to resend (DL54): automatically after `re-resolve` and by a daily 03:00 job (rows ≤ 7 days old, `Attempts` reset), or by the ADMIN's "ประมวลผลใหม่" button on alert `INTEGRATION_DEAD_LETTER` → `POST /integration/inbox/:id/retry` (`settings:manage`).
   - Matching reads only the projection; it never calls the Booking API live.
   - No write-back, no `IntegrationOutbox`. Booking links to us via `/work-orders/by-booking/{externalJobId}`.
   - `booking-integration` must not import `sessions` or the `work-orders` matcher; matching is handed over through the queue `matching` only. Single exception (Part 2 §2.4 rule 1): the inbox processor calls the `work-orders` writer to upsert the `WorkOrders` row in the same transaction as the projection.
+  - Teams come from Booking (DL53, **[Assumption]** that every job carries team + leader refs): in the same transaction the inbox processor creates a `Teams` row for an unknown `teamRef` and moves the active leader in `TeamMembers` to the employee matched by `leaderRef` (`Employees.BookingEmployeeRef`). There is no team management screen.
 
 **Core domain**
 - `TrackingSessions` record observed camera use. `WorkOrders` come **only from Booking** (DL33): one per `BookingJobs` row, `BookingJobId` NOT NULL. **This system never creates a work order**, and there are no pseudo work orders.
@@ -96,9 +98,10 @@ Client (`cd client`, Vite):
 - Camera status comes only from GpsPoll: DSS `/location` returns GPS + online/offline in one call (DL32). No StatusPoll, no BRMS MQ (DL30), no device webhook. `StateSource` values 1, 3 and 4 stay reserved.
 - "Camera on" comes from platform status, not GPS: most cameras have no GPS fix indoors.
 - DSS middleware = `psd-bwc-dss-services` (FastAPI). It calls the **Dahua DSS Platform** (Dahua's camera VMS) and keeps the DSS tokens; HLS goes through its `/proxy`.
+- `Devices` are created/updated only by the worker job `DeviceSync` (DSS device list + `device-sync.plan.ts`, on start + hourly; never deletes, sets `VendorMissingSince` + alert `DEVICE_VENDOR_MISSING`). No device CRUD, manual sync, retire or per-device streaming toggle screen (DL53).
 
 **Work order status follows Booking**
-- A work order's department (data scope) comes from Booking (`departmentRef` → `Departments.BookingDepartmentRef`, DL38); unmapped ⇒ root department + `MappingIssues`.
+- There are **no departments** (DL53, replaces DL38): no `Departments` table, no `DepartmentId` column anywhere, no Booking `departmentRef`.
 - Statuses: `Planned` (synced, no check-in yet, DL37) → `Open` (check-in) → `Closed` (check-out, `BookingCheckout`); a new check-in reopens; a Booking cancel sets `Cancelled`.
 - There is **no human close, reopen, link, unlink, merge or void** in this system.
 - Open work orders with no check-out raise an alert 36h after check-in and close after 7 days (`SafetyTimeout`). `Planned` ones close only when Booking says so.
@@ -107,7 +110,7 @@ Client (`cd client`, Vite):
 **Unmatched sessions (DL33)**
 - No candidate, or several candidates ⇒ the session stays `AwaitingMatch` (or `NoTeam`). No work order is created.
 - It re-matches automatically when Booking data changes (`matching.rematch`, within `booking.rematch-horizon-hours`).
-- No manual link, no human classify, no review queue. Sessions without a work order are viewed per camera in `/recordings`.
+- No manual link, no human classify, no review queue. There is no per-camera recording search (`/recordings` was removed, DL53): video of a camera without a work order can only be watched live while it is online (live wall).
 
 **Matching** (automatic only)
 - Order: `BookingJobs.DeviceRefs` first, then the team ref, then the team-leader ref. Exactly one winning candidate ⇒ attach.
@@ -117,6 +120,7 @@ Client (`cd client`, Vite):
 **Charging at base**
 - A camera at a depot is not work: the system sets `Classification = IdleOrCharging` on its session. Detection uses the `Depots` radius plus the latest GPS fix.
 - The vendor has no charging state.
+- There is no depot screen in the first phase (DL53), so `Depots` stays empty in production and this rule does not fire yet (dev seed has mock depots).
 
 **Evidence storage (DL34)**: exported MP4 files go to a local-disk PVC (`STORAGE_DRIVER=local`) shared by `api` and `worker-media`, and are deleted after 24h (`EvidenceCleanup`). No MinIO / object storage. Source video stays on the Dahua DSS Platform.
 
@@ -124,7 +128,7 @@ Client (`cd client`, Vite):
 - `UQ_TS_OpenPerDevice` and `EX_TS_NoOverlap`
 - `UQ_WO_BookingJob` (plain unique; `BookingJobId` NOT NULL)
 - The exclusion constraints need `btree_gist`.
-- Removed enum values (e.g. WO `Voided` / `Merged`, `NoBookingData`) stay reserved: never reuse their numbers.
+- Removed enum values (e.g. WO `Voided` / `Merged`, `NoBookingData`, `MappingIssues` 1 `UnknownTeamRef` / 6 `UnknownDepartmentRef`) stay reserved: never reuse their numbers.
 
 Emit realtime events **only after commit**.
 
@@ -153,13 +157,15 @@ Emit realtime events **only after commit**.
 
 **Access**
 - Roles are `ADMIN`, `COMPANY_ADMIN`, `OPERATOR` and `VIEWER` (web), plus `TEAM_LEADER` (mobile only, DL47). Never add "Safety" to role names (DL48).
-  - `ADMIN`: super admin. Bypasses permission and scope checks (still audited).
-  - `COMPANY_ADMIN` (DL51): company admin, scope `all`, no bypass. Has `OPERATOR`'s permissions plus `org:manage`, `users:read`, `users:manage`. Manages users of every role except `ADMIN`: touching an `ADMIN` account or assigning role `ADMIN` ⇒ 403 `ADMIN_ACCOUNT_PROTECTED`. Can never hold the `ADMIN`-reserved permissions (`audit:view`, `settings:manage`, `roles:manage`, `integration:*`, `devices:manage`, `devices:sync`); granting them to any non-`ADMIN` role ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN`. Enforce both in the service, not only in the UI.
-  - `OPERATOR` replaces the reference's Supervisor and Dispatcher roles (the requirement's department/division manager). It monitors (map, live, live wall, talk), plays back / exports evidence, manages teams and acks alerts. It has no link, classify or review duties (DL33).
+  - `ADMIN`: super admin for our dev/ops team, not a customer role (DL55). Bypasses permission and scope checks (still audited). Customer-facing material (Paper brief, diagrams) shows only the 4 customer roles and never the ADMIN-only pages (audit log, system settings).
+  - `COMPANY_ADMIN` (DL51): company admin, scope `all`, no bypass. Has `OPERATOR`'s permissions plus `org:manage`, `users:read`, `users:manage`. Manages users of every role except `ADMIN`. `ADMIN` accounts are hidden from every non-`ADMIN` caller (DL55): `GET /users`, the Entra page, the employee account picker and `GET /roles` leave them out, and `/users/:id` on an `ADMIN` account returns 404. Assigning role `ADMIN` ⇒ 403 `ADMIN_ACCOUNT_PROTECTED`. Can never hold the `ADMIN`-reserved permissions (`audit:view`, `settings:manage`, `roles:manage` — DL53); granting them to any non-`ADMIN` role ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN`. Enforce both in the service, not only in the UI.
+  - `OPERATOR` replaces the reference's Supervisor and Dispatcher roles (the requirement's department/division manager). It monitors (map, live wall, live from the work-order list, talk), plays back / exports evidence and acks alerts. It has no link, classify, review or team-management duties (DL33, DL53).
   - `TEAM_LEADER`: field team leader. The mobile app is for this role only: live of their own camera + Booking job details (`/mobile/me`, `/mobile/jobs`, `/streams/live`). No web UI, no playback, GPS, camera-status or user management. Check-in / check-out still happens in the Booking app.
   - Team leaders log in with Entra SSO if they have an Entra account, otherwise with username/password like the reference (`/auth/login`, lockout, refresh rotation) (DL49).
   - The mobile app is built by our own team. Live + job details is the starting scope; the team may add or remove features by adding `/api/mobile/*` endpoints and `TEAM_LEADER` permissions through a data migration (DL49).
-- Scope levels are `all` (`ADMIN`, `COMPANY_ADMIN`), `department` (subtree; `OPERATOR`, `VIEWER`) and `team` (`TEAM_LEADER`: the team the user's employee currently leads; jobs by `BookingJobs.TeamId` / `LeaderEmployeeId`, cameras of that team or in its open jobs' `DeviceRefs`).
+- Scope levels are only `all` (every web role: `ADMIN`, `COMPANY_ADMIN`, `OPERATOR`, `VIEWER`) and `team` (`TEAM_LEADER`: the team the user's employee currently leads; jobs by `BookingJobs.TeamId` / `LeaderEmployeeId`, cameras of that team or in its open jobs' `DeviceRefs`). No `department` scope (DL53).
+- The permission catalog has exactly 24 codes (DL53, Part 5 §5.7). Removed: `sessions:read`, `teams:read`, `teams:manage`, `devices:manage`, `devices:sync`, `integration:view`, `integration:manage`.
+- Socket.IO rooms: `org`, `user:{id}`, `tracking` (needs `tracking:view`), `alerts` (needs `alerts:view`), `team:{id}`. No `dept:*` rooms.
 - Every endpoint needs `@RequirePermission` + `@Audit` and applies data scope at the query layer.
 
 **Reference data**
@@ -169,7 +175,14 @@ Emit realtime events **only after commit**.
 **Retention**: GPS 3 months · work orders 3 months · audit log 12 months · no archive.
 
 **Frontend**: keep the reference design system (OKLCH tokens and the `client/DESIGN.md` rules). Use a real `/work-orders/:id` route, not the reference's `?open=` dialog.
-- Main menus (DL36): **Live** (`/live-wall` + live from the device list) and **หลักฐาน** `/evidence` (work order → camera + time range from its sessions → playback / MP4 download; reuse an export with the same device + channel + exact start/end that is queued, processing or ready and unexpired). `/recordings` stays for per-camera search.
+- The web menu is exactly 12 items in 4 groups (DL53, replaces the DL36 main menus):
+  - ภาพรวม: แดชบอร์ด `/`
+  - ปฏิบัติงาน: ภาพสดหลายจอ `/live-wall`, ใบงาน `/work-orders` (+ `/work-orders/:id`), วิดีโอย้อนหลัง `/evidence` (the old หลักฐาน page), แผนที่ติดตาม `/tracking`, ประวัติเส้นทาง `/tracking/history`
+  - ผู้ใช้และพนักงาน: พนักงาน `/employees`, ผู้ใช้ระบบ `/users`, ผู้ใช้จาก Entra `/entra-users` (port of the reference page: `GET /users/entra-directory`, `POST /users/sync-entra` `{ dryRun, matchByUsername? }`, create accounts from Entra rows one by one or in bulk with one role; needs `users:manage`; `COMPANY_ADMIN` cannot assign `ADMIN`)
+  - ระบบ: แจ้งเตือน `/notifications`, ประวัติการใช้งาน `/audit-logs`, ตั้งค่าระบบ `/settings`
+- Removed, menus and code (DL53): departments, Bodycam device pages, teams, depots, the integration status page (only `ADMIN` alerts + the stale banner remain), tracking sessions, `/recordings`, the per-camera Live menu, `/booking-jobs`.
+- ใบงาน `/work-orders` = table of Booking work orders (status tabs, the job's cameras with a live button when online, a playback button opening the same dialog as วิดีโอย้อนหลัง). `VIEWER` is read-only.
+- วิดีโอย้อนหลัง `/evidence` = checked-in work orders → camera (its sessions + Booking `DeviceRefs`) + time range → playback / MP4 download; needs `playback:view`. Recording segments that overlap the work order's `workWindow` (Booking check-in → check-out, computed by the server) get the "อยู่ในช่วงใบงาน" badge (DL52). Reuse an export with the same device + channel + exact start/end that is queued, processing or ready and unexpired.
 
 ## Editing the blueprint
 

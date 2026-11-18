@@ -1,5 +1,4 @@
 import {
-  Building2,
   ChevronDown,
   LogOut,
   Menu,
@@ -80,7 +79,6 @@ export function AppHeader({
   const displayName = fullName || user?.username || t('header.userFallback');
   const initial = Array.from(displayName)[0]?.toLocaleUpperCase() ?? '?';
   const emailLine = user?.email?.trim() || '-';
-  const departmentName = user?.departmentName?.trim() || null;
 
   const loggingOut = useRef(false);
   const onLogout = async () => {
@@ -178,12 +176,6 @@ export function AppHeader({
                 <Shield aria-hidden="true" size={16} strokeWidth={1.5} />
                 <span className="truncate">{roleName}</span>
               </span>
-              {departmentName ? (
-                <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-                  <Building2 aria-hidden="true" size={16} strokeWidth={1.5} />
-                  <span className="truncate">{departmentName}</span>
-                </span>
-              ) : null}
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />

@@ -15,7 +15,7 @@
 | Client state | Zustand เฉพาะ auth (`stores/authStore.ts`) · Context สำหรับ Realtime/Theme/Language | ตาม reference |
 | HTTP | axios + single-flight refresh (`lib/apiClient.ts`) | port ตรง |
 | Realtime | socket.io-client 4 (`lib/socket.ts`, `providers/RealtimeProvider.tsx`) | port + event ใหม่ |
-| Map | Leaflet 1.9 + react-leaflet 4 | เพิ่ม `leaflet.markercluster` (กล้อง 300 ตัว) · tile server ต้องเป็นของเราหรือผู้ให้บริการที่มี SLA ใน production (public OSM ไม่รองรับโหลด) |
+| Map | Leaflet 1.9 + react-leaflet 4 | เพิ่ม `leaflet.markercluster` (กล้องประมาณ 100 ตัว — DL56) · tile server ต้องเป็นของเราหรือผู้ให้บริการที่มี SLA ใน production (public OSM ไม่รองรับโหลด) |
 | Video | hls.js (dynamic import) | port `StreamPlayer` |
 | Talk | AudioWorklet + raw WebSocket | port `features/talk` |
 | Auth SSO | `@azure/msal-browser` (lazy) | port `msalClient.ts` |
@@ -33,7 +33,7 @@ client/src/
   app/
     router.tsx              # createBrowserRouter + lazy routes
     routeAccess.ts          # path → permission (port lib/routeAccess.ts)
-    nav.ts                  # เมนู + กลุ่ม (port lib/nav.ts)
+    nav.ts                  # เมนู 12 รายการ 4 กลุ่ม (port lib/nav.ts · DL53)
     providers.tsx           # QueryClient, Theme, Language, Realtime, Motion
     RequireAuth.tsx  RequirePermission.tsx  NotFoundPage.tsx  RouteErrorPage.tsx
     MobileOnlyPage.tsx      # "ใช้งานผ่านแอปมือถือ" สำหรับ TEAM_LEADER (DL47 — ไม่มี web UI)
@@ -47,26 +47,22 @@ client/src/
     charts/                 # EChart (port)
     booking/                # BookingJobCard, BookingStaleBanner (ใหม่ — ใช้ข้ามหลาย feature)
     evidence/               # EvidencePlaybackDialog, RecordingSegmentsPanel, useEvidenceDownload, evidenceExports.api.ts
-                            # (port จาก features/evidence ของ reference — ใช้ร่วมกันระหว่าง evidence/ และ recordings/)
+                            # (port จาก features/evidence ของ reference — ใช้ร่วมกันระหว่าง work-orders/ และ evidence/)
   features/
     auth/                   # LoginPage, msalClient, loginDestination, sessionRevoked (port)
     dashboard/
     tracking/               # LiveMapPage, useLivePositions, liveMerge (port + refactor)
     tracking-history/       # HistoryPage (port, ตัด roadMatch)
-    live-wall/              # LiveWallPage (port)
-    streaming/              # StreamPlayer, LiveStreamDialog, streamStops (port)
+    live-wall/              # LiveWallPage — ภาพสดหลายจอ (port)
+    streaming/              # StreamPlayer, LiveStreamDialog, streamStops (port — LiveStreamDialog ใช้กับปุ่ม ดูสด ในหน้า ใบงาน)
     talk/                   # (port)
-    sessions/               # ActiveSessionsPage, SessionDetailDrawer, sessions.api.ts (อ่านอย่างเดียว)
-    work-orders/            # WorkOrderListPage, WorkOrderDetailPage, workOrders.api.ts, workOrderActions.ts
+    work-orders/            # WorkOrdersPage (ตาราง + แท็บสถานะ + คอลัมน์กล้อง — DL53), WorkOrderDetailPage, workOrders.api.ts, workOrderActions.ts
                             # (อ่านอย่างเดียว — ใบงานและสถานะมาจาก Booking · DL33)
-    evidence/               # EvidencePage, evidenceCameras.ts, evidenceRange.ts (port + refactor: กล้อง/ช่วงเวลาจาก sessions ของใบงาน · DL36)
-    booking/                # BookingJobsPage, BookingJobDetailPage, booking.api.ts
-    recordings/             # RecordingsPage (ค้นหา recording รายกล้อง + playback + export — รวม session ที่ไม่มีใบงาน)
-    devices/                # DevicesPage, DeviceDetailPage, DeviceFormDialog, devices.api.ts (ไม่มีหน้าผูกทีม — ข้อมูลจาก Booking)
-    teams/                  # TeamsPage, TeamDetailPage, MemberDialog, ChangeLeaderDialog
-    employees/  users/      # (port, ตัด company)
-    integration/            # IntegrationStatusPage (monitor การรับ POST จาก Smart Booking — DL46), InboxTable, CallLogsTable, MappingIssues
+    evidence/               # EvidencePage — วิดีโอย้อนหลัง (ตารางใบงานที่ check-in แล้ว), evidenceCameras.ts, evidenceRange.ts (port + refactor: กล้องจาก sessions + DeviceRefs · ป้ายจาก workWindow · DL36, DL52, DL53)
+    employees/              # (port, ตัด company / แผนก · ฟิลด์ BookingEmployeeRef)
+    users/                  # UsersPage (port, ตัด company / แผนก) + EntraUsersPage, entraSync.ts, entraBulk.ts (port — ผู้ใช้จาก Entra · DL53)
     notifications/  audit/  settings/
+                            # ไม่มี sessions/, recordings/, devices/, teams/, integration/, departments/ (DL53)
   lib/                      # apiClient, apiError, authEndpoints, socket, realtimeUrl, queryClient,
                             # paged.ts (Paged<T>), usePermission.ts (ใหม่), time.ts, utils
   i18n/
@@ -87,34 +83,28 @@ client/src/
 |---|---|---|---|
 | `/login` | Login (password + Entra) | Public | auth |
 | `/mobile-only` | "ใช้งานผ่านแอปมือถือ" — ข้อความ + ปุ่มออกจากระบบ ไม่มีเมนู (DL47) | login + role `TEAM_LEADER` | auth |
-| `/` | Dashboard Overview | `dashboard:view` (ไม่มี ⇒ redirect ไปเมนูแรกที่เห็น) | shell |
-| `/tracking` | Live Bodycam Tracking Map | `tracking:view` | shell full-bleed |
-| `/tracking/history` | Tracking History (`?deviceId&from&to`) | `tracking:history` | shell full-bleed |
-| `/live-wall` | Live wall 1/4/6/9/16 (เมนูหลัก Live — DL36) | `streaming:live-wall` + `streaming:view-live` | shell full-bleed |
-| `/evidence` | หลักฐาน — ตารางใบงานจาก Booking → เลือกกล้อง + ช่วงเวลา → ดูย้อนหลัง / ดาวน์โหลด MP4 (เมนูหลัก — DL36) | `playback:view` + `work-orders:read` (ปุ่ม export/download ต้องมี `evidence:export` / `evidence:download`) | shell |
-| `/sessions` | Active Tracking Sessions (+ แท็บประวัติ) | `sessions:read` | shell |
-| `/work-orders` | Work Order List | `work-orders:read` | shell |
+| `/` | แดชบอร์ด | `dashboard:view` (ไม่มี ⇒ redirect ไปเมนูแรกที่เห็น) | shell |
+| `/live-wall` | ภาพสดหลายจอ 1/4/6/9/16 + talk — ทางเดียวที่ดูวิดีโอของกล้องที่ไม่มีใบงาน (ภาพสดเมื่อออนไลน์ — DL53) | `streaming:live-wall` + `streaming:view-live` | shell full-bleed |
+| `/work-orders` | ใบงาน — ตารางใบงานจาก Booking (แท็บสถานะ · คอลัมน์กล้อง + ปุ่ม ดูสด เมื่อกล้องออนไลน์ · ปุ่ม ดูย้อนหลัง เปิด dialog เดียวกับหน้า วิดีโอย้อนหลัง — DL53) | `work-orders:read` (ดูสด ต้องมี `streaming:view-live` · ดูย้อนหลัง ต้องมี `playback:view` · `VIEWER` ดูตารางอย่างเดียว) | shell |
 | `/work-orders/by-booking/:externalJobId` | deep link จาก Booking app → redirect `/work-orders/:id` (Part 7 §7.9 — ผู้ใช้ web เท่านั้น) | `work-orders:read` | shell |
-| `/work-orders/:id` | Work Order Detail | `work-orders:read` | shell |
-| `/booking-jobs` | Booking Reference List | `booking:read` | shell |
-| `/booking-jobs/:id` | Booking Reference Detail | `booking:read` | shell |
-| `/recordings` | บันทึกวิดีโอรายกล้อง — ค้นหาตามกล้อง + ช่วงเวลา / Playback / Export (ใช้กับ session ที่ไม่มีใบงาน) | `playback:view` | shell |
-| `/devices` | Device Management | `devices:read` | shell |
-| `/devices/:id` | Device Detail | `devices:read` | shell |
-| `/teams`, `/teams/:id` | Teams | `teams:read` | shell |
-| `/depots` | ฐาน/จุดชาร์จกล้อง (แผนที่ + รัศมี) | `devices:read` (แก้ไข `devices:manage`) | shell |
-| `/employees` | Employees | `org:read` | shell |
-| `/users` | Users & Roles | `users:read` | shell |
-| `/integration` | Integration Status / Error Monitoring | `integration:view` | shell |
-| `/notifications` | Notifications & Alerts | `notifications:read` หรือ `alerts:view` | shell |
-| `/audit-logs` | Audit log | `audit:view` | shell |
-| `/settings` | Settings (+ stream access ต่อ role) | `settings:manage` | shell |
+| `/work-orders/:id` | รายละเอียดใบงาน (เปิดจากแถวในหน้า ใบงาน / วิดีโอย้อนหลัง · เมนูที่ active = ใบงาน) | `work-orders:read` | shell |
+| `/evidence` | วิดีโอย้อนหลัง (หน้า หลักฐาน เดิม — DL53) — ตารางใบงานที่ check-in แล้ว → ดูวิดีโอ: เลือกกล้อง + ช่วงเวลา → ดูย้อนหลัง / ดาวน์โหลด MP4 (DL36, DL52) | `work-orders:read` + `playback:view` (export / download ต้องมี `evidence:export` / `evidence:download`) | shell |
+| `/tracking` | แผนที่ติดตาม | `tracking:view` | shell full-bleed |
+| `/tracking/history` | ประวัติเส้นทาง (`?deviceId&from&to`) | `tracking:history` | shell full-bleed |
+| `/employees` | พนักงาน | `org:read` (แก้ไข `org:manage`) | shell |
+| `/users` | ผู้ใช้ระบบ (+ matrix สิทธิ์) | `users:read` | shell |
+| `/entra-users` | ผู้ใช้จาก Entra (port หน้าเดียวกันของ reference — DL53) | `users:manage` | shell |
+| `/notifications` | แจ้งเตือน (notifications + alerts) | `notifications:read` หรือ `alerts:view` | shell |
+| `/audit-logs` | ประวัติการใช้งาน | `audit:view` | shell |
+| `/settings` | ตั้งค่าระบบ (+ stream access ต่อ role) | `settings:manage` | shell |
 | `*` | 404 | — | shell |
+
+ไม่มี route `/sessions`, `/recordings`, `/devices`, `/devices/:id`, `/teams`, `/depots`, `/integration`, `/booking-jobs` และหน้าแผนก (DL53 — ตัดทั้งเมนูและโค้ด) · `/work-orders` เป็นหน้ารายการจริงแล้ว ไม่ redirect ไป `/evidence` (แก้ DL52)
 
 - ทุก route `lazy` + `HydrateFallback = LoadingSkeleton` (pattern เดิม) · `errorElement = RouteErrorPage`
 - **ใช้ path จริงสำหรับ detail** (`/work-orders/:id`) — แทน `?open=<id>` dialog ของ reference เพื่อให้ deep link จาก alert / การแจ้งเตือน / Booking app ใช้ได้
 - `RequirePermission` แสดงการ์ด "ไม่มีสิทธิ์" พร้อมรายชื่อ permission (พฤติกรรมเดิม)
-- เมนู / route: `ADMIN` เห็นทุกอย่าง (bypass) · role อื่นตาม permission — `COMPANY_ADMIN` (DL51) จึงไม่เห็น การเชื่อมต่อ, Audit, ตั้งค่า และเปิด URL ตรงได้การ์ด "ไม่มีสิทธิ์" · ตารางเมนู × role อยู่ใน [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §4.2
+- เมนู / route: `ADMIN` เห็นทุกอย่าง (bypass) · role อื่นตาม permission — `COMPANY_ADMIN` (DL51) จึงไม่เห็น ประวัติการใช้งาน และ ตั้งค่าระบบ (เห็น 10 จาก 12 เมนู) และเปิด URL ตรงได้การ์ด "ไม่มีสิทธิ์" · ตารางเมนู × role อยู่ใน [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §4.2
 - **`TEAM_LEADER` ไม่มี web UI (DL47)**: `RequireAuth` อ่าน role จาก `/auth/me` · role = `TEAM_LEADER` ⇒ redirect ไป `/mobile-only` ทุก route (รวม deep link `/work-orders/by-booking/...`) · ไม่โหลด shell / `RealtimeProvider` · ไม่ใช้การ์ด "ไม่มีสิทธิ์" เพราะผู้ใช้ไม่ได้ผิดสิทธิ์ แค่ใช้ผิดช่องทาง
 
 ```mermaid
@@ -122,23 +112,26 @@ flowchart TB
   ROOT["/"] --> AUTH["RequireAuth"]
   AUTH -.->|"role TEAM_LEADER"| MOBONLY["/mobile-only<br/>ใช้งานผ่านแอปมือถือ"]
   AUTH --> SHELL["AppLayout<br/>Sidebar + Header + RealtimeProvider"]
-  SHELL --> MAIN["เมนูหลัก<br/>Live (Live wall) · หลักฐาน (Evidence)"]
-  SHELL --> OV["ภาพรวม<br/>Dashboard · Tracking · History"]
-  SHELL --> OPS["ปฏิบัติงาน<br/>Sessions · Work orders · Booking jobs · Recordings"]
-  SHELL --> AST["อุปกรณ์และทีม<br/>Devices · Teams · Employees · Depots"]
-  SHELL --> SYS["ระบบ<br/>Integration · Notifications · Audit · Users · Settings"]
+  SHELL --> OV["ภาพรวม<br/>แดชบอร์ด"]
+  SHELL --> OPS["ปฏิบัติงาน<br/>ภาพสดหลายจอ · ใบงาน · วิดีโอย้อนหลัง<br/>แผนที่ติดตาม · ประวัติเส้นทาง"]
+  SHELL --> PPL["ผู้ใช้และพนักงาน<br/>พนักงาน · ผู้ใช้ระบบ · ผู้ใช้จาก Entra"]
+  SHELL --> SYS["ระบบ<br/>แจ้งเตือน · ประวัติการใช้งาน · ตั้งค่าระบบ"]
   LOGIN["/login"] -.-> AUTH
 ```
 
 ### Navigation groups (`app/nav.ts`)
 
+เมนู web มี **12 รายการ 4 กลุ่ม** เท่านั้น (DL53 · แทนเมนูหลัก Live + หลักฐาน ของ DL36)
+
 | กลุ่ม | รายการ |
 |---|---|
-| **เมนูหลัก** (DL36 — อยู่บนสุดของ sidebar) | **Live** (`/live-wall` — สตรีมสด + talk · ดูสดรายกล้องจากหน้า Bodycam ด้วย) · **หลักฐาน** (`/evidence`) |
-| ภาพรวม | Dashboard · แผนที่ติดตาม · ประวัติเส้นทาง |
-| ปฏิบัติงาน | Tracking sessions · ใบงาน · งานจาก Booking · บันทึกวิดีโอรายกล้อง |
-| อุปกรณ์และทีม | Bodycam · ทีม · พนักงาน · ฐาน/จุดชาร์จ |
-| ระบบ | สถานะการเชื่อมต่อ (badge เมื่อ stale / dead / ไม่ได้รับ POST นาน — DL46) · การแจ้งเตือน · Audit · ผู้ใช้และสิทธิ์ · ตั้งค่า |
+| ภาพรวม | แดชบอร์ด (`/`) |
+| ปฏิบัติงาน | ภาพสดหลายจอ (`/live-wall`) · ใบงาน (`/work-orders`) · วิดีโอย้อนหลัง (`/evidence`) · แผนที่ติดตาม (`/tracking`) · ประวัติเส้นทาง (`/tracking/history`) |
+| ผู้ใช้และพนักงาน | พนักงาน (`/employees`) · ผู้ใช้ระบบ (`/users`) · ผู้ใช้จาก Entra (`/entra-users`) |
+| ระบบ | แจ้งเตือน (`/notifications`) · ประวัติการใช้งาน (`/audit-logs`) · ตั้งค่าระบบ (`/settings`) |
+
+- ไม่มีเมนู Live รายกล้อง (ใช้ ภาพสดหลายจอ หรือปุ่ม ดูสด ในหน้า ใบงาน) · ไม่มีเมนู Bodycam, ทีม, ฐาน/จุดชาร์จ, สถานะการเชื่อมต่อ, Tracking sessions, บันทึกวิดีโอรายกล้อง, งานจาก Booking, แผนก (DL53)
+- สถานะการเชื่อมต่อ Booking เหลือแถบ stale (`BookingStaleBanner`) + alert ถึง `ADMIN` ในหน้า แจ้งเตือน (DL53)
 
 ---
 
@@ -146,22 +139,18 @@ flowchart TB
 
 | หน้าจอ | เนื้อหาหลัก | Data | Realtime |
 |---|---|---|---|
-| **Dashboard Overview** | MetricSummary: กล้อง online / unknown / offline · session เปิดอยู่ · WO วันนี้ (เปิด / ปิด) · session รอจับคู่ · match rate วันนี้ · สถานะรับข้อมูล Smart Booking (POST ล่าสุด + backlog — DL46) · alert ล่าสุด | `/dashboard/overview` | `session:*`, `workorder:changed`, `integration:status` |
-| **Live Bodycam Tracking Map** | แผนที่ + cluster · marker 3 สถานะ (online/offline/unknown — ค่าจาก snapshot ตอนเปิดหน้า, DL35) + halo เมื่อมี session · panel รายการกล้อง (ค้นหา, filter สถานะ/ทีม/มีงาน) · คลิก = การ์ดกล้อง: ทีม, WO ปัจจุบัน, Booking, ปุ่ม Live / History · วงรัศมีสถานที่ Booking (ถ้ามีพิกัด) | `/tracking/positions` | `gps:batch` (ตำแหน่ง), `session:*` |
-| **Bodycam Device Management** | ตาราง: รหัส, ชื่อ, ประเภท (หลัก/สำรอง), ทีมปัจจุบัน (จาก Booking), สถานะ platform (ดึงจาก DSS ตอนเปิดหน้า — DL35), fix ล่าสุด, อยู่ฐาน, สถานะอุปกรณ์ · tools: ดูสด, แก้ไข, `•••` (ปิดการดูภาพ, Retire) · ปุ่ม sync จาก vendor (dry-run preview) | `/devices` | — |
-| **Bodycam Device Detail** | ข้อมูลอุปกรณ์ · สถานะ (ดึงจาก DSS ตอนเปิดหน้า — DL35) + timeline (`status-history`) · ประวัติผูกทีม (จาก Booking) · sessions ล่าสุด · recordings · ปุ่ม Live/Playback/History | `/devices/:id`, `/devices/:id/status-history`, `/devices/:id/assignments`, `/tracking-sessions?deviceId` | `session:*` |
-| **Active Tracking Sessions** | ตาราง session เปิดอยู่: กล้อง, ทีม, เริ่มเมื่อ, ระยะเวลา (live), สถานะกล้อง, WO (เลข WO / Booking) · แท็บ "ยังไม่มีใบงาน" (AwaitingMatch/NoTeam) อ่านอย่างเดียว — แสดงเหตุผลจาก match attempts + ลิงก์ไป `/recordings` ของกล้อง (รอ Booking — DL33) · แท็บประวัติ | `/tracking-sessions` | `session:*` |
-| **Work Order List** | อ่านอย่างเดียว (ใบงานมาจาก Booking — DL33) · ตาราง: เลข WO, ชื่องาน, ทีม/หัวหน้า, Booking no., DO / SH, Status, เริ่ม, ล่าสุด, กล้อง, ป้าย NeedsReview · filter: สถานะ, ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH (`q` — DL46) | `/work-orders` | `workorder:changed` |
-| **Work Order Detail** | อ่านอย่างเดียว — Header: เลข, สถานะ (ตาม Booking), ป้าย NeedsReview + เหตุผล (ข้อมูลเท่านั้น), ปุ่มตาม `availableActions` (หมายเหตุ, ไปหน้า หลักฐาน) · **Booking Reference panel** (รวมเลข DO / SH — DL46) · Timeline (`events`) · Sessions (กล้อง, ช่วงเวลา, เหตุผลจบ) · แผนที่เส้นทางของช่วง WO · Recordings + ปุ่มดูย้อนหลัง/Export MP4 · Match attempts (เหตุผลที่ระบบผูก session) · หมายเหตุ · ไม่มี link / unlink / void (DL33) | `/work-orders/:id` + sub-resources | `workorder:changed`, `session:*` |
-| **Booking Reference Information** | (1) panel ใน WO detail: เลข/ชื่องาน, **เลข DO / SH** (DL46), สถานะ Booking (raw + canonical), **เวลา check-in / check-out** (เป็นตัวกำหนดสถานะใบงาน), กล้องที่ Booking ระบุ (`deviceRefs`), แผนเวลา, สถานที่, ทีม/หัวหน้าตาม Booking, `lastSyncedAt` (ได้รับข้อมูลล่าสุดเมื่อ) + ป้าย stale, ปุ่ม refresh เฉพาะเมื่อมี `refreshBooking` ใน `availableActions` (มี read API — DL46) · (2) หน้า `/booking-jobs`: รายการใบงานที่ได้รับจาก Smart Booking + ค้นหาเลข Booking / DO / SH + ลิงก์ไปใบงาน + mapping issue | `/booking-jobs`, `/booking-jobs/:id` | `integration:status` |
-| **Tracking History** | port HistoryPage: เลือกกล้อง + ช่วงวัน, polyline + จุดหยุด + gap, timeline คลิกโฟกัส · เพิ่ม: แถบ session/WO บน timeline · ตัด road-match | `/tracking/devices/:id/history` | — |
-| **หลักฐาน (Evidence)** — เมนูหลัก DL36 | port `EvidencePage` ของ reference: (1) ตารางใบงานจาก Booking แสดงเลข DO / SH ด้วย (ค้นหาเลข WO / Booking / DO / SH, ทีม, ช่วงเวลา — DL46) → (2) เลือกใบ → รายการกล้อง + ช่วงเวลาจาก sessions ของใบนั้น (`evidenceCameras`) → (3) ปรับช่วง (≤ 24 ชม., `evidenceRange`) → ดูย้อนหลัง หรือดาวน์โหลด MP4 (ใช้ export job เดิมเมื่อ device + channel + start/end ตรงกันและยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่) | `/work-orders`, `/work-orders/:id/sessions`, `/streams/recordings?workOrderId`, `/streams/playback`, `/evidence-exports*` | `stream:status`, `workorder:changed` |
-| **Recording / Playback** | ค้นหาตามกล้อง + ช่วงเวลา → `RecordingSegments` (รวม session ที่ไม่มีใบงาน — DL33) · เล่นย้อนหลัง (≤ 24 ชม.) · Export MP4 (policy, progress, download ticket) | `/streams/recordings`, `/streams/playback`, `/evidence-exports` | `stream:status` |
-| **Live wall** — เมนูหลัก Live (DL36) | port ทั้งหน้า (1/4/6/9/16, drag-drop, slot ใน URL, talk) · รายการกล้องจัดกลุ่มตามทีม · สถานะกล้องดึงตอนเปิดหน้า (DL35) | `/streams/*`, `/devices` | `stream:status` |
-| **Integration Status / Error Monitoring** | monitor การรับ POST จาก Smart Booking (DL46): การ์ด POST ล่าสุด (`lastReceivedAt`) + เตือนเมื่อเงียบนาน (alert 17) · inbound 24 ชม. แยก accepted / duplicate / invalid (400) / unauthorized (401) · inbox backlog Pending / Failed / Dead + ปุ่ม retry Dead · call logs (inbound + outbound) · mapping issues · **ส่วน read API** (breaker, ปุ่ม full reconcile, refresh รายใบ) แสดงเฉพาะเมื่อ `BOOKING_PROVIDER_DRIVER ≠ none` (`readApi` ≠ null) | `/integration/*` | `integration:status` |
-| **Teams** | ตารางทีม (หัวหน้า, จำนวนสมาชิก, กล้องหลัก, `BookingTeamRef`) · detail: สมาชิก + ประวัติ, เปลี่ยนหัวหน้า, กล้องที่ผูก | `/teams/*` | — |
-| **Users / Roles** | port `/users` (ตัด company) + role-permission matrix + ระงับบัญชี · **`COMPANY_ADMIN` (DL51)**: เห็นบัญชี `ADMIN` ในรายการแต่ไม่มีปุ่ม (ตาม `availableActions` ต่อแถว) · dropdown บทบาทไม่มี `ADMIN` · แผนกไม่บังคับสำหรับ `ADMIN` / `COMPANY_ADMIN` / `TEAM_LEADER` · matrix: คอลัมน์ `ADMIN` ล็อก, ช่อง `reservedPermissions` ล็อกในคอลัมน์ role อื่น, ผู้ไม่มี `roles:manage` เห็นแบบอ่านอย่างเดียว (ไม่มีปุ่มบันทึก) · แบบหน้าจอ [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §5.5–5.7 | `/users`, `/roles` | `session:revoked` |
-| Notifications, Audit, Settings | port | | `alert:new` |
+| **แดชบอร์ด** | MetricSummary: กล้อง online / unknown / offline · session เปิดอยู่ · WO วันนี้ (เปิด / ปิด) · session รอจับคู่ · match rate วันนี้ · สถานะรับข้อมูล Smart Booking (POST ล่าสุด + backlog — DL46) · alert ล่าสุด | `/dashboard/overview` | `session:*`, `workorder:changed`, `integration:status` |
+| **แผนที่ติดตาม** | แผนที่ + cluster · marker 3 สถานะ (online/offline/unknown — ค่าจาก snapshot ตอนเปิดหน้า, DL35) + halo เมื่อมี session · panel รายการกล้อง (ค้นหา, filter สถานะ/ทีม/มีงาน) · คลิก = การ์ดกล้อง: ทีม, WO ปัจจุบัน, Booking, ปุ่ม ดูสด / ประวัติเส้นทาง · วงรัศมีสถานที่ Booking (ถ้ามีพิกัด) | `/tracking/positions` | `gps:batch` (ตำแหน่ง), `session:*` |
+| **ใบงาน** (DL53) | ตารางใบงานจาก Booking · แท็บสถานะ (ทั้งหมด / รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิก) · คอลัมน์: ใบงาน (เลข WO + DO / SH) · รายการ (ชื่องาน · "ปฏิบัติงานจริง" `workWindow` หรือ "รอเริ่ม" + เวลาแผน · สถานที่) · ผู้ปฏิบัติงาน (ทีม / หัวหน้าตาม Booking) · **กล้องของใบงาน** (`cameras[]` + สถานะ + ปุ่ม **ดูสด** เมื่อออนไลน์ → `LiveStreamDialog` · ต้องมี `streaming:view-live`) · สถานะ (+ ป้าย NeedsReview) · ปุ่ม **ดูย้อนหลัง** (`playback:view`) เปิด `EvidencePlaybackDialog` ตัวเดียวกับหน้า วิดีโอย้อนหลัง · filter ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH · คลิกแถว = `/work-orders/:id` · `VIEWER` เห็นตารางอย่างเดียว (ไม่มีปุ่ม) | `/work-orders`, `/streams/live`, `/work-orders/:id/sessions`, `/streams/recordings` | `workorder:changed`, `session:*` |
+| **รายละเอียดใบงาน** | อ่านอย่างเดียว — Header: เลข, สถานะ (ตาม Booking), ป้าย NeedsReview + เหตุผล (ข้อมูลเท่านั้น), ปุ่มตาม `availableActions` (หมายเหตุ, ดูวิดีโอ — เปิด `EvidencePlaybackDialog` ตัวเดียวกับหน้า วิดีโอย้อนหลัง) · **Booking Reference panel** (รวมเลข DO / SH — DL46) · Timeline (`events`) · Sessions (กล้อง, ช่วงเวลา, เหตุผลจบ) · แผนที่เส้นทางของช่วง WO · Recordings + ปุ่มดูย้อนหลัง/Export MP4 · Match attempts (เหตุผลที่ระบบผูก session) · หมายเหตุ · ไม่มี link / unlink / void (DL33) | `/work-orders/:id` + sub-resources | `workorder:changed`, `session:*` |
+| **Booking Reference Information** | (1) panel ใน WO detail: เลข/ชื่องาน, **เลข DO / SH** (DL46), สถานะ Booking (raw + canonical), **เวลา check-in / check-out** (เป็นตัวกำหนดสถานะใบงาน), กล้องที่ Booking ระบุ (`deviceRefs`), แผนเวลา, สถานที่, ทีม/หัวหน้าตาม Booking, `lastSyncedAt` (ได้รับข้อมูลล่าสุดเมื่อ) + ป้าย stale, ปุ่ม refresh เฉพาะเมื่อมี `refreshBooking` ใน `availableActions` (มี read API — DL46) · ไม่มีปุ่ม "ดูข้อมูลดิบ" และไม่มีหน้า `/booking-jobs` แยก (DL52, DL53) · mapping issue แจ้ง `ADMIN` ด้วย alert รายวัน (ไม่มีหน้า integration — DL53) | `/work-orders/:id` | `integration:status` |
+| **ประวัติเส้นทาง** | port HistoryPage: เลือกกล้อง + ช่วงวัน, polyline + จุดหยุด + gap, timeline คลิกโฟกัส · เพิ่ม: แถบ session/WO บน timeline · ตัด road-match | `/tracking/devices/:id/history` | — |
+| **วิดีโอย้อนหลัง (Evidence)** — หน้า หลักฐาน เดิมเปลี่ยนชื่อ (DL53) | port `EvidencePage` ของ reference: (1) **ตารางใบงานที่ check-in แล้ว** (`GET /work-orders?checkedIn=true`) คอลัมน์: ใบงาน (เลข WO + DO / SH) · รายการ (ชื่องาน · "ปฏิบัติงานจริง" `workWindow` from – to + ระยะเวลา · สถานที่) · ผู้ปฏิบัติงาน (ทีม / หัวหน้าตาม Booking) · สถานะ (+ ป้าย NeedsReview) · ปุ่ม ดูวิดีโอ · filter สถานะ, ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH (DL46) · คลิกแถว = `/work-orders/:id` → (2) **dialog ดูวิดีโอ**: เลือกกล้อง (กล้องจาก sessions ของใบงาน + กล้องใน `DeviceRefs` ที่ไม่มี session · `evidenceCameras`) + บรรทัด "ใช้ในใบงานนี้" (ช่วง session ของกล้อง) · panel ไฟล์ย้อนหลัง (ค้นย้อนหลังเป็นวัน ≤ 30 วัน) — ไฟล์ที่ทับ `workWindow` แม้บางส่วน ⇒ ป้าย "อยู่ในช่วงใบงาน" + เน้นการ์ด (`evidenceRange.inWorkWindow`) · ยังไม่ check-in ⇒ ไม่มีป้าย → (3) ปรับช่วง (≤ 24 ชม., `evidenceRange`) → ดูย้อนหลัง หรือดาวน์โหลด MP4 (ใช้ export job เดิมเมื่อ device + channel + start/end ตรงกันและยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่) | `/work-orders`, `/work-orders/:id/sessions`, `/streams/recordings`, `/streams/playback`, `/evidence-exports*` | `stream:status`, `workorder:changed` |
+| **ภาพสดหลายจอ** (live wall — DL53 แทนเมนู Live ของ DL36) | port ทั้งหน้า (1/4/6/9/16, drag-drop, slot ใน URL, talk) · รายการกล้องจัดกลุ่มตามทีม · สถานะกล้องดึงตอนเปิดหน้า (DL35) · เป็นทางเดียวที่ดูวิดีโอของกล้องที่ไม่มีใบงาน — ภาพสดเมื่อออนไลน์ ไม่มีย้อนหลังรายกล้อง (DL53) | `/streams/*`, `/devices` | `stream:status` |
+| **พนักงาน** | port `/employees` (ตัด company / แผนก) · ฟิลด์ `BookingEmployeeRef` (ใช้ map หัวหน้าทีมจากใบงาน — DL53) · ผูกบัญชีผู้ใช้ (`Employees.UserId`) | `/employees` | — |
+| **ผู้ใช้ระบบ** | port `/users` (ตัด company / แผนก) + role-permission matrix + ระงับบัญชี · **`COMPANY_ADMIN` (DL51)**: ไม่เห็นบัญชี `ADMIN` ในรายการเลย (server ไม่คืน — DL55) · ปุ่มต่อแถวตาม `availableActions` · dropdown บทบาทไม่มี `ADMIN` · matrix: คอลัมน์ `ADMIN` ล็อก, ช่อง `reservedPermissions` ล็อกในคอลัมน์ role อื่น, ผู้ไม่มี `roles:manage` เห็นแบบอ่านอย่างเดียว (ไม่มีปุ่มบันทึก) · แบบหน้าจอ [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §5.5–5.7 | `/users`, `/roles` | `session:revoked` |
+| **ผู้ใช้จาก Entra** (DL53) | port `EntraUsersPage` ของ reference: ตารางผู้ใช้จาก Microsoft Entra เทียบกับบัญชีในระบบ (สถานะ อัปเดตได้ / ผูกแล้ว / ยังไม่มีบัญชี / ขัดแย้ง · ตัวกรอง "เฉพาะที่ยังไม่มีบัญชี") · ปุ่มอัปเดตข้อมูลจาก Entra (`sync-entra` — dry run ก่อนแล้วยืนยัน · ตัวเลือกจับคู่ด้วย username) · **สร้างบัญชี**จากแถวที่ยังไม่มีบัญชี: ทีละรายการ (ฟอร์มผู้ใช้ที่เติมค่าจาก Entra) หรือเลือกหลายรายการ ≤ 50 แล้วกำหนดบทบาทเดียวกัน · `COMPANY_ADMIN` เลือกบทบาท `ADMIN` ไม่ได้ (DL51) · ไม่ได้ตั้งค่า Graph ⇒ แสดงข้อความ env ที่ขาด | `/users/entra-directory`, `/users/sync-entra`, `POST /users`, `/roles` | — |
+| แจ้งเตือน, ประวัติการใช้งาน, ตั้งค่าระบบ | port (notifications + alerts · audit log · settings + stream access ต่อ role) | | `alert:new` |
 | **ใช้งานผ่านแอปมือถือ** (`/mobile-only`) | สำหรับ `TEAM_LEADER` ที่ login web (DL47): ข้อความว่าบัญชีนี้ใช้กับแอปมือถือ + ปุ่มออกจากระบบ · ไม่มีเมนู ไม่มีข้อมูลงาน | `/auth/me` | — |
 
 ---
@@ -175,7 +164,7 @@ flowchart TB
 | Composites | `components/command-center/*` | reference | copy · `DeviceIdentity` ปรับให้แสดงทีม |
 | Shell | AppLayout, AppHeader, AppSidebar, BranchedNav, Breadcrumb, ThemeToggle, LanguageSwitcher | reference | copy · nav ใหม่ |
 | Infra | apiClient, apiError, authEndpoints, socket, realtimeUrl, RealtimeProvider, authStore, msalClient | reference | copy |
-| Feature-level port | StreamPlayer, LiveStreamDialog, live wall, talk, evidence (`EvidencePage` + export flow), HistoryPage, useLivePositions/liveMerge | reference | port + ตัด dashcam / vehicle |
+| Feature-level port | StreamPlayer, LiveStreamDialog, live wall, talk, evidence (`EvidencePage` + export flow), HistoryPage, useLivePositions/liveMerge, `EntraUsersPage` + `entraSync` / `entraBulk` (DL53) | reference | port + ตัด dashcam / vehicle / company / แผนก |
 | ใหม่ | `status/*Badge`, `booking/BookingJobCard`, `BookingStaleBanner`, `SessionTimeline`, `WorkOrderTimeline`, `MarkerCluster`, `usePermission()` | — | เขียนใหม่ตาม DESIGN.md |
 
 ### Status → tone (ไว้ที่ `components/status/` ที่เดียว)
@@ -192,7 +181,7 @@ flowchart TB
 
 ## 6.6 State & Data Fetching
 
-- Query keys แบบ root ตาม feature: `['work-orders', 'list', filters]`, `['work-orders', 'detail', id]`, `['sessions', 'open']`, `['devices', 'list', filters]`, `['booking-jobs', ...]`, `['evidence-exports', id]`, `['integration', 'status']`
+- Query keys แบบ root ตาม feature: `['work-orders', 'list', filters]` (หน้า ใบงาน และ วิดีโอย้อนหลัง ใช้ root เดียวกัน ต่างกันที่ `checkedIn`), `['work-orders', 'detail', id]`, `['devices', 'list', filters]`, `['evidence-exports', id]`, `['users', 'entra-directory']`
 - Mutation ที่ต้องใช้ `If-Match` อ่าน `rowVersion` จาก cache ของ detail · 412 ⇒ toast "ข้อมูลถูกแก้โดยผู้อื่น" + refetch
 - `availableActions` จาก server เป็นตัวกำหนดปุ่ม (ไม่คำนวณกติกาซ้ำที่ client)
 - `usePermission(code | code[])` + `<Can permission>` แทน `permissions.includes()` กระจาย (refactor จาก reference)
@@ -202,8 +191,8 @@ flowchart TB
 
 - `RealtimeProvider` เดียว (port) · event ใหม่ `session:opened/closed`, `workorder:changed`, `integration:status`
 - แผนที่: queue `gps:batch` flush ทุก 1s (pattern `liveMerge.ts`) · REST snapshot เมื่อ reconnect · poll 60s เฉพาะตอน socket หลุด
-- **ไม่มี `device:status`** (DL35) — ไม่ subscribe สถานะ online/offline · หน้า device list / device detail / ก่อนเปิด live ดึงสถานะจาก API ตอนเปิดหน้า (`GET /devices`, `GET /devices/:id` — api ถาม DSS ผ่าน cache Redis 10s, DL45) · แสดงเวลาอัปเดตจาก `platformStatusFetchedAt`
-- WO/Session list: event ⇒ `invalidateQueries` (debounce 800ms) — ไม่ patch cache เอง ลดความเสี่ยงข้อมูลเพี้ยน
+- **ไม่มี `device:status`** (DL35) — ไม่ subscribe สถานะ online/offline · ภาพสดหลายจอ / คอลัมน์กล้องในหน้า ใบงาน / ก่อนเปิด live ดึงสถานะจาก API ตอนเปิดหน้า (`GET /devices`, `GET /work-orders` — api ถาม DSS ผ่าน cache Redis 10s, DL45) · แสดงเวลาอัปเดตจาก `platformStatusFetchedAt`
+- รายการใบงาน: event ⇒ `invalidateQueries` (debounce 800ms) — ไม่ patch cache เอง ลดความเสี่ยงข้อมูลเพี้ยน
 - `integration:status` (`{ source, isStale, lastReceivedAt }` — DL46) ⇒ `BookingStaleBanner` ทุกหน้าที่แสดงข้อมูล Booking · แสดงเมื่อ `isStale` (inbox backlog เกิน `booking.stale-after-minutes`) พร้อม "ได้รับข้อมูลจาก Smart Booking ล่าสุดเมื่อ {`lastReceivedAt`}"
 
 ## 6.8 i18n
@@ -213,9 +202,9 @@ flowchart TB
 
 ## 6.9 Testing
 
-- Unit: pure logic ทุกไฟล์ (`workOrderActions.ts`, `evidenceCameras.ts`, `evidenceRange.ts`, status mapping, filters) · component test ด้วย Testing Library (pattern เดิม, `src/test/setup.ts` บล็อก XHR จริง)
+- Unit: pure logic ทุกไฟล์ (`workOrderActions.ts`, `evidenceCameras.ts`, `evidenceRange.ts` รวม `inWorkWindow` — ทับบางส่วน / ขอบพอดี / `to = null` / ไม่มี `workWindow`, status mapping, filters) · component test ด้วย Testing Library (pattern เดิม, `src/test/setup.ts` บล็อก XHR จริง)
 - Design guard tests ของ reference (`design-foundation.test.ts`, `design-system-source-rules.test.ts`) — port มาด้วยเพื่อกันการหลุด design rules
-- E2E (Playwright) ชุดเล็กเฉพาะ flow หลัก: login → map → (`booking-simulator` POST check-in) → WO detail แสดง session ที่ระบบผูก + เลข DO / SH → หน้า หลักฐาน เลือกกล้อง + ช่วงเวลา → ดูย้อนหลัง / export → (`booking-simulator` POST check-out) → ใบงานปิด · login ด้วยบัญชี `TEAM_LEADER` ⇒ เห็นหน้า `/mobile-only` (DL46, DL47)
+- E2E (Playwright) ชุดเล็กเฉพาะ flow หลัก: login → map → (`booking-simulator` POST check-in) → หน้า ใบงาน แสดงใบงาน + กล้อง (ปุ่ม ดูสด เมื่อออนไลน์) → รายละเอียดใบงานแสดง session ที่ระบบผูก + เลข DO / SH → ดูย้อนหลัง: เลือกกล้อง + ช่วงเวลา → playback / export → (`booking-simulator` POST check-out) → ใบงานปิด · sidebar มี 12 เมนูสำหรับ `ADMIN` และ 10 เมนูสำหรับ `COMPANY_ADMIN` (DL53) · login ด้วยบัญชี `TEAM_LEADER` ⇒ เห็นหน้า `/mobile-only` (DL46, DL47)
 
 ---
 

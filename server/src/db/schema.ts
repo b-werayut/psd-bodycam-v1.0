@@ -27,25 +27,6 @@ import {
 // Canonical names: docs/blueprint/04-database-design.md section 4.4 A.
 // AuditLogs is partitioned and lives in schema.partitioned.ts (outside drizzle-kit's schema path).
 
-export const Departments = pgTable(
-  'Departments',
-  {
-    Id: pkId(),
-    Code: varchar('Code', { length: 30 }).notNull(),
-    Name: varchar('Name', { length: 200 }).notNull(),
-    ParentId: ref('ParentId', (): AnyPgColumn => Departments.Id),
-    IsActive: boolean('IsActive').notNull().default(true),
-    CreatedAt: createdAt(),
-    UpdatedAt: updatedAt(),
-    ...auditActor(),
-    ...softDelete(),
-  },
-  (t) => [
-    index('IX_Departments_Parent').on(t.ParentId),
-    uniqueIndex('UQ_Departments_Code').on(t.Code).where(notDeleted(t)),
-  ],
-);
-
 export const Roles = pgTable('Roles', {
   Id: pkId(),
   Code: varchar('Code', { length: 30 }).notNull().unique('UQ_Roles_Code'),
@@ -69,8 +50,6 @@ export const Users = pgTable(
     // null = never linked (not "denied")
     AzureObjectId: varchar('AzureObjectId', { length: 64 }),
     RoleId: ref('RoleId', () => Roles.Id).notNull(),
-    // null only for roles whose scope is `all`
-    DepartmentId: ref('DepartmentId', () => Departments.Id),
     Status: smallint('Status').notNull().default(1),
     FailedLoginCount: smallint('FailedLoginCount').notNull().default(0),
     LockedUntil: tstz('LockedUntil'),
@@ -81,7 +60,6 @@ export const Users = pgTable(
     ...softDelete(),
   },
   (t) => [
-    index('IX_Users_Department').on(t.DepartmentId),
     index('IX_Users_Role').on(t.RoleId),
     uniqueIndex('UQ_Users_Username').on(sql`lower(${t.Username})`).where(notDeleted(t)),
     uniqueIndex('UQ_Users_Email').on(sql`lower(${t.Email})`).where(notDeleted(t)),
@@ -99,7 +77,6 @@ export const Employees = pgTable(
     FirstName: varchar('FirstName', { length: 100 }).notNull(),
     LastName: varchar('LastName', { length: 100 }).notNull(),
     Phone: varchar('Phone', { length: 30 }),
-    DepartmentId: ref('DepartmentId', () => Departments.Id).notNull(),
     UserId: ref('UserId', () => Users.Id),
     // [Assumption] Booking has an employee id
     BookingEmployeeRef: varchar('BookingEmployeeRef', { length: 64 }),
@@ -110,7 +87,6 @@ export const Employees = pgTable(
     ...softDelete(),
   },
   (t) => [
-    index('IX_Employees_Department').on(t.DepartmentId),
     uniqueIndex('UQ_Employees_Code').on(t.EmployeeCode).where(notDeleted(t)),
     uniqueIndex('UQ_Employees_User')
       .on(t.UserId)

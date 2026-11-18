@@ -1,7 +1,7 @@
 # Part 3 — Business Workflows
 
 > ชื่อตาราง/enum ตาม [04-database-design.md](04-database-design.md) · ค่าตัวเลขในวงเล็บคือ default ของ Settings (ดู §3.11)
-> กติกาในส่วนนี้ปรับตามคำตอบของผู้ใช้ 2026-11-04, DL33/DL35 (2026-11-09) และ DL46–DL49 (2026-11-12 — requirement ฉบับ 2026-11-12) (Part 9 §9.5) — **อาจเปลี่ยนตามข้อมูลจากทีม Booking**
+> กติกาในส่วนนี้ปรับตามคำตอบของผู้ใช้ 2026-11-04, DL33/DL35 (2026-11-09), DL46–DL49 (2026-11-12 — requirement ฉบับ 2026-11-12) และ DL53 (2026-11-18 — ไม่มีแผนก · ทีมจากใบงาน · กล้อง sync อัตโนมัติ · `Depots` ว่าง) (Part 9 §9.5) — **อาจเปลี่ยนตามข้อมูลจากทีม Booking**
 > **DL33**: ใบงานมาจากข้อมูล Smart Booking เท่านั้น (1 ต่อ 1 กับ `BookingJobs`) · ระบบไม่สร้างใบงานเอง · ไม่มีใบรวม ไม่มีการผูก/void ด้วยมือ ไม่มีคิวตรวจสอบ
 > **DL46**: Smart Booking **POST** ใบงานเข้ามาที่ `POST /api/integration/booking/jobs` (process `api` → `IntegrationInbox` → inbox processor ของ worker `integration`) แทนการ pull ทุก 2 นาทีของ DL31 · read API ของ Booking (refresh ต่องาน / reconcile ตอนกลางคืน) เป็น **optional** · **DL47**: แอปมือถือสำหรับหัวหน้าทีม (`TEAM_LEADER`, scope `team`) — ดู live กล้องของตัวเอง + รายละเอียดใบงาน
 
@@ -14,7 +14,7 @@
 | **Device Online** | กล้องต่อ platform อยู่ (`DeviceState.PlatformState = 1` และข้อมูลไม่เก่าเกิน `status.unknown-after-seconds`) | GpsPoll: DSS `/location` (`status`) — DL32 | เปิด/ปิด session (ใช้ภายใน session engine) · หน้าจอไม่ได้รับ push สถานะ — ดึงสถานะจาก DSS ตอนเปิดหน้า (DL35) |
 | **Device Unknown** | ไม่มี observation ใหม่นานเกินกำหนด (คำนวณ ไม่ได้เก็บ) | อายุของ `LastObservedAt` | **hold** — ไม่เปิดและไม่ปิด session จนกว่าจะเกิน `session.unknown-max-minutes` |
 | **GPS Active** | มี fix ที่ valid อายุ ≤ 2 นาที | GpsPoll | แสดงตำแหน่ง · ตรวจว่าอยู่ฐาน (ถ้ามี fix) · ไม่ใช้เป็น trigger |
-| **At Base** | fix ล่าสุดอยู่ในรัศมีฐาน/จุดชาร์จ (`Depots` — รองรับหลายจุด) | `DeviceState.LastLat/LastLng` · vendor **ไม่มี** charging state (Q21) | **ไม่นับเป็นงาน** — session จัดเป็น `IdleOrCharging` (Q15) |
+| **At Base** | fix ล่าสุดอยู่ในรัศมีฐาน/จุดชาร์จ (`Depots` — รองรับหลายจุด) | `DeviceState.LastLat/LastLng` · vendor **ไม่มี** charging state (Q21) | **ไม่นับเป็นงาน** — session จัดเป็น `IdleOrCharging` (Q15) · ระยะแรกไม่มีหน้าจัดการฐาน ⇒ `Depots` ว่าง ⇒ ไม่มีกล้องใดเป็น At Base (DL53) |
 | **Camera Active (เริ่มใช้งาน)** | Online ต่อเนื่อง ≥ `camera.activation-debounce-minutes` (**15**) และไม่ได้อยู่ฐาน | คำนวณจาก `StateSince` | **trigger เปิด Tracking Session ที่นับเป็นงาน** |
 | **Recording Started** | มีไฟล์บันทึกในช่วงเวลานั้นจริง | DSS recording search (หลังเกิดเหตุเท่านั้น) → `RecordingSegments` | แสดงหลักฐาน · **ไม่ใช้เป็น trigger และไม่สมมติว่าเปิดกล้อง = อัด** |
 | **Tracking Session** | ระเบียน `TrackingSessions` = ช่วงที่กล้อง 1 ตัวเปิดต่อเนื่องและสังกัด WO เดียวกัน (หรือยังไม่มี WO — `AwaitingMatch` / `NoTeam`) | Session engine | หน่วยของ "การใช้งานกล้อง" |
@@ -69,13 +69,13 @@ sequenceDiagram
 - **ไม่ล้างสถานะเป็น null** เมื่อ DSS หลุด/worker restart (ต่างจาก `clearPlatformStatuses()` ของ reference) — ความเก่าของข้อมูลถูกตีความเป็น UNKNOWN เอง
 - GPS fix ที่สดถือเป็น ONLINE observation ด้วย (source = DssLocation) · fix ที่ valid ใช้คำนวณ `DeviceState.IsAtDepot`
 - **แหล่งสถานะเดียวคือ GpsPoll** (DL32): `/location` ให้ทั้ง GPS และ online/offline ในรอบเดียว · ไม่มี StatusPoll / BRMS MQ / device webhook จึงไม่ต้องตัดสินลำดับระหว่าง source · observation ซ้ำแค่ bump `LastObservedAt`
-- **ไม่มี event `device:status`** (DL35): `DeviceState` ใช้ภายใน session engine เท่านั้น · หน้าจอที่แสดงสถานะกล้อง (รายการ/รายละเอียดกล้อง/ก่อนเปิด live) ดึงสถานะจาก DSS ผ่าน API ตอนเปิดหน้า · ตำแหน่งบนแผนที่ยังมาทาง `gps:batch` ตามเดิม
+- **ไม่มี event `device:status`** (DL35): `DeviceState` ใช้ภายใน session engine เท่านั้น · หน้าจอที่แสดงสถานะกล้อง (ภาพสดหลายจอ / คอลัมน์กล้องในหน้า ใบงาน / ก่อนเปิด live) ดึงสถานะจาก DSS ผ่าน API ตอนเปิดหน้า · ตำแหน่งบนแผนที่ยังมาทาง `gps:batch` ตามเดิม
 
 ---
 
 ## 3.2 Work Order Creation (จากงานที่ Smart Booking POST เข้ามาเท่านั้น — DL33, DL46) และการเปิด Session
 
-ใบงานเกิดได้ทางเดียว: Smart Booking POST งานมาที่ `POST /api/integration/booking/jobs` → process `api` ตรวจ auth + validate แล้วเก็บ raw ลง `IntegrationInbox` (`Channel = 1 Push`) ตอบ `202` (ไม่ map และไม่แตะ `BookingJobs` / `WorkOrders`) → inbox processor (worker `integration`) map ด้วย `BookingInboundMapper` แล้ว upsert `BookingJobs` + `WorkOrders` **1 ต่อ 1** ใน transaction เดียว (DL46) · **session engine ไม่สร้างใบงาน** — แค่เปิด session แล้วให้ matcher attach เข้า WO ของงานที่ชนะ
+ใบงานเกิดได้ทางเดียว: Smart Booking POST งานมาที่ `POST /api/integration/booking/jobs` → process `api` ตรวจ auth + validate แล้วเก็บ raw ลง `IntegrationInbox` (`Channel = 1 Push`) ตอบ `202` (ไม่ map และไม่แตะ `BookingJobs` / `WorkOrders`) → inbox processor (worker `integration`) map ด้วย `BookingInboundMapper` แล้ว upsert `BookingJobs` + `WorkOrders` **1 ต่อ 1** ใน transaction เดียว (DL46) · ใน transaction เดียวกันสร้าง/อัปเดต `Teams` จาก `teamRef` และหัวหน้าทีม (`TeamMembers` Role 1) จาก leader ref ก่อน resolve `TeamId` / `LeaderEmployeeId` — ไม่มีหน้าจัดการทีม (DL53 **[Assumption — Booking ส่งรหัสทีมและหัวหน้ามากับทุกใบ]**) · **session engine ไม่สร้างใบงาน** — แค่เปิด session แล้วให้ matcher attach เข้า WO ของงานที่ชนะ
 
 ```mermaid
 sequenceDiagram
@@ -94,7 +94,8 @@ sequenceDiagram
   API->>DB: INSERT IntegrationInbox Channel = Push ON CONFLICT DO NOTHING
   API-->>BK: 202 accepted หรือ 200 duplicate
   API->>SY: queue booking-inbox หลัง commit
-  SY->>DB: BEGIN และ upsert BookingJobs ด้วย version guard
+  SY->>DB: BEGIN และ upsert Teams และ TeamMembers จาก teamRef และ leaderRef
+  SY->>DB: upsert BookingJobs ด้วย version guard
   SY->>DB: upsert WorkOrders 1 ต่อ 1 ด้วย UQ_WO_BookingJob สถานะตาม Booking
   SY->>DB: COMMIT
   SY->>RT: workorder:changed หลัง commit
@@ -133,7 +134,7 @@ sequenceDiagram
 ข้อกำหนดที่ flow นี้ตอบ:
 - **ไม่สร้าง WO ซ้ำ**: WO ต่อ Booking job ได้ใบเดียว (`UQ_WO_BookingJob`) — POST ซ้ำ (`ExternalEventId` เดิม ⇒ `UQ_Inbox_Event` ตอบ `200 duplicate`) / POST ใหม่ของงานเดิม = upsert ใบเดิม · session เปิดได้ตัวเดียวต่ออุปกรณ์ (`UQ_TS_OpenPerDevice` + `EX_TS_NoOverlap`) · sweep ซ้ำ/worker 2 ตัว/observation ซ้ำ → ผลเหมือนเดิม
 - **เปิดกล้องแต่ไม่พบ Booking**: session ค้าง `AwaitingMatch` (หรือ `NoTeam`) — **ไม่สร้างใบงาน รอ Booking อย่างเดียว** แล้ว re-match อัตโนมัติเมื่อข้อมูล Booking เปลี่ยน (§3.3.4 · DL33 แทน DL10)
-- **กล้องชาร์จที่ฐานไม่นับเป็นงาน [Confirmed — Q15]** · vendor ไม่ส่งสถานะชาร์จ **[Confirmed — Q21]** จึงตรวจตอนเปิด session: fix ล่าสุดที่ valid อายุ ≤ `depot.fix-max-age-minutes` (30) อยู่ในรัศมีของ `Depots` (หลายจุด — พิกัด mock ไว้ก่อน, Q22) ⇒ `Classified` + `IdleOrCharging` · กล้องในอาคารที่ไม่มี fix และไม่มีงาน Booking ⇒ ค้าง `AwaitingMatch` (ไม่มีใบงานให้ void แล้ว — DL33)
+- **กล้องชาร์จที่ฐานไม่นับเป็นงาน [Confirmed — Q15]** · vendor ไม่ส่งสถานะชาร์จ **[Confirmed — Q21]** จึงตรวจตอนเปิด session: fix ล่าสุดที่ valid อายุ ≤ `depot.fix-max-age-minutes` (30) อยู่ในรัศมีของ `Depots` (หลายจุด — พิกัด mock ไว้ก่อน, Q22) ⇒ `Classified` + `IdleOrCharging` · กล้องในอาคารที่ไม่มี fix และไม่มีงาน Booking ⇒ ค้าง `AwaitingMatch` (ไม่มีใบงานให้ void แล้ว — DL33) · **ระยะแรกไม่มีหน้าจัดการฐาน ⇒ `Depots` ว่าง ⇒ กฎนี้ยังไม่ทำงาน** กล้องที่ชาร์จที่ฐานค้าง `AwaitingMatch` / `NoTeam` เหมือนกล้องที่ไม่มีงาน (DL53)
 - **เลขใบงาน** `WO-YYYYMM-NNNNN` จาก `WorkOrderCounters` (atomic) ตอน inbox processor สร้าง WO
 - **Title**: ชื่องานจาก Booking
 - **DO / SH**: เลข DO และ SH ที่มากับใบงาน **[Confirmed — DL46]** เก็บใน `BookingJobs.DoNo` / `ShNo` ใช้**แสดงผลและค้นหาเท่านั้น ไม่ใช่ matching key** · ความหมาย (คาดว่า Delivery Order / Shipment) **[Assumption]**
@@ -184,9 +185,9 @@ flowchart TB
 นิยามที่ใช้ในการ match:
 - **ลำดับแหล่งที่บอกว่ากล้องไปงานไหน**:
   1. **`BookingJobs.DeviceRefs`** — Booking ระบุกล้องที่ใช้กับงาน (รวมกล้องสำรอง) **[Confirmed — Q4, Q20: การผูกกล้องมาจากฝั่ง Booking เท่านั้น · รูปแบบข้อมูลเป็น Assumption]** — match ด้วย `Devices.DeviceCode` / `VendorDeviceId` / `SerialNo` · ไม่ต้องมีทีมก็ match ได้
-  2. **ทีม** จาก `DeviceAssignments` ณ `StartedAt` (**มาจาก Booking เท่านั้น** ถ้า Booking มีข้อมูลกล้องประจำทีม — ดึงผ่าน read API ที่เป็น optional **[Assumption]** · DL46) แล้วเทียบ `BookingJobs.BookingTeamRef` กับ `Teams.BookingTeamRef` หรือ `BookingJobs.BookingLeaderRef` กับ `Employees.BookingEmployeeRef` ของหัวหน้าทีม — ทั้งสองแบบ HIGH ได้
+  2. **ทีม** จาก `DeviceAssignments` ณ `StartedAt` (**มาจาก Booking เท่านั้น** ถ้า Booking มีข้อมูลกล้องประจำทีม — ดึงผ่าน read API ที่เป็น optional **[Assumption]** · DL46) แล้วเทียบ `BookingJobs.BookingTeamRef` กับ `Teams.BookingTeamRef` หรือ `BookingJobs.BookingLeaderRef` กับ `Employees.BookingEmployeeRef` ของหัวหน้าทีม — ทั้งสองแบบ HIGH ได้ · `Teams` / หัวหน้าทีมเองก็มาจาก `teamRef` / leader ref ของใบงาน (inbox processor สร้าง/อัปเดต — DL53 **[Assumption]**)
   - session ที่ไม่มีทั้งข้อ 1 และ 2 = `NoTeam` (ไม่สร้างใบงาน) และ re-match เมื่อ Booking ส่งข้อมูลมา · **ระบบเราไม่มีหน้าจอผูกกล้องกับทีมเอง**
-- `BookingJobs.TeamId` / `LeaderEmployeeId` เป็น **cache สำหรับแสดงผล** · เมื่อแก้ ref ของทีม/พนักงาน/กล้อง ⇒ job `re-resolve` อัปเดต cache + enqueue re-match
+- `BookingJobs.TeamId` / `LeaderEmployeeId` เป็น **cache สำหรับแสดงผล** · เมื่อ ref ของพนักงาน (`BookingEmployeeRef` ที่หน้า พนักงาน) / ทีม / กล้องเปลี่ยน ⇒ job `re-resolve` อัปเดต cache + enqueue re-match
 - **ช่วงเวลางาน** = `[min(PlannedStartAt, BookingCheckInAt), BookingCheckOutAt ?? (check-in แล้ว ⇒ ไม่มีขอบบน) ?? PlannedEndAt]` · candidate = ช่วง session `[StartedAt, EndedAt หรือ now]` **ซ้อน** กับช่วงงาน ± `matching.window-before/after-minutes` (60) · tier คิดจาก `StartedAt` · งานที่ไม่มีเวลาใช้ทั้งวัน `ScheduledDate` (Asia/Bangkok) และ confidence สูงสุด MEDIUM (จึงยังไม่ attach จนกว่า Booking จะมีเวลา check-in หรือเวลาตามแผน)
 - **งานที่ check-in แล้วแต่ยังไม่ check-out = ยังเป็นใบเดิม** — กล้องแบตหมด เอาไปชาร์จแล้วเปิดใหม่หลายชั่วโมง session ใหม่ก็ยังเข้า WO เดิม **[Confirmed — Q3]**
 - ระยะห่าง GPS กับ `BookingJobs.SiteLat/SiteLng` เป็นแค่ข้อมูลประกอบใน candidate list (กล้องส่วนใหญ่ไม่มี fix)
@@ -217,7 +218,7 @@ flowchart TB
 | เกิดเมื่อไร | ผล AMBIGUOUS / NONE / ProjectionStale ⇒ `AwaitingMatch` · ไม่รู้ทีมและ Booking ไม่ระบุกล้อง ⇒ `NoTeam` |
 | สร้างใบงานไหม | **ไม่** — ไม่มีใบรวม ไม่มีการปิดที่ 240 นาที · รอ Booking อย่างเดียว |
 | attach เมื่อไร | re-match อัตโนมัติได้ HIGH เมื่อ Smart Booking POST ข้อมูลที่เปลี่ยนเข้ามา (§3.3.3) ภายใน `booking.rematch-horizon-hours` · พ้น horizon แล้วคงเป็น session ที่ไม่มีใบงาน |
-| ดูหลักฐานที่ไหน | หน้าค้นหาวิดีโอรายกล้อง `/recordings` (ไม่ใช่รายการใบงาน) · มี recording ⇒ alert `RECORDING_OUTSIDE_WORK` |
+| ดูหลักฐานที่ไหน | **ไม่มีหน้าค้นวิดีโอย้อนหลังรายกล้อง** (ตัด `/recordings` — DL53) · ดูได้เฉพาะภาพสดเมื่อกล้องออนไลน์ (ภาพสดหลายจอ) · attach ภายหลังแล้วดูย้อนหลังได้จากใบงาน · มี recording ⇒ alert `RECORDING_OUTSIDE_WORK` |
 | session ต่อเนื่องหลัง WO ถูก check-out ขณะกล้องยังเปิด | `AwaitingMatch` · attach **เฉพาะเมื่อได้ HIGH** ของงานอื่น (เช่นงานถัดไป) — ไม่กลับเข้างานเดิม (Rule 1) |
 
 ---
@@ -405,11 +406,11 @@ sequenceDiagram
 
 - **ปัญหาฝั่ง Booking ไม่กระทบ tracking**: real-time path และ session engine ไม่เรียก Booking · endpoint รับ POST อยู่ใน `api` และแค่เก็บลง inbox จึงไม่ขึ้นกับความเร็วของ processor
 - **(ก) ระบบเราล่ม** (api / DB ไม่พร้อม): ตอบ `503 SERVICE_UNAVAILABLE` หรือ timeout ⇒ Smart Booking ต้อง retry แบบ exponential backoff อย่างน้อย 24 ชม. และรักษาลำดับต่องานพอสมควร **[Assumption — ต้องตกลงกับ Booking]** · เรา insert inbox ก่อนตอบเสมอ ⇒ ตอบ `202` แล้วข้อมูลไม่หาย · enqueue Redis ล้มหลัง insert ยังตอบ `202` — retry sweep เก็บแถว `Pending` ที่เก่ากว่า 1 นาที · POST ซ้ำ = `200 duplicate` · ลำดับผิดกันด้วย version guard (`version` / `updatedAt`)
-- **(ข) Smart Booking หยุดส่ง**: เราไม่รู้ว่ามีงานที่ขาด ⇒ `AlertSweep` ตรวจ `IntegrationSyncState.LastReceivedAt` เงียบเกิน `booking.inbound-silence-alert-hours` (24) ⇒ alert 17 `BOOKING_INBOUND_SILENT` (Warning ถึง Admin) · ถ้ามี read API (`BOOKING_PROVIDER_DRIVER` ≠ `none`) reconcile ตอนกลางคืน 02:00 (`fetchWindow`) เก็บ POST ที่หาย ⇒ inbox `Channel = 2 Reconcile` · ไม่มี read API ⇒ กู้ได้เมื่อ Booking ส่งซ้ำ (manual resend ถ้ามี **[Assumption]**) หรือ admin import CSV (`Channel = 3 CsvImport`)
+- **(ข) Smart Booking หยุดส่ง**: เราไม่รู้ว่ามีงานที่ขาด ⇒ `AlertSweep` ตรวจ `IntegrationSyncState.LastReceivedAt` เงียบเกิน `booking.inbound-silence-alert-hours` (24) ⇒ alert 17 `BOOKING_INBOUND_SILENT` (Warning ถึง Admin) · ถ้ามี read API (`BOOKING_PROVIDER_DRIVER` ≠ `none`) reconcile ตอนกลางคืน 02:00 (`fetchWindow`) เก็บ POST ที่หาย ⇒ inbox `Channel = 2 Reconcile` · ไม่มี read API ⇒ กู้ได้เมื่อ Booking ส่งซ้ำ (manual resend ถ้ามี **[Assumption]**) · CSV import (`Channel = 3 CsvImport`) ยังไม่มีหน้า upload ในระยะแรก (ไม่มีหน้า integration — DL53)
 - **(ค) inbox processor ค้าง**: แถว `Pending` / `Failed` ที่เก่าที่สุดอายุเกิน `booking.stale-after-minutes` (15) ⇒ matching ได้ `ProjectionStale` + banner + alert 10 `BOOKING_SYNC_STALE` (เกิน 60 นาที = Critical) · processor ตามทัน ⇒ re-match (§3.3.3)
 - ระหว่างข้อมูลขาด **ใบงานจะไม่ถูกปิด** (ไม่รู้ check-out) — ปิดย้อนหลังด้วยเวลา `BookingCheckOutAt` จริงเมื่อได้ข้อมูล
 - งานที่สร้างใน Booking ระหว่างข้อมูลขาดยังไม่มี WO จนกว่าจะได้รับ POST (หรือ reconcile) — session ช่วงนั้นค้าง `AwaitingMatch` แล้ว attach ย้อนหลังเมื่อได้ข้อมูล (Rule 1 ยอมให้ session ที่เริ่มก่อน check-out เข้า WO ที่ Closed ได้)
-- แถว inbox ที่ process ไม่ผ่านครบจำนวน retry (Part 7 §7.7) ⇒ `Dead` + alert `INTEGRATION_DEAD_LETTER` แสดงในหน้า Integration ให้ admin กด retry
+- แถว inbox ที่ process ไม่ผ่านครบจำนวน retry (Part 7 §7.7) ⇒ `Dead` + alert `INTEGRATION_DEAD_LETTER` ถึง `ADMIN` · ประมวลผลใหม่จาก `Payload` ที่เก็บไว้: อัตโนมัติเมื่อ `re-resolve` / รอบรายวัน 03:00 (แถวอายุ ≤ 7 วัน) หรือกดปุ่ม "ประมวลผลใหม่" บนการแจ้งเตือน (DL54) — ไม่ต้องรอ Booking ส่งซ้ำ
 - Circuit breaker / retry ของ outbound ใช้เฉพาะ read API ที่เป็น optional (refresh ต่องาน / reconcile) — ดู Part 7
 
 ---
@@ -424,7 +425,7 @@ sequenceDiagram
 | Check-in | **สร้าง WO** สถานะ Open 1 ต่อ 1 (มีใบ `Planned` อยู่แล้ว ⇒ เปลี่ยนเป็น Open) · re-match session ที่เกี่ยวข้อง | อัปเดตข้อมูลแสดงผล · re-match | **reopen** (Source Booking) |
 | Check-out / Completed | สร้าง WO สถานะ Closed (`BookingCheckout`) — session ย้อนหลังที่ match ภายหลังเข้าใบนี้ได้ (Rule 1) | **Closed (`BookingCheckout`)** · split open session | อัปเดตเวลา check-out ถ้าเปลี่ยน |
 | Cancelled | สร้าง WO สถานะ `Cancelled` (ไม่เป็น candidate) | WO → `Cancelled` · split open session · `NeedsReview` ถ้ามี recording (alert `WORK_ORDER_CANCELLED_WITH_EVIDENCE`) — **ฝั่ง bodycam ตรวจสอบหลักฐานได้** **[Confirmed — Q6]** | `NeedsReview` |
-| เปลี่ยนทีม / เวลา / DeviceRefs | — (ถือเป็นงานใหม่) | re-match (§3.3.3) · `WorkOrders.TeamId` / `DepartmentId` อัปเดตตาม Booking (แผนกมาจาก Booking — DL38) | `NeedsReview` (alert `BOOKING_JOB_CHANGED_AFTER_CLOSE`) |
+| เปลี่ยนทีม / หัวหน้า / เวลา / DeviceRefs | — (ถือเป็นงานใหม่) | re-match (§3.3.3) · `WorkOrders.TeamId` อัปเดตตาม Booking · ทีมใหม่ที่ยังไม่มี ⇒ สร้างจาก `teamRef` · หัวหน้าเปลี่ยน ⇒ ปิด / เปิดแถว Leader ใน `TeamMembers` (DL53) | `NeedsReview` (alert `BOOKING_JOB_CHANGED_AFTER_CLOSE`) |
 | หายจาก reconcile ตอนกลางคืน (เฉพาะเมื่อมี read API — DL46) | — | `SourceMissingSince` + `NeedsReview` | `SourceMissingSince` + `NeedsReview` |
 
 `NeedsReview` = badge ข้อมูลบนหน้าใบงาน + alert ถึง Admin เท่านั้น (ไม่มีคิวตรวจสอบ — DL33)
@@ -511,7 +512,7 @@ User flow (DL47):
 5. **Retry ฝั่ง Booking**: retry เมื่อ timeout / non-2xx แบบ exponential backoff อย่างน้อย 24 ชม. · รักษาลำดับต่องาน · ส่งซ้ำตามคำขอ (manual resend) ได้ไหม **[Assumption]**
 6. **Read API (optional)**: ขอ `GET /jobs/{jobId}` + `GET /jobs?from&to` เพื่อ refresh ต่องาน / reconcile ตอนกลางคืน — ไม่มี ⇒ POST ที่หายกู้ได้เมื่อ Booking ส่งซ้ำเท่านั้น **[Assumption]**
 7. **Booking ระบุกล้องในใบงาน** (`DeviceRefs` รวมกล้องสำรอง) ด้วยรหัสอะไร (DeviceCode / Serial / รหัส DSS) — **เป็นแหล่งเดียวของการผูกกล้อง** (Q20)
-8. Booking มอบงานให้ "ทีม" / "หัวหน้าทีม-คนขับ" / "รถ" — ใช้ ref อะไร · มีข้อมูลกล้องประจำทีมให้ดึงไหม (ผ่าน read API)
+8. Booking มอบงานให้ "ทีม" / "หัวหน้าทีม-คนขับ" / "รถ" — ใช้ ref อะไร · **ส่งรหัสทีม + หัวหน้ามากับทุกใบไหม** (ระบบสร้างทีม / หัวหน้าทีมจากข้อมูลนี้ — ไม่มีหน้าจัดการทีม DL53) **[Assumption]** · มีข้อมูลกล้องประจำทีมให้ดึงไหม (ผ่าน read API)
 
 ---
 
@@ -526,7 +527,7 @@ User flow (DL47):
 | `session.merge-gap-minutes` | 15 | 0–240 | ตัด session เมื่อ offline (ไม่ใช่การปิดใบงาน) |
 | `session.unknown-max-minutes` | 30 | 5–240 | ปิด session เมื่อ unknown |
 | `session.max-segment-hours` | 12 | 1–24 (**ผูกกับ playback 24 ชม.**) | split |
-| `depot.fix-max-age-minutes` | 30 | 5–240 | ตรวจอยู่ฐาน |
+| `depot.fix-max-age-minutes` | 30 | 5–240 | ตรวจอยู่ฐาน (ไม่มีผลจนกว่า `Depots` มีข้อมูล — DL53) |
 | `matching.window-before-minutes` / `after` | 60 / 60 **[Confirmed — Q3]** | 0–240 | candidate window |
 | `matching.extended-window-minutes` | 180 **[Confirmed — Q3]** | ≥ window | MEDIUM — attach อัตโนมัติ (DL37) |
 | `matching.auto-switch-enabled` | true **[Confirmed — Q5]** | bool | A→B |

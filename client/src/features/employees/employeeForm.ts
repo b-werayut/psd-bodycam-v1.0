@@ -13,7 +13,6 @@ export type EmployeeFormValues = {
   firstName: string;
   lastName: string;
   phone: string;
-  departmentId: string;
   userId: string;
   bookingEmployeeRef: string;
   status: string;
@@ -27,7 +26,6 @@ export function emptyEmployeeForm(): EmployeeFormValues {
     firstName: '',
     lastName: '',
     phone: '',
-    departmentId: '',
     userId: '',
     bookingEmployeeRef: '',
     status: String(EMPLOYEE_STATUS.ACTIVE),
@@ -40,7 +38,6 @@ export function employeeFormFrom(employee: EmployeeRow): EmployeeFormValues {
     firstName: employee.firstName,
     lastName: employee.lastName,
     phone: employee.phone ?? '',
-    departmentId: employee.departmentId,
     userId: employee.userId ?? '',
     bookingEmployeeRef: employee.bookingEmployeeRef ?? '',
     status: String(employee.status),
@@ -54,7 +51,6 @@ export function validateEmployeeForm(values: EmployeeFormValues): EmployeeFormEr
   else if (code.length > EMPLOYEE_CODE_MAX) errors.employeeCode = 'employees.form.errorCodeLong';
   if (!values.firstName.trim()) errors.firstName = 'employees.form.errorFirstNameRequired';
   if (!values.lastName.trim()) errors.lastName = 'employees.form.errorLastNameRequired';
-  if (!values.departmentId) errors.departmentId = 'employees.form.errorDepartmentRequired';
   return errors;
 }
 
@@ -65,7 +61,6 @@ export function toCreatePayload(values: EmployeeFormValues): CreateEmployeePaylo
     employeeCode: values.employeeCode.trim(),
     firstName: values.firstName.trim(),
     lastName: values.lastName.trim(),
-    departmentId: values.departmentId,
     ...(text(values.phone) ? { phone: text(values.phone) } : {}),
     ...(values.userId ? { userId: values.userId } : {}),
     ...(text(values.bookingEmployeeRef)
@@ -83,7 +78,6 @@ export function toUpdatePayload(
   for (const field of required) {
     if (values[field].trim() !== original[field].trim()) payload[field] = values[field].trim();
   }
-  if (values.departmentId !== original.departmentId) payload.departmentId = values.departmentId;
   if (values.phone.trim() !== original.phone.trim()) payload.phone = text(values.phone) ?? null;
   if (values.userId !== original.userId) payload.userId = values.userId || null;
   if (values.bookingEmployeeRef.trim() !== original.bookingEmployeeRef.trim()) {

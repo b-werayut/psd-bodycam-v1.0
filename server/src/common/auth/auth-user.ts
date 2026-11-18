@@ -3,5 +3,4 @@ export type AuthUserLike = {
   username: string;
   roleId: bigint;
   roleCode: string;
-  departmentId: bigint | null;
 };

@@ -29,11 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  DEPARTMENTS_TREE_KEY,
-  departmentsApi,
-  flattenDepartments,
-} from '@/features/departments/departments.api';
 import type { TranslationKey } from '@/i18n/locales/th';
 import { useLanguage } from '@/i18n/useLanguage';
 import { apiErrorOf } from '@/lib/apiError';
@@ -63,7 +58,6 @@ export function EmployeesPage() {
 
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
-  const [departmentId, setDepartmentId] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<EmployeeRow | 'new' | null>(null);
@@ -84,17 +78,14 @@ export function EmployeesPage() {
     page,
     pageSize: PAGE_SIZE,
     q: q || undefined,
-    departmentId: departmentId || undefined,
     status: status ? Number(status) : undefined,
   };
-  const filtered = Boolean(q || departmentId || status);
+  const filtered = Boolean(q || status);
 
   const query = useQuery({
     queryKey: ['employees', 'list', filters],
     queryFn: () => employeesApi.list(filters),
   });
-  const departments = useQuery({ queryKey: DEPARTMENTS_TREE_KEY, queryFn: departmentsApi.tree });
-  const departmentOptions = flattenDepartments(departments.data ?? []);
 
   const remove = useMutation({
     mutationFn: (employee: EmployeeRow) => employeesApi.remove(employee.id),
@@ -161,23 +152,6 @@ export function EmployeesPage() {
             className="min-h-11 pl-9"
           />
         </div>
-        <div className="w-full sm:w-56">
-          <Select
-            aria-label={t('employees.filter.department')}
-            value={departmentId}
-            onChange={(event) => {
-              setDepartmentId(event.target.value);
-              resetPage();
-            }}
-          >
-            <option value="">{t('employees.filter.allDepartments')}</option>
-            {departmentOptions.map((department) => (
-              <option key={department.id} value={department.id}>
-                {department.label}
-              </option>
-            ))}
-          </Select>
-        </div>
         <div className="w-full sm:w-44">
           <Select
             aria-label={t('employees.filter.status')}
@@ -240,7 +214,6 @@ export function EmployeesPage() {
                 <TableHead>{t('employees.column.code')}</TableHead>
                 <TableHead>{t('employees.column.name')}</TableHead>
                 <TableHead>{t('employees.column.phone')}</TableHead>
-                <TableHead>{t('employees.column.department')}</TableHead>
                 <TableHead>{t('employees.column.account')}</TableHead>
                 <TableHead>{t('employees.column.booking')}</TableHead>
                 <TableHead>{t('employees.column.status')}</TableHead>
@@ -261,7 +234,6 @@ export function EmployeesPage() {
                       {employee.firstName} {employee.lastName}
                     </TableCell>
                     <TableCell className="text-sm">{employee.phone ?? '—'}</TableCell>
-                    <TableCell className="text-sm">{employee.departmentName ?? '—'}</TableCell>
                     <TableCell>
                       <StatusBadge tone={employee.userId ? 'success' : 'neutral'}>
                         {t(

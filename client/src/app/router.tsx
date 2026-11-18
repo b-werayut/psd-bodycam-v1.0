@@ -83,10 +83,6 @@ export const appRoutes: RouteObject[] = [
         const { EmployeesPage } = await import('@/features/employees/EmployeesPage');
         return EmployeesPage;
       }),
-      guardedLazy('departments', async () => {
-        const { DepartmentsPage } = await import('@/features/departments/DepartmentsPage');
-        return DepartmentsPage;
-      }),
       guardedLazy('users', async () => {
         const { UsersPage } = await import('@/features/users/UsersPage');
         return UsersPage;

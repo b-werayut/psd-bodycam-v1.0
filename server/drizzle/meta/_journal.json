@@ -15,6 +15,13 @@
       "when": 1793820289011,
       "tag": "0001_extensions_partitions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794977033870,
+      "tag": "0002_drop_departments",
+      "breakpoints": true
     }
   ]
 }

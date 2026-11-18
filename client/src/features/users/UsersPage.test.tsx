@@ -24,8 +24,6 @@ const row = (over: Partial<UserRow>): UserRow => ({
   roleId: '2',
   roleCode: 'OPERATOR',
   roleName: 'เจ้าหน้าที่',
-  departmentId: '3',
-  departmentName: 'ศูนย์ควบคุม',
   status: 1,
   lastLoginAt: null,
   azureLinked: false,
@@ -41,23 +39,12 @@ const ROLES = [
   { id: '1', code: 'ADMIN', name: 'ผู้ดูแลระบบ', isSystem: true },
   { id: '2', code: 'OPERATOR', name: 'เจ้าหน้าที่', isSystem: true },
 ];
-const TREE = [
-  {
-    id: '3',
-    code: 'CC',
-    name: 'ศูนย์ควบคุม',
-    parentId: null,
-    isActive: true,
-    children: [],
-  },
-];
 
 function mockGets(total = 2) {
   vi.mocked(api.get).mockImplementation((url: string) => {
     if (url === '/users')
       return Promise.resolve({ data: { data: ROWS, page: 1, pageSize: 50, total } });
     if (url === '/roles') return Promise.resolve({ data: { data: ROLES, total: 2 } });
-    if (url === '/departments/tree') return Promise.resolve({ data: { data: TREE, total: 1 } });
     if (/^\/roles\/\d+\/permissions$/.test(url))
       return Promise.resolve({ data: { data: [], total: 0 } });
     return Promise.reject(new Error(`unmocked GET ${url}`));
@@ -81,7 +68,14 @@ describe('UsersPage', () => {
     renderWithProviders(<UsersPage />);
 
     expect(await screen.findByText('field1')).toBeInTheDocument();
-    expect(screen.getAllByText('ศูนย์ควบคุม')).toHaveLength(2);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      t('users.column.username'),
+      t('users.column.fullName'),
+      t('users.column.role'),
+      t('users.column.email'),
+      t('users.column.azure'),
+      t('users.column.statusLastLogin'),
+    ]);
     expect(screen.getByText(t('users.summary', { shown: 2, total: 120 }))).toBeInTheDocument();
 
     await userEvent.click(
@@ -212,7 +206,6 @@ describe('UsersPage', () => {
       expect(within(dialog).getByRole('option', { name: 'เจ้าหน้าที่' })).toBeInTheDocument(),
     );
     await userEvent.selectOptions(within(dialog).getByLabelText(t('users.form.role')), 'OPERATOR');
-    await userEvent.selectOptions(within(dialog).getByLabelText(t('users.form.department')), '3');
     await userEvent.click(within(dialog).getByRole('button', { name: t('users.form.create') }));
 
     await waitFor(() =>
@@ -220,7 +213,6 @@ describe('UsersPage', () => {
         username: 'field1',
         fullName: 'ซ้ำ',
         roleCode: 'OPERATOR',
-        departmentId: '3',
       }),
     );
     const error = await waitFor(() => {
@@ -233,7 +225,7 @@ describe('UsersPage', () => {
 
   it('a 403 on the list shows the server message (not "check your connection")', async () => {
     signIn(['users:read']);
-    const message = 'คุณไม่มีสิทธิ์ดูผู้ใช้ของหน่วยงานนี้';
+    const message = 'คุณไม่มีสิทธิ์ดูรายชื่อผู้ใช้';
     vi.mocked(api.get).mockImplementation((url: string) =>
       url === '/users'
         ? Promise.reject(
@@ -247,6 +239,26 @@ describe('UsersPage', () => {
     expect(within(alert).getByText(t('common.loadFailed'))).toBeInTheDocument();
     expect(within(alert).getByText(message)).toBeInTheDocument();
     expect(screen.queryByText(t('common.checkConnection'))).toBeNull();
+  });
+
+  it('titles the page like its menu item', async () => {
+    signIn(['users:read']);
+    renderWithProviders(<UsersPage />);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: t('navigation.users') }),
+    ).toHaveTextContent('ผู้ใช้ระบบ');
+  });
+
+  it('the user form asks only for account fields and a role', async () => {
+    signIn(['users:read', 'users:manage']);
+    renderWithProviders(<UsersPage />);
+    await screen.findByText('field1');
+    await userEvent.click(screen.getByRole('button', { name: t('users.newButton') }));
+    const dialog = await screen.findByRole('dialog');
+    // the role is the only select: there is no department to pick
+    expect(within(dialog).getAllByRole('combobox')).toEqual([
+      within(dialog).getByLabelText(t('users.form.role')),
+    ]);
   });
 
   it('shows the roles tab to roles:manage', async () => {

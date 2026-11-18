@@ -19,8 +19,6 @@ const USER: AuthUser = {
   email: null,
   roleCode: 'VIEWER',
   roleName: 'Viewer',
-  departmentId: null,
-  departmentName: null,
   permissions: [],
 };
 

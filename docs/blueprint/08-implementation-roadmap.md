@@ -29,7 +29,7 @@ flowchart LR
 - **Critical path**: P0 → P1 → P2 → P3b → P3c → P6
 - **Booking spec gate** = ได้คำตอบครบตาม checklist ใน [Part 9 §9.4](09-risks-open-questions.md#94-booking-information-checklist) ก่อน go-live กับ Smart Booking จริง: Booking POST ซ้ำทุกครั้งที่ใบงานเปลี่ยนหรือไม่, ใช้ contract ขาเข้า v1 ของเราหรือต้องเขียน mapper `smart-booking`, วิธี auth + การส่ง secret, IP ขาออกของ Booking, พฤติกรรม retry / ส่งซ้ำ และมี read API ให้ reconcile หรือไม่ (ทั้งหมด **[Assumption]** จนกว่าจะยืนยัน)
 - **ใบงานมาจาก Smart Booking เท่านั้น (DL33) และมาทาง POST (DL46)** ⇒ endpoint รับ POST + การสร้างใบงานอยู่ใน P3a (inbox processor upsert `WorkOrders` 1:1) · P2 พัฒนาและทดสอบ session engine + WO read model กับใบงานที่ `booking-simulator` POST เข้า endpoint จริง (พัฒนาบน mock / simulator ก่อน — DL25)
-- ถ้า Smart Booking จริงล่าช้า ระบบยังขึ้น production ได้ในโหมด tracking + evidence: session ถูกบันทึกครบ (ค้าง `AwaitingMatch` / `NoTeam`) และดูหลักฐานรายกล้องได้ที่ `/recordings` — ยังไม่มีใบงานจนกว่า Smart Booking จะเริ่ม POST แล้ว session ในช่วง `booking.rematch-horizon-hours` จะ match อัตโนมัติเมื่อ POST ถูกประมวลผล (`matching.rematch`) · แอปหัวหน้าทีมยังดู live กล้องของทีมได้ (จาก `DeviceAssignments`) แต่รายการใบงานว่าง
+- ถ้า Smart Booking จริงล่าช้า ระบบยังขึ้น production ได้ในโหมด tracking + evidence: session ถูกบันทึกครบ (ค้าง `AwaitingMatch` / `NoTeam`) และดูภาพสดได้ที่ ภาพสดหลายจอ (ไม่มีหน้าค้นวิดีโอย้อนหลังรายกล้อง — DL53) — ยังไม่มีใบงานจนกว่า Smart Booking จะเริ่ม POST แล้ว session ในช่วง `booking.rematch-horizon-hours` จะ match อัตโนมัติเมื่อ POST ถูกประมวลผล (`matching.rematch`) · แอปหัวหน้าทีมยังดู live กล้องของทีมได้ (จาก `DeviceAssignments`) แต่รายการใบงานว่าง
 - GPS history (P1) และ talk (P4) เป็น **Must** แม้ requirement ฉบับ 2026-11-12 จัดเป็น Optional (DL48)
 
 | Phase | Priority | ขนาด (สัปดาห์) | ขึ้นกับ | ทำขนานได้กับ |
@@ -40,7 +40,7 @@ flowchart LR
 | P3a Booking inbound endpoint + inbox + mapper v1 + simulator + projection + WO upsert | Must | 3 | P0 | P1 |
 | P3b Matching + Booking UI | Must | 3 | P2, P3a | P4, P5 |
 | P3c Smart Booking go-live (ตกลง contract/auth, mapper `smart-booking` ถ้า payload ไม่ใช่ v1, read API adapter (optional), pilot) | Must | 2–3 | P3b + **Booking spec** | P5 |
-| P4 Media & Evidence (live, live wall, talk, playback, export, `/evidence`) | Must (เมนูหลัก Live + หลักฐาน — DL36 · talk — DL48) | 3 | P1 (`/evidence` ต้องใช้ WO read model จาก P2) | P2, P3 |
+| P4 Media & Evidence (ภาพสดหลายจอ + talk, playback, export, วิดีโอย้อนหลัง `/evidence`, ดูสด / ดูย้อนหลังในหน้า ใบงาน) | Must (DL53 · talk — DL48) | 3 | P1 (`/evidence` และหน้า ใบงาน ต้องใช้ WO read model จาก P2) | P2, P3 |
 | P5 Mobile app (หัวหน้าทีม) API & Notifications | **Must** (requirement §4: live + รายละเอียดใบงาน = ฟีเจอร์หลักของ mobile — DL47) | 2–3 | P2, P3a · live ใช้ `/streams/live` ของ P4 | P3b, P3c, P4 |
 | P6 Hardening & Go-live | Must | 3 | P3c, P4, P5 | — |
 
@@ -52,30 +52,34 @@ flowchart LR
 
 **Deliverables**
 - โครง repo `client/` + `server/` · scripts dev/test/build · Docker images (api, worker+ffmpeg, web) · CI: lint, **typecheck**, unit, integration (Postgres + Redis ใน CI)
-- Port `server/src/common/*` (db, scope แบบใหม่ `all` / `department` — `team` เพิ่มใน P5, settings + spec, lock, queue, rate limit, storage, context, audit interceptor, permission check, realtime bus, migration guards, prod-readiness)
-- DB baseline + custom migration (extensions, partitions) + data migration ของ roles/permissions/settings (role `ADMIN`, `COMPANY_ADMIN` — DL51, `OPERATOR`, `VIEWER`) · seed dev-only
-- Auth: password + Entra SSO + refresh rotation + lockout + ระงับบัญชี · users / roles / departments / employees · กติกา `COMPANY_ADMIN` (DL51): permission สงวนของ `ADMIN` (`PERMISSION_RESERVED_FOR_ADMIN`) + ป้องกันบัญชี `ADMIN` (`ADMIN_ACCOUNT_PROTECTED`) + `availableActions` ต่อแถวผู้ใช้
+- Port `server/src/common/*` (db, scope แบบใหม่ `all` — `team` เพิ่มใน P5 · ไม่มี `department` DL53, settings + spec, lock, queue, rate limit, storage, context, audit interceptor, permission check, realtime bus, migration guards, prod-readiness)
+- DB baseline + custom migration (extensions, partitions) + `0002_drop_departments` (DL53) + data migration ของ roles / permissions (catalog 24 ตัว — DL53) / settings (role `ADMIN`, `COMPANY_ADMIN` — DL51, `OPERATOR`, `VIEWER`) · seed dev-only
+- Auth: password + Entra SSO + refresh rotation + lockout + ระงับบัญชี · users / roles / employees (ไม่มีแผนก — DL53) · **ผู้ใช้จาก Entra** (port `GET /users/entra-directory`, `POST /users/sync-entra` + Microsoft Graph client · env `GRAPH_*` — DL53) · กติกา `COMPANY_ADMIN` (DL51): permission สงวนของ `ADMIN` (`audit:view`, `settings:manage`, `roles:manage` · `PERMISSION_RESERVED_FOR_ADMIN`) + ป้องกันบัญชี `ADMIN` (`ADMIN_ACCOUNT_PROTECTED`) + `availableActions` ต่อแถวผู้ใช้
 - Global exception filter (error format Part 5) · pino logging + correlationId · health endpoints · Swagger
-- Client: shell, design tokens, primitives, composites, i18n, auth pages, `usePermission`, router + 404/errorElement · port design guard tests
+- Client: shell + nav 12 เมนู 4 กลุ่ม (DL53), design tokens, primitives, composites, i18n, auth pages, `usePermission`, router + 404/errorElement · หน้า พนักงาน, ผู้ใช้ระบบ, ผู้ใช้จาก Entra (`/entra-users` — port `EntraUsersPage`) · port design guard tests
 
 **Acceptance criteria**
 - Login password + Entra ทำงานใน staging · refresh rotation/reuse detection ผ่าน integration test
 - endpoint ทุกตัวไม่มี `@RequirePermission` ⇒ test fail (secure by default)
 - `npm run build` รวม typecheck · migrate รันซ้ำได้ผลเดิม · drift gate หยุด process เมื่อ migration ค้าง
-- `COMPANY_ADMIN` จัดการผู้ใช้ role อื่นได้ · แก้ / ระงับ / ลบบัญชี `ADMIN` หรือกำหนด role `ADMIN` ⇒ 403 · เรียก `/audit-logs`, `/settings`, `PUT /roles/:id/permissions` ⇒ 403 · ใส่ permission สงวนให้ role อื่น ⇒ 400 (integration test — DL51)
+- `COMPANY_ADMIN` จัดการผู้ใช้ role อื่นได้ · รายการผู้ใช้ / `/roles` / หน้า ผู้ใช้จาก Entra ไม่มีบัญชีและ role `ADMIN` · เรียก `/users/:id` ของบัญชี `ADMIN` ⇒ 404 · กำหนด role `ADMIN` ⇒ 403 (DL55) · เรียก `/audit-logs`, `/settings`, `PUT /roles/:id/permissions` ⇒ 403 · ใส่ permission สงวนให้ role อื่น ⇒ 400 (integration test — DL51)
+- ผู้ใช้จาก Entra: `entra-directory` / `sync-entra` แบบ `dryRun` ไม่แก้ข้อมูล · `sync-entra` จริงเติมเฉพาะช่องที่ว่าง · สร้างบัญชีจากแถว `missing` ได้ทั้งทีละรายการและหลายรายการ (บทบาทเดียวกัน) · `COMPANY_ADMIN` สร้างด้วยบทบาท `ADMIN` ⇒ 403 · ไม่ตั้ง env `GRAPH_*` ⇒ 400 พร้อมข้อความ (DL53)
+- ไม่มีตาราง `Departments` / คอลัมน์ `DepartmentId` · sidebar ของ `ADMIN` มี 12 เมนู (DL53)
 - design guard tests ผ่าน · หน้าว่างของ shell ตรง DESIGN.md (light/dark)
 
 ### P1 — Devices & Real-time Tracking
 
 **Deliverables**
-- Devices CRUD + vendor sync (`device-sync.plan.ts` ตัด dashcam) · Teams + TeamMembers · Depots (หลายจุด · dev ใช้พิกัด mock — Q22)
+- job `DeviceSync` ใน worker: sync กล้องจาก DSS device list ตอน start + รายชั่วโมง (`device-sync.plan.ts` ตัด dashcam · ไม่ลบเครื่องที่หาย ⇒ alert `DEVICE_VENDOR_MISSING`) · ไม่มีหน้าจัดการ / sync ด้วยมือ (DL53) · ตาราง `Teams` + `TeamMembers` (ข้อมูลมาจากใบงานใน P3a — DL53) · ตาราง `Depots` (หลายจุด · ไม่มีหน้าจัดการ ⇒ production ว่าง · dev seed พิกัด mock — Q22, DL53)
 - `device-status` module: port GpsPoll + `ingestLocations` (`/location` ให้ทั้ง GPS และ online/offline — DL32) (ไม่ล้าง state เมื่อ restart) · `DeviceState` + `DeviceStatusHistory`
 - `GpsLocations` partitioned + `PartitionMaintenance` job
-- Realtime gateway + rooms ใหม่ (ตัด company)
-- Client: Live map (cluster · ตำแหน่งสดผ่าน `gps:batch`), Devices list/detail (สถานะกล้องถาม DSS ตอนเปิดหน้า — ไม่มี push `device:status` DL35 · cache Redis `device-status:{deviceId}` DL45), Teams, Tracking history (Must — DL48)
+- Realtime gateway + rooms ใหม่ `org` / `user:{id}` / `tracking` / `alerts` (ตัด company · ไม่มี `dept:*` — DL53)
+- `GET /devices` + สถานะกล้องถาม DSS ตอน request (ไม่มี push `device:status` DL35 · cache Redis `device-status:{deviceId}` DL45)
+- Client: แผนที่ติดตาม (cluster · ตำแหน่งสดผ่าน `gps:batch`), ประวัติเส้นทาง (Must — DL48) · ไม่มีหน้า Bodycam / ทีม / ฐาน (DL53)
 
 **Acceptance criteria**
-- simulator 300 อุปกรณ์: ตำแหน่งบนแผนที่อัปเดตผ่าน `gps:batch` ทุกรอบ GpsPoll · หน้ารายการ/รายละเอียดอุปกรณ์แสดงสถานะที่ได้จาก DSS ตอนเปิด · เปิดหน้ารายการซ้ำภายใน `status.display-cache-seconds` ไม่เรียก DSS ซ้ำ (DL45) · Redis ล่มยังได้สถานะจาก DSS ตรง · ไม่มีอุปกรณ์ถูกข้ามในรอบ poll/sweep
+- simulator 100 อุปกรณ์ (DL56): ตำแหน่งบนแผนที่อัปเดตผ่าน `gps:batch` ทุกรอบ GpsPoll · `GET /devices` คืนสถานะที่ได้จาก DSS · เรียกซ้ำภายใน `status.display-cache-seconds` ไม่เรียก DSS ซ้ำ (DL45) · Redis ล่มยังได้สถานะจาก DSS ตรง · ไม่มีอุปกรณ์ถูกข้ามในรอบ poll/sweep
+- กล้องใหม่ใน DSS ปรากฏใน `Devices` ภายใน 1 รอบ `DeviceSync` · กล้องที่หายจาก DSS ได้ `VendorMissingSince` + alert 13 และไม่ถูกลบ (DL53)
 - DSS หลุดแล้วกลับมา / worker restart **ไม่เปลี่ยน `StateSince`** ของอุปกรณ์ที่สถานะไม่เปลี่ยน
 - GPS ซ้ำ/เก่า/drift ถูกจัดการตาม pipeline เดิม (port test ของ reference)
 - history 24 ชม. ต่ออุปกรณ์ตอบ < 2s ที่ 10M แถว
@@ -84,10 +88,10 @@ flowchart LR
 
 **Deliverables**
 - Session engine: pure `decide()` + sweep (ทุกอุปกรณ์, row lock, DB clock) + split rules ครบตาราง Part 3 §3.4.3 · ไม่มีการสร้างใบงานในเส้นทาง session (DL33)
-- กล้องชาร์จที่ฐาน (`Depots` + fix ล่าสุด) ⇒ ระบบตั้ง session เป็น `Classified` + `IdleOrCharging` เอง
+- กล้องชาร์จที่ฐาน (`Depots` + fix ล่าสุด) ⇒ ระบบตั้ง session เป็น `Classified` + `IdleOrCharging` เอง (logic + test ด้วย dev seed · production `Depots` ว่าง ⇒ ยังไม่ทำงาน — DL53)
 - WO read model: list/detail API + `availableActions` + `WorkOrderEvents` timeline · pass ระดับ WO ใน `SessionSweep` (alert ไม่มี check-out 36 ชม. · ปิด `SafetyTimeout` 7 วัน) · ใบงานใน P2 มาจาก `booking-simulator` ที่ POST เข้า inbound endpoint ของ P3a
 - Recording index job (ใช้ DSS recording search) · alerts `CAMERA_ACTIVE_NO_TEAM`, `RECORDING_OUTSIDE_WORK`, `WORK_ORDER_NO_CHECKOUT`, `WORK_ORDER_AUTO_CLOSED` (alert ที่ต้องใช้ matching / ช่วงเวลางานจาก Booking ⇒ P3b)
-- Client: Active sessions (รวม session ที่ยังไม่มีใบงาน — อ่านอย่างเดียว), WO list/detail (อ่านอย่างเดียว · ยังไม่มี Booking panel)
+- Client: หน้า ใบงาน `/work-orders` (ตาราง + แท็บสถานะ + คอลัมน์กล้อง · ปุ่ม ดูสด / ดูย้อนหลัง เปิดใน P4 — DL53) + `/work-orders/:id` (อ่านอย่างเดียว · ยังไม่มี Booking panel) · `workWindow` + `cameras[]` + filter `checkedIn` ใน WO list/detail API · ไม่มีหน้า Tracking sessions (DL53)
 
 **Acceptance criteria**
 - unit test ของ `decide()` ครอบทุกแถวใน decision table + scenario: battery swap < / ≥ merge gap, สลับกล้องสำรอง, Booking check-out ขณะกล้องเปิด (**ไม่เกิด loop**), กล้องชาร์จที่ฐาน, max segment, status flap, unknown ยาว, worker restart กลางคัน
@@ -104,32 +108,34 @@ flowchart LR
 - `BookingInboundMapper` `v1` (`BOOKING_INBOUND_MAPPER`) → `BookingJobSnapshot` (รวม `doNo` / `shNo`) · `BookingJobs` (+ `DoNo`, `ShNo`), inbox, sync state (`LastReceivedAt`), call logs
 - `booking-simulator` (`npm run booking:simulate -- <scenario>`): ใบงานใหม่, check-in, check-out, ยกเลิก, ส่งซ้ำ, สลับลำดับ, signature ผิด, burst — POST payload v1 ที่เซ็นแล้วเข้า endpoint จริง
 - `BookingProvider` port แบบ optional outbound (`fetchJob?` / `fetchWindow?` / `fetchCameraAssignments?`) · `BOOKING_PROVIDER_DRIVER=none|mock|http` (ค่าเริ่มต้น `none`) · `mock` เสิร์ฟ fixture ของ `fetchJob` / `fetchWindow` · circuit breaker เฉพาะ call ขาออก · sync `DeviceAssignments` จาก Booking (ถ้ามีข้อมูล)
-- mapping (`BookingTeamRef`, `BookingEmployeeRef`, status map) · **WO upsert (DL33)**: inbox processor upsert `WorkOrders` 1:1 กับ `BookingJobs` ใน transaction เดียวกับ projection (`UQ_WO_BookingJob`, `WorkOrderCounters`) + สถานะตาม check-in / check-out / ยกเลิก (logic เดิม: version guard, rematch enqueue)
+- mapping (`BookingTeamRef`, `BookingEmployeeRef`, status map) · **ทีม / หัวหน้าทีมจากใบงาน (DL53 [Assumption])**: upsert `Teams` จาก `teamRef` + ปิด / เปิดแถว Leader ใน `TeamMembers` จาก `leaderRef` ใน transaction เดียวกับ projection · **WO upsert (DL33)**: inbox processor upsert `WorkOrders` 1:1 กับ `BookingJobs` ใน transaction เดียวกับ projection (`UQ_WO_BookingJob`, `WorkOrderCounters`) + สถานะตาม check-in / check-out / ยกเลิก (logic เดิม: version guard, rematch enqueue)
 - Settings: `booking.stale-after-minutes` (ความหมายใหม่ = อายุ inbox `Pending` / `Failed` ที่เก่าสุด) + `booking.inbound-silence-alert-hours` (ใหม่ · 24 · 0–168) — `SETTING_DEFAULTS` + `SETTING_BOUNDS` + data migration · ตัด `booking.sync-interval-seconds`
 
-**Acceptance**: POST ซ้ำ (`ExternalEventId` เดิม) ⇒ 200 `duplicate` ไม่เกิดแถวใหม่ · signature ผิด / timestamp เกิน ±300 s / API key ผิด ⇒ 401 `INBOUND_AUTH_FAILED` · ขาด `job.jobId` / `job.status` / ทั้ง `job.version` และ `job.updatedAt` หรือวันที่ผิดรูปแบบ ⇒ 400 `VALIDATION_FAILED` · ฟิลด์ที่ไม่รู้จักไม่ทำให้ reject · POST สลับลำดับ ⇒ version / `updatedAt` ที่เก่ากว่าถูกข้าม projection ถูก · POST ขณะ worker `integration` ล่ม ⇒ ได้ 202 และถูกประมวลผลภายหลังจาก inbox · Redis ล่มหลัง insert inbox ⇒ ยังได้ 202 และ retry sweep เก็บได้ · DB ล่ม ⇒ 503 `SERVICE_UNAVAILABLE` · ตอบ 202 ภายใน p95 < 200 ms · ใช้ secret 2 ชุดพร้อมกันได้ (rotation ไม่มี downtime) · ทุก Booking job ที่รับมามีใบงาน 1 ใบพอดี (ส่งซ้ำ/สลับลำดับไม่เกิดใบซ้ำ) · เลข WO ไม่ซ้ำภายใต้ concurrent upsert · check-out ⇒ Closed (`BookingCheckout`), check-in ใหม่ ⇒ Open, Booking ยกเลิก ⇒ Cancelled · breaker ของ read API (driver `mock`) เปิด/ปิดตามกติกา · simulator หยุดส่ง / ส่ง burst 30 นาที ⇒ tracking/session ไม่ได้รับผลกระทบ (วัด sweep duration และ GPS lag เท่าเดิม)
+**Acceptance**: POST ซ้ำ (`ExternalEventId` เดิม) ⇒ 200 `duplicate` ไม่เกิดแถวใหม่ · signature ผิด / timestamp เกิน ±300 s / API key ผิด ⇒ 401 `INBOUND_AUTH_FAILED` · ขาด `job.jobId` / `job.status` / ทั้ง `job.version` และ `job.updatedAt` หรือวันที่ผิดรูปแบบ ⇒ 400 `VALIDATION_FAILED` · ฟิลด์ที่ไม่รู้จักไม่ทำให้ reject · POST สลับลำดับ ⇒ version / `updatedAt` ที่เก่ากว่าถูกข้าม projection ถูก · POST ขณะ worker `integration` ล่ม ⇒ ได้ 202 และถูกประมวลผลภายหลังจาก inbox · Redis ล่มหลัง insert inbox ⇒ ยังได้ 202 และ retry sweep เก็บได้ · DB ล่ม ⇒ 503 `SERVICE_UNAVAILABLE` · ตอบ 202 ภายใน p95 < 200 ms · ใช้ secret 2 ชุดพร้อมกันได้ (rotation ไม่มี downtime) · ทุก Booking job ที่รับมามีใบงาน 1 ใบพอดี (ส่งซ้ำ/สลับลำดับไม่เกิดใบซ้ำ) · เลข WO ไม่ซ้ำภายใต้ concurrent upsert · check-out ⇒ Closed (`BookingCheckout`), check-in ใหม่ ⇒ Open, Booking ยกเลิก ⇒ Cancelled · `teamRef` ใหม่ ⇒ เกิดทีมใหม่ 1 ทีม (ส่งซ้ำไม่เกิดทีมซ้ำ) · `leaderRef` เปลี่ยน ⇒ หัวหน้าเดิมถูกปิดและคนใหม่เปิดใน transaction เดียว (ไม่ละเมิด `UQ_TeamMembers_ActiveLeader` / `EX_TeamMembers_LeaderNoOverlap`) · `leaderRef` ที่ไม่ตรงพนักงาน ⇒ `MappingIssues` 2 · breaker ของ read API (driver `mock`) เปิด/ปิดตามกติกา · simulator หยุดส่ง / ส่ง burst 30 นาที ⇒ tracking/session ไม่ได้รับผลกระทบ (วัด sweep duration และ GPS lag เท่าเดิม)
 
 ### P3b — Matching & Booking UI
 
-**Deliverables**: matcher อัตโนมัติ (`AlgoVersion` 1) + `MatchAttempts` · attach session เข้า WO ของ Booking job ตามลำดับ `DeviceRefs` → team ref → team-leader ref · ไม่มีหรือหลาย candidate ⇒ session ค้าง `AwaitingMatch` · re-match triggers (`matching.rematch` ภายใน `booking.rematch-horizon-hours`) · Booking panel (รวมเลข DO / SH) + `/booking-jobs` + `/integration` (POST ล่าสุด `LastReceivedAt`, จำนวน inbound 401 / 400 จาก CallLogs, inbox Pending / Failed / Dead, breaker ของ read API เฉพาะ driver ≠ `none`, mapping issues · ปุ่ม refresh รายใบ / full reconcile แสดงเฉพาะเมื่อมี read API) · badge `NeedsReview` ในหน้าใบงาน (ข้อมูลเท่านั้น ไม่มีคิว — DL33) · alerts `DEVICE_OFFLINE_DURING_JOB`, `WORK_ORDER_CANCELLED_WITH_EVIDENCE`, `BOOKING_JOB_CHANGED_AFTER_CLOSE`, `BOOKING_SYNC_STALE` (backlog ของ inbox), `BOOKING_INBOUND_SILENT` (17 — ไม่มี POST นาน `booking.inbound-silence-alert-hours`), `INTEGRATION_DEAD_LETTER`, `BOOKING_MAPPING_ISSUES` · `integration:status` `{ source, isStale, lastReceivedAt }` · job `re-resolve` เมื่อ ref ของทีม/พนักงานเปลี่ยน
+**Deliverables**: matcher อัตโนมัติ (`AlgoVersion` 1) + `MatchAttempts` · attach session เข้า WO ของ Booking job ตามลำดับ `DeviceRefs` → team ref → team-leader ref · ไม่มีหรือหลาย candidate ⇒ session ค้าง `AwaitingMatch` · re-match triggers (`matching.rematch` ภายใน `booking.rematch-horizon-hours`) · Booking panel ในหน้ารายละเอียดใบงาน (รวมเลข DO / SH · ปุ่ม refresh เฉพาะเมื่อมี read API · ไม่มีปุ่ม "ดูข้อมูลดิบ", ไม่มีหน้า `/booking-jobs` และ `/integration` — DL52, DL53) · badge `NeedsReview` ในหน้าใบงาน (ข้อมูลเท่านั้น ไม่มีคิว — DL33) · alerts `DEVICE_OFFLINE_DURING_JOB`, `WORK_ORDER_CANCELLED_WITH_EVIDENCE`, `BOOKING_JOB_CHANGED_AFTER_CLOSE`, `BOOKING_SYNC_STALE` (backlog ของ inbox), `BOOKING_INBOUND_SILENT` (17 — ไม่มี POST นาน `booking.inbound-silence-alert-hours`), `INTEGRATION_DEAD_LETTER` (+ ปุ่ม "ประมวลผลใหม่" → `POST /integration/inbox/:id/retry` และประมวลผลแถว `Dead` ใหม่อัตโนมัติหลัง `re-resolve` / รายวัน 03:00 — DL54), `BOOKING_MAPPING_ISSUES` (alert ถึง `ADMIN` เป็นช่องทางเดียวของสถานะการเชื่อมต่อ — DL53) · `integration:status` `{ source, isStale, lastReceivedAt }` + แถบ stale · job `re-resolve` เมื่อ `BookingEmployeeRef` ของพนักงานหรือทีม / หัวหน้าทีมเปลี่ยน
 
 **Acceptance**: ทุก scenario ใน Part 3 §3.3 ผ่านด้วย simulator · ไม่มี/หลาย candidate ⇒ ไม่เกิดใบงานใหม่ และ session match เองเมื่อ Booking POST ข้อมูลใหม่ · session ที่เปิดก่อนใบงานมาถึง ⇒ match เองเมื่อ POST ถูกประมวลผล (`matching.rematch`) · WO ถูกปิดด้วย check-out (simulator) ⇒ session split ภายใน 1 รอบ sweep และเวลาจบ = `ClosedAt` · simulator หยุดส่งแล้วกลับมาส่ง ⇒ session ที่ค้าง `AwaitingMatch` match ได้ถูก · ไม่มี POST นานเกิน `booking.inbound-silence-alert-hours` ⇒ alert 17 · ทุก attach อธิบายได้จาก `MatchAttempts`
 
 ### P3c — Smart Booking go-live + pilot
 
-**Deliverables** (**ติด Booking spec gate**): ตกลง contract ขาเข้ากับทีม Smart Booking (draft v1 ใน Part 7) + วิธี auth / ส่ง secret / IP allowlist · mapper `smart-booking` ถ้า payload ไม่ใช่ v1 (`BOOKING_INBOUND_MAPPER=smart-booking`) · contract test + fixture จาก payload จริง · read API adapter `http` (`fetchJob` สำหรับปุ่ม refresh · `fetchWindow` สำหรับ reconcile รายคืน 02:00) **เฉพาะเมื่อ Booking มี read API** (optional — **[Assumption]**) · เปิด firewall ขาเข้าจาก IP ขาออกของ Booking (route `/api/integration/booking/*` ผ่าน ingress → nginx `web` → `api`) · sandbox run · pilot กับ 1–2 แผนก · deep link จาก Booking app
+**Deliverables** (**ติด Booking spec gate**): ตกลง contract ขาเข้ากับทีม Smart Booking (draft v1 ใน Part 7) + วิธี auth / ส่ง secret / IP allowlist · mapper `smart-booking` ถ้า payload ไม่ใช่ v1 (`BOOKING_INBOUND_MAPPER=smart-booking`) · contract test + fixture จาก payload จริง · read API adapter `http` (`fetchJob` สำหรับปุ่ม refresh · `fetchWindow` สำหรับ reconcile รายคืน 02:00) **เฉพาะเมื่อ Booking มี read API** (optional — **[Assumption]**) · เปิด firewall ขาเข้าจาก IP ขาออกของ Booking (route `/api/integration/booking/*` ผ่าน ingress → nginx `web` → `api`) · sandbox run · pilot กับ 1–2 ทีม · deep link จาก Booking app
 
 **Acceptance**: match rate อัตโนมัติ (session ในช่วงงานของ Booking ที่ attach ได้เอง) ≥ 90% ช่วง pilot 2 สัปดาห์ · ใบงาน 1:1 กับ Booking job (ไม่ซ้ำ ไม่ขาด — เทียบรายการกับ Booking ท้าย pilot) · เวลาจาก POST ถึงใบงานปรากฏในระบบ p95 ≤ 1 นาที · ช่วง pilot ไม่มี 401 / 400 จาก Booking ที่ไม่ได้ตั้งใจ · POST ที่หายกู้ได้ด้วย reconcile รายคืน (ถ้ามี read API) หรือ Booking ส่งซ้ำ (ถ้าไม่มี)
 
 ### P4 — Media & Evidence
 
 **Deliverables**
-- port streaming (live, playback, proxy, quota, role/device access) · live wall · talk (Must — DL48)
-- เมนูหลัก (DL36): **Live** (`/live-wall` + ดูสดจากรายการอุปกรณ์ + talk) และ **หลักฐาน** `/evidence` (port `client/src/features/evidence`): ตารางใบงานจาก Booking → เลือกกล้อง + ช่วงเวลาจาก session ของใบงาน → playback / ดาวน์โหลด MP4
-- `/recordings` ค้นหาวิดีโอรายกล้อง (ใช้กับ session ที่ไม่มีใบงาน)
+- port streaming (live, playback, proxy, quota, role/device access) · talk (Must — DL48)
+- **ภาพสดหลายจอ** `/live-wall` + talk (DL53 — ไม่มีเมนู Live รายกล้อง · ทางเดียวที่ดูกล้องที่ไม่มีใบงาน)
+- หน้า **ใบงาน** (จาก P2): ปุ่ม **ดูสด** ต่อกล้องที่ออนไลน์ (`LiveStreamDialog`) + ปุ่ม **ดูย้อนหลัง** (DL53)
+- **วิดีโอย้อนหลัง** `/evidence` (หน้า หลักฐาน เดิม · port `client/src/features/evidence`): ตารางใบงานที่ check-in แล้ว → dialog เลือกกล้อง (sessions + `DeviceRefs`) + ช่วงเวลา → playback / ดาวน์โหลด MP4 · ไฟล์ย้อนหลังที่ทับ `workWindow` (check-in – check-out ของ Booking) ติดป้าย "อยู่ในช่วงใบงาน" (DL52) · dialog เดียวกันใช้จากหน้า ใบงาน และรายละเอียดใบงาน
+- ไม่มี `/recordings` (ไม่มีวิดีโอย้อนหลังรายกล้อง — DL53)
 - evidence export (BullMQ + ffmpeg) · reuse job เดิมเมื่อ device + channel + start/end ตรงกันและยัง queued / processing / ready ไม่หมดอายุ · ไฟล์บน Local disk PVC ที่ `api` + `worker-media` mount ร่วม · ลบไฟล์หลัง 24 ชม. (DL34)
 
-**Acceptance**: เท่ากับพฤติกรรม reference (live/playback/export/talk) · export มี checksum + audit · `/evidence`: เลือกใบงานแล้ว playback / ดาวน์โหลดได้ตรงช่วงเวลา session · ขอ export ช่วงเดิมซ้ำได้ job เดิม ไม่สร้างใหม่ · `api` ทุก pod stream ไฟล์ที่ `worker-media` เขียนได้ (ทดสอบ PVC access mode ใน staging — Part 9 R16) · สั่ง export พร้อมกันเกิน `EVIDENCE_EXPORT_CONCURRENCY` แล้วงานที่เกินรอคิว และ latency ของ `api` (REST / live / แผนที่) ไม่เพิ่มอย่างมีนัย (DL39)
+**Acceptance**: เท่ากับพฤติกรรม reference (live/playback/export/talk) · export มี checksum + audit · หน้า ใบงาน / วิดีโอย้อนหลัง: เลือกใบงานแล้ว playback / ดาวน์โหลดได้ตรงช่วงเวลา session · ปุ่ม ดูสด แสดงเฉพาะกล้องที่ออนไลน์และผู้ใช้มี `streaming:view-live` · วิดีโอย้อนหลังแสดงเฉพาะใบที่ check-in แล้ว · ไฟล์ที่ทับช่วง check-in – check-out (รวมทับบางส่วน) มีป้าย "อยู่ในช่วงใบงาน" ไฟล์นอกช่วงไม่มี · ใบงานที่ยังไม่ check-in ไม่มีป้าย · ขอ export ช่วงเดิมซ้ำได้ job เดิม ไม่สร้างใหม่ · `api` ทุก pod stream ไฟล์ที่ `worker-media` เขียนได้ (ทดสอบ PVC access mode ใน staging — Part 9 R16) · สั่ง export พร้อมกันเกิน `EVIDENCE_EXPORT_CONCURRENCY` แล้วงานที่เกินรอคิว และ latency ของ `api` (REST / live / แผนที่) ไม่เพิ่มอย่างมีนัย (DL39)
 
 ### P5 — Mobile app (หัวหน้าทีม) API & Notifications
 
@@ -146,7 +152,7 @@ flowchart LR
 - Web: login ด้วย `TEAM_LEADER` แสดงหน้า "ใช้งานผ่านแอปมือถือ" (ไม่มีเมนู) · `ADMIN` หรือ `COMPANY_ADMIN` (DL51) สร้างบัญชีหัวหน้าทีมใน User Management และผูก `Employees.UserId` (บังคับใน service)
 - เอกสาร mobile contract ฉบับใหม่ (ปรับจาก `docs/MOBILE-API-CONTRACT.md` ของ reference) — แอปมือถือทีมเราพัฒนาเอง ปรับ / เพิ่ม / ลดฟังก์ชันได้ (DL49) · login หัวหน้าทีมได้ทั้ง Entra SSO และ username/password แบบ reference (DL49) — acceptance: บัญชีไม่มี Entra login ด้วยรหัสผ่านได้ + lockout ทำงาน
 
-**Acceptance**: หัวหน้าทีมเห็นเฉพาะใบงาน / กล้องของทีมตัวเอง — ของทีมอื่น ⇒ 404 · live เปิดได้เฉพาะกล้องใน scope `team` (กล้องอื่น ⇒ 404) · endpoint ของเมนู web (dashboard, tracking, sessions, playback, evidence, live wall, talk, alerts, users, settings ฯลฯ) ⇒ 403 และ login web ⇒ หน้า "ใช้งานผ่านแอปมือถือ" ไม่มีเมนู · ไม่ผูกพนักงาน / ไม่ใช่หัวหน้า ⇒ รายการว่าง ไม่ error · เปลี่ยนหัวหน้าทีม ⇒ สิทธิ์ย้ายไปคนใหม่ทันที · push "ใบงานใหม่ของทีม" ถึงเครื่องจริงเมื่อ simulator POST ใบงานใหม่ของทีม · ระงับบัญชี ⇒ refresh + push token ถูก revoke · ทีม mobile เชื่อมต่อได้ครบ
+**Acceptance**: หัวหน้าทีมเห็นเฉพาะใบงาน / กล้องของทีมตัวเอง — ของทีมอื่น ⇒ 404 · live เปิดได้เฉพาะกล้องใน scope `team` (กล้องอื่น ⇒ 404) · endpoint ของเมนู web (dashboard, tracking, playback, evidence, live wall, talk, alerts, users, settings ฯลฯ) ⇒ 403 และ login web ⇒ หน้า "ใช้งานผ่านแอปมือถือ" ไม่มีเมนู · ไม่ผูกพนักงาน / ไม่ใช่หัวหน้า ⇒ รายการว่าง ไม่ error · เปลี่ยนหัวหน้าทีม ⇒ สิทธิ์ย้ายไปคนใหม่ทันที · push "ใบงานใหม่ของทีม" ถึงเครื่องจริงเมื่อ simulator POST ใบงานใหม่ของทีม · ระงับบัญชี ⇒ refresh + push token ถูก revoke · ทีม mobile เชื่อมต่อได้ครบ
 
 ### P6 — Hardening & Go-live
 
@@ -154,9 +160,9 @@ flowchart LR
 - Retention ไม่มี archive (`DETACH` → `DROP PARTITION`) · cleanup jobs (รวม `EvidenceCleanup` ไฟล์ export บน PVC)
 - Observability: Prometheus metrics + dashboard + alert rules (sweep duration, poll lag, `booking_inbound_requests_total{result}`, `booking_inbound_last_received_timestamp`, `booking_inbox_lag_seconds` / `booking_inbox_pending` / `booking_inbox_dead`, queue depth)
 - Security review (OWASP ASVS L2 checklist, secret scan, dependency audit) รวม inbound endpoint (HMAC + replay window ±300 s, rate limit, body limit, ไม่ log secret / signature / body เต็ม) · penetration test เบื้องต้น · PDPA review
-- Load test: 300 อุปกรณ์ + 50 ผู้ใช้พร้อมกัน + 16 stream + burst POST จาก `booking-simulator` · backup/restore drill
-- Runbooks: Smart Booking ไม่ส่ง / ส่งแล้วได้ 401 ต่อเนื่อง, rotation secret ขาเข้า (`BOOKING_INBOUND_SECRETS`), DSS ล่ม, Redis ล่ม, migration ค้าง, dead letter
-- ตั้ง master data ใหม่ (ไม่ย้ายข้อมูลจากระบบเดิม — DL19): vendor sync อุปกรณ์, พนักงาน, ผู้ใช้ (รวมบัญชีหัวหน้าทีม `TEAM_LEADER` + ผูก `Employees.UserId`), ทีม, ฐาน · UAT · go-live checklist (ไม่มี demo account, CORS ไม่ใช่ `*`, `prod:check` ผ่าน, secret ขาเข้าของ Booking ตั้งใน Kubernetes Secret)
+- Load test ตามเป้า DL56: 100 อุปกรณ์ + 100 ผู้ใช้พร้อมกัน + ภาพสดพร้อมกัน 16 จอ + burst POST จาก `booking-simulator` · backup/restore drill
+- Runbooks: Smart Booking ไม่ส่ง / ส่งแล้วได้ 401 ต่อเนื่อง, rotation secret ขาเข้า (`BOOKING_INBOUND_SECRETS`), DSS ล่ม, Redis ล่ม, migration ค้าง, dead letter (ไม่มีหน้า integration — ประมวลผลใหม่จาก `Payload` ที่เก็บไว้: อัตโนมัติหลัง `re-resolve` / รายวัน หรือปุ่ม "ประมวลผลใหม่" บนการแจ้งเตือน · DL54)
+- ตั้ง master data ใหม่ (ไม่ย้ายข้อมูลจากระบบเดิม — DL19): พนักงาน (+ `BookingEmployeeRef`), ผู้ใช้ (สร้างจาก Entra ได้ · รวมบัญชีหัวหน้าทีม `TEAM_LEADER` + ผูก `Employees.UserId`) · ตรวจว่า `DeviceSync` ดึงกล้องครบ · ทีม / หัวหน้าทีมเกิดจากใบงาน Booking · ฐานยังไม่มีหน้าจัดการ (DL53) · UAT · go-live checklist (ไม่มี demo account, CORS ไม่ใช่ `*`, `prod:check` ผ่าน, secret ขาเข้าของ Booking ตั้งใน Kubernetes Secret, app registration ของ Microsoft Graph (`User.Read.All`) สำหรับหน้า ผู้ใช้จาก Entra)
 
 **Acceptance**: ผ่าน load test ที่ p95 API < 500ms, sweep < 10s · ผ่าน security checklist ไม่มี High ค้าง · UAT sign-off
 
@@ -167,8 +173,8 @@ flowchart LR
 | Milestone | หลัง Phase | ผลที่ใช้งานได้ |
 |---|---|---|
 | M1 Tracking ready | P1 | แผนที่สด + สถานะกล้อง + ประวัติเส้นทาง (DL48) แทนส่วน bodycam ของระบบเดิม |
-| M2 Evidence-ready | P2 + P4 | ทุกการใช้กล้องมี session + ดูย้อนหลัง/export รายกล้องได้ (`/recordings`) · เมนู Live พร้อม (ใบงานยังมาจาก `booking-simulator`) |
-| M3 Booking-linked | P3c | ใบงานที่ Smart Booking POST จริง + session match อัตโนมัติ + หน้า หลักฐาน `/evidence` ตามใบงาน |
+| M2 Evidence-ready | P2 + P4 | ทุกการใช้กล้องมี session + ภาพสดหลายจอพร้อม · ดูสด / ดูย้อนหลัง / export ผ่านหน้า ใบงาน และ วิดีโอย้อนหลัง (ใบงานยังมาจาก `booking-simulator`) |
+| M3 Booking-linked | P3c | ใบงานที่ Smart Booking POST จริง + ทีมจากใบงาน + session match อัตโนมัติ + หน้า ใบงาน / วิดีโอย้อนหลัง ตามใบงานจริง |
 | M4 Production | P5 + P6 | go-live (web + แอปหัวหน้าทีม) |
 
 ---

@@ -11,8 +11,6 @@ export type UserRow = {
   roleId: string;
   roleCode: string;
   roleName: string;
-  departmentId: string | null;
-  departmentName: string | null;
   status: number;
   lastLoginAt: string | null;
   azureLinked: boolean;
@@ -28,14 +26,12 @@ export type CreateUserPayload = {
   roleCode: string;
   email?: string;
   password?: string;
-  departmentId?: string;
 };
 
 export type UpdateUserPayload = {
   fullName?: string;
   email?: string | null;
   roleCode?: string;
-  departmentId?: string | null;
   password?: string;
 };
 

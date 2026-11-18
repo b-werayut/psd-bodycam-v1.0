@@ -27,18 +27,12 @@ import {
   USERNAME_MAX,
   type UserFormValues,
 } from '../userForm';
-import {
-  DEPARTMENTS_TREE_KEY,
-  departmentsApi,
-  flattenDepartments,
-} from '@/features/departments/departments.api';
 import { rolesApi, usersApi, type UserRow } from '../users.api';
 
 const FIELD_ORDER: ReadonlyArray<readonly [keyof UserFormValues, string]> = [
   ['username', 'user-username'],
   ['fullName', 'user-fullname'],
   ['roleCode', 'user-role'],
-  ['departmentId', 'user-department'],
   ['email', 'user-email'],
 ];
 
@@ -53,11 +47,6 @@ export function UserFormDialog({ user, onClose }: { user?: UserRow; onClose: () 
   const [usernameTaken, setUsernameTaken] = useState<string | null>(null);
 
   const roles = useQuery({ queryKey: ['roles'], queryFn: rolesApi.list });
-  const departments = useQuery({
-    queryKey: DEPARTMENTS_TREE_KEY,
-    queryFn: departmentsApi.tree,
-  });
-  const departmentOptions = flattenDepartments(departments.data ?? []);
 
   const errors = validateUserForm(values);
   const hasErrors = Object.keys(errors).length > 0;
@@ -163,27 +152,6 @@ export function UserFormDialog({ user, onClose }: { user?: UserRow; onClose: () 
               {(roles.data ?? []).map((role) => (
                 <option key={role.id} value={role.code}>
                   {role.name}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-          <FormField
-            id="user-department"
-            label={t('users.form.department')}
-            optionalText={values.roleCode === 'ADMIN' ? t('common.optional') : undefined}
-            hint={t('users.form.departmentHint')}
-            error={errorOf('departmentId')}
-          >
-            <Select
-              id="user-department"
-              value={values.departmentId}
-              onChange={(e) => set('departmentId', e.target.value)}
-              disabled={departments.isPending}
-            >
-              <option value="">{t('users.form.noDepartment')}</option>
-              {departmentOptions.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.label}
                 </option>
               ))}
             </Select>

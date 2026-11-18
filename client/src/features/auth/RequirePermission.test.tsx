@@ -23,8 +23,6 @@ function renderGuard(
       email: null,
       roleCode,
       roleName: roleCode,
-      departmentId: null,
-      departmentName: null,
       permissions,
     },
   });

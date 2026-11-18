@@ -45,13 +45,13 @@ describe('apiErrorOf', () => {
     const info = apiErrorOf(
       axiosError(409, {
         statusCode: 409,
-        code: 'DEPARTMENT_IN_USE',
+        code: 'EMPLOYEE_IN_USE',
         message: 'ลบไม่ได้',
-        details: { children: 1, employees: 3 },
+        details: { users: 1, jobs: 3 },
       }),
       t,
     );
-    expect(info.details).toEqual({ children: 1, employees: 3 });
+    expect(info.details).toEqual({ users: 1, jobs: 3 });
   });
   it('network error gives the network message', () => {
     const info = apiErrorOf(networkError(), t);

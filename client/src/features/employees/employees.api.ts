@@ -9,8 +9,6 @@ export type EmployeeRow = {
   firstName: string;
   lastName: string;
   phone: string | null;
-  departmentId: string;
-  departmentName: string | null;
   userId: string | null;
   bookingEmployeeRef: string | null;
   status: number;
@@ -20,7 +18,6 @@ export type EmployeeFilters = {
   page: number;
   pageSize: number;
   q?: string;
-  departmentId?: string;
   status?: number;
 };
 
@@ -28,7 +25,6 @@ export type CreateEmployeePayload = {
   employeeCode: string;
   firstName: string;
   lastName: string;
-  departmentId: string;
   phone?: string;
   userId?: string;
   bookingEmployeeRef?: string;
@@ -38,7 +34,6 @@ export type UpdateEmployeePayload = {
   employeeCode?: string;
   firstName?: string;
   lastName?: string;
-  departmentId?: string;
   phone?: string | null;
   userId?: string | null;
   bookingEmployeeRef?: string | null;
@@ -53,7 +48,6 @@ export const employeesApi = {
           page: filters.page,
           pageSize: filters.pageSize,
           ...(filters.q ? { q: filters.q } : {}),
-          ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
           ...(filters.status ? { status: filters.status } : {}),
         },
       })

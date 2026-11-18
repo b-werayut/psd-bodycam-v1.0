@@ -31,7 +31,7 @@ class EchoDto {
 class TestController {
   @Get('app')
   app(): never {
-    throw new AppException(409, 'DEPARTMENT_IN_USE', 'มีข้อมูลอ้างอิงอยู่', { children: 1 });
+    throw new AppException(409, 'EMPLOYEE_IN_USE', 'มีข้อมูลอ้างอิงอยู่', { users: 1 });
   }
   @Get('http')
   http(): never {
@@ -81,9 +81,9 @@ describe('GlobalExceptionFilter', () => {
     expect(res.status).toBe(409);
     expect(res.body).toEqual({
       statusCode: 409,
-      code: 'DEPARTMENT_IN_USE',
+      code: 'EMPLOYEE_IN_USE',
       message: 'มีข้อมูลอ้างอิงอยู่',
-      details: { children: 1 },
+      details: { users: 1 },
       correlationId: expect.any(String),
     });
   });

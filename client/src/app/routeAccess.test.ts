@@ -3,6 +3,26 @@ import { describe, expect, it } from 'vitest';
 import { accessForPath, canEnter, ROUTE_ACCESS } from './routeAccess';
 
 describe('ROUTE_ACCESS', () => {
+  it('lists only the routes of the 12-item menu plus the work-order detail', () => {
+    expect(Object.keys(ROUTE_ACCESS).sort()).toEqual(
+      [
+        '',
+        'tracking',
+        'tracking/history',
+        'live-wall',
+        'work-orders',
+        'work-orders/:id',
+        'evidence',
+        'employees',
+        'users',
+        'entra-users',
+        'notifications',
+        'audit-logs',
+        'settings',
+      ].sort(),
+    );
+  });
+
   it('maps the dashboard to the empty key', () => {
     expect(ROUTE_ACCESS['']).toEqual({ anyOf: ['dashboard:view'] });
   });
@@ -17,6 +37,19 @@ describe('ROUTE_ACCESS', () => {
   it('notifications accept either permission', () => {
     expect(ROUTE_ACCESS['notifications'].anyOf).toEqual(['notifications:read', 'alerts:view']);
   });
+
+  it('video playback (evidence) needs playback:view plus work-orders:read', () => {
+    expect(ROUTE_ACCESS['evidence']).toEqual({
+      anyOf: ['playback:view'],
+      allOf: ['work-orders:read'],
+    });
+  });
+
+  it('people routes: employees org:read, users users:read, Entra users users:manage', () => {
+    expect(ROUTE_ACCESS['employees']).toEqual({ anyOf: ['org:read'] });
+    expect(ROUTE_ACCESS['users']).toEqual({ anyOf: ['users:read'] });
+    expect(ROUTE_ACCESS['entra-users']).toEqual({ anyOf: ['users:manage'] });
+  });
 });
 
 describe('accessForPath', () => {
@@ -24,18 +57,31 @@ describe('accessForPath', () => {
     expect(accessForPath('/work-orders/123')).toEqual(ROUTE_ACCESS['work-orders/:id']);
   });
 
-  it('prefers the literal segment over a param', () => {
-    expect(accessForPath('/work-orders/review')).toEqual(ROUTE_ACCESS['work-orders/review']);
-  });
-
   it('matches nested literal paths', () => {
     expect(accessForPath('/tracking/history')).toEqual(ROUTE_ACCESS['tracking/history']);
-    expect(accessForPath('/booking-jobs/9')).toEqual(ROUTE_ACCESS['booking-jobs/:id']);
   });
 
   it('returns undefined for home and unknown paths', () => {
     expect(accessForPath('/')).toBeUndefined();
     expect(accessForPath('/nope')).toBeUndefined();
+  });
+
+  it('has no access entry for removed pages', () => {
+    for (const path of [
+      '/departments',
+      '/devices',
+      '/devices/1',
+      '/teams',
+      '/teams/1',
+      '/depots',
+      '/integration',
+      '/sessions',
+      '/recordings',
+      '/booking-jobs',
+      '/booking-jobs/9',
+    ]) {
+      expect(accessForPath(path), path).toBeUndefined();
+    }
   });
 });
 

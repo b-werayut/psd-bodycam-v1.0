@@ -38,11 +38,9 @@ const SESSION_USER = {
   id: 'u1',
   username: 'operator',
   roleCode: 'ADMIN' as const,
-  departmentId: null,
   roleName: 'Admin',
   fullName: 'Operator',
   email: null,
-  departmentName: null,
   permissions: ['devices:read'],
 };
 
@@ -192,7 +190,7 @@ describe('LoginPage', () => {
     expect(document.querySelector('[data-slot="signed-out-notice"]')).toBeNull();
   });
 
-  it('ใช้โลโก้เป็นตัวแทนแบรนด์โดยไม่แสดงชื่อ PSD Sentinel ซ้ำ', async () => {
+  it('ใช้โลโก้ PSD คู่กับชื่อระบบ ไม่มีชื่อ PSD Sentinel เดิม', async () => {
     renderLogin();
     await screen.findByRole('button', { name: /เข้าสู่ระบบด้วยบัญชีองค์กร/ });
 
@@ -203,8 +201,8 @@ describe('LoginPage', () => {
     expect(
       screen.getByText('ระบบบริหารกล้องบันทึกภาพภายในองค์กร'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'PSD Sentinel' })).toBeInTheDocument();
-    expect(screen.queryByText('PSD Sentinel')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'PSD' })).toBeInTheDocument();
+    expect(screen.queryByText(/Sentinel/)).not.toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'เลือกภาษา' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'เปลี่ยนเป็นโหมดมืด' })).toBeInTheDocument();
   });
@@ -263,7 +261,7 @@ describe('LoginPage', () => {
     renderLogin();
     await screen.findByRole('button', { name: /เข้าสู่ระบบด้วยบัญชีองค์กร/ });
 
-    const logo = screen.getByRole('img', { name: 'PSD Sentinel' });
+    const logo = screen.getByRole('img', { name: 'PSD' });
     expect(logo).toHaveAttribute('src', psdLightLogo);
     expect(logo.parentElement).toHaveClass(
       'h-16',
@@ -283,7 +281,7 @@ describe('LoginPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'เปลี่ยนเป็นโหมดมืด' }));
 
-    const logo = screen.getByRole('img', { name: 'PSD Sentinel' });
+    const logo = screen.getByRole('img', { name: 'PSD' });
     expect(logo).toHaveAttribute('src', psdDarkLogo);
     expect(logo.parentElement).toHaveClass(
       'h-16',

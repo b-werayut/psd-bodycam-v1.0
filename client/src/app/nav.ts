@@ -1,22 +1,15 @@
 import {
-  Activity,
   Bell,
-  Building2,
-  CalendarCheck,
-  Camera,
   ClipboardList,
+  History,
   IdCard,
   LayoutDashboard,
-  ListChecks,
   Map,
-  MapPin,
   MonitorPlay,
-  Plug,
   Route,
-  ScrollText,
   Settings,
-  ShieldCheck,
-  Users,
+  UserSearch,
+  UsersRound,
   Video,
   type LucideIcon,
 } from 'lucide-react';
@@ -24,7 +17,7 @@ import {
 import type { TranslationKey } from '@/i18n/locales/th';
 import type { AuthUser } from '@/stores/authStore';
 
-export type NavGroupId = 'overview' | 'operations' | 'assets' | 'system';
+export type NavGroupId = 'overview' | 'operations' | 'people' | 'system';
 
 export type NavItem = {
   labelKey: TranslationKey;
@@ -39,30 +32,23 @@ export type NavItem = {
 export const NAV_GROUPS: ReadonlyArray<{ id: NavGroupId; labelKey: TranslationKey }> = [
   { id: 'overview', labelKey: 'navigation.group.overview' },
   { id: 'operations', labelKey: 'navigation.group.operations' },
-  { id: 'assets', labelKey: 'navigation.group.assets' },
+  { id: 'people', labelKey: 'navigation.group.people' },
   { id: 'system', labelKey: 'navigation.group.system' },
 ];
 
-// P0: only items with `to` have a route; the rest render disabled until their phase adds one.
+// Items without `to` render disabled until their phase adds a route.
 export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'navigation.dashboard', icon: LayoutDashboard, group: 'overview', to: '/', permissions: ['dashboard:view'], end: true },
-  { labelKey: 'navigation.tracking', icon: Map, group: 'overview', permissions: ['tracking:view'] },
-  { labelKey: 'navigation.trackingHistory', icon: Route, group: 'overview', permissions: ['tracking:history'] },
-  { labelKey: 'navigation.liveWall', icon: MonitorPlay, group: 'overview', permissions: ['streaming:live-wall'], allPermissions: ['streaming:view-live'] },
-  { labelKey: 'navigation.sessions', icon: Activity, group: 'operations', permissions: ['sessions:read'] },
+  { labelKey: 'navigation.liveWall', icon: MonitorPlay, group: 'operations', permissions: ['streaming:live-wall'], allPermissions: ['streaming:view-live'] },
   { labelKey: 'navigation.workOrders', icon: ClipboardList, group: 'operations', permissions: ['work-orders:read'] },
-  { labelKey: 'navigation.reviewQueue', icon: ListChecks, group: 'operations', permissions: ['work-orders:link'] },
-  { labelKey: 'navigation.bookingJobs', icon: CalendarCheck, group: 'operations', permissions: ['booking:read'] },
-  { labelKey: 'navigation.recordings', icon: Video, group: 'operations', permissions: ['playback:view'] },
-  { labelKey: 'navigation.devices', icon: Camera, group: 'assets', permissions: ['devices:read'] },
-  { labelKey: 'navigation.teams', icon: Users, group: 'assets', permissions: ['teams:read'] },
-  { labelKey: 'navigation.employees', icon: IdCard, group: 'assets', to: '/employees', permissions: ['org:read'] },
-  { labelKey: 'navigation.departments', icon: Building2, group: 'assets', to: '/departments', permissions: ['org:read'] },
-  { labelKey: 'navigation.depots', icon: MapPin, group: 'assets', permissions: ['devices:read'] },
-  { labelKey: 'navigation.integration', icon: Plug, group: 'system', permissions: ['integration:view'] },
+  { labelKey: 'navigation.playback', icon: Video, group: 'operations', permissions: ['playback:view'], allPermissions: ['work-orders:read'] },
+  { labelKey: 'navigation.tracking', icon: Map, group: 'operations', permissions: ['tracking:view'] },
+  { labelKey: 'navigation.trackingHistory', icon: Route, group: 'operations', permissions: ['tracking:history'] },
+  { labelKey: 'navigation.employees', icon: IdCard, group: 'people', to: '/employees', permissions: ['org:read'] },
+  { labelKey: 'navigation.users', icon: UsersRound, group: 'people', to: '/users', permissions: ['users:read'] },
+  { labelKey: 'navigation.entraUsers', icon: UserSearch, group: 'people', permissions: ['users:manage'] },
   { labelKey: 'navigation.notifications', icon: Bell, group: 'system', permissions: ['notifications:read', 'alerts:view'] },
-  { labelKey: 'navigation.audit', icon: ScrollText, group: 'system', to: '/audit-logs', permissions: ['audit:view'] },
-  { labelKey: 'navigation.users', icon: ShieldCheck, group: 'system', to: '/users', permissions: ['users:read'] },
+  { labelKey: 'navigation.audit', icon: History, group: 'system', to: '/audit-logs', permissions: ['audit:view'] },
   { labelKey: 'navigation.settings', icon: Settings, group: 'system', to: '/settings', permissions: ['settings:manage'] },
 ];
 

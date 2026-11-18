@@ -2,46 +2,77 @@ import { describe, expect, it } from 'vitest';
 
 import { canSee, isNavItemActive, NAV_GROUPS, NAV_ITEMS, visibleNavItems } from './nav';
 
-const ROLE_OPERATOR_PERMS = ['dashboard:view', 'org:read', 'sessions:read'];
+const ROLE_OPERATOR_PERMS = ['dashboard:view', 'org:read', 'work-orders:read', 'tracking:view'];
 
 describe('NAV_ITEMS', () => {
-  it('has 19 items in spec order', () => {
+  it('has exactly 12 items in menu order', () => {
     expect(NAV_ITEMS.map((i) => i.labelKey)).toEqual([
       'navigation.dashboard',
+      'navigation.liveWall',
+      'navigation.workOrders',
+      'navigation.playback',
       'navigation.tracking',
       'navigation.trackingHistory',
-      'navigation.liveWall',
-      'navigation.sessions',
-      'navigation.workOrders',
-      'navigation.reviewQueue',
-      'navigation.bookingJobs',
-      'navigation.recordings',
-      'navigation.devices',
-      'navigation.teams',
       'navigation.employees',
-      'navigation.departments',
-      'navigation.depots',
-      'navigation.integration',
+      'navigation.users',
+      'navigation.entraUsers',
       'navigation.notifications',
       'navigation.audit',
-      'navigation.users',
       'navigation.settings',
     ]);
   });
 
-  it('only P0 items have a route', () => {
+  it('puts each item in its group', () => {
+    const byGroup = Object.fromEntries(
+      NAV_GROUPS.map((g) => [g.id, NAV_ITEMS.filter((i) => i.group === g.id).map((i) => i.labelKey)]),
+    );
+    expect(byGroup).toEqual({
+      overview: ['navigation.dashboard'],
+      operations: [
+        'navigation.liveWall',
+        'navigation.workOrders',
+        'navigation.playback',
+        'navigation.tracking',
+        'navigation.trackingHistory',
+      ],
+      people: ['navigation.employees', 'navigation.users', 'navigation.entraUsers'],
+      system: ['navigation.notifications', 'navigation.audit', 'navigation.settings'],
+    });
+  });
+
+  it('only items with a built page have a route; the rest stay placeholders', () => {
     expect(NAV_ITEMS.filter((i) => i.to).map((i) => i.to)).toEqual([
       '/',
       '/employees',
-      '/departments',
-      '/audit-logs',
       '/users',
+      '/audit-logs',
       '/settings',
     ]);
   });
 
+  it('declares the permissions of each item', () => {
+    expect(
+      Object.fromEntries(
+        NAV_ITEMS.map((i) => [i.labelKey, { any: i.permissions, all: i.allPermissions ?? [] }]),
+      ),
+    ).toEqual({
+      'navigation.dashboard': { any: ['dashboard:view'], all: [] },
+      'navigation.liveWall': { any: ['streaming:live-wall'], all: ['streaming:view-live'] },
+      'navigation.workOrders': { any: ['work-orders:read'], all: [] },
+      'navigation.playback': { any: ['playback:view'], all: ['work-orders:read'] },
+      'navigation.tracking': { any: ['tracking:view'], all: [] },
+      'navigation.trackingHistory': { any: ['tracking:history'], all: [] },
+      'navigation.employees': { any: ['org:read'], all: [] },
+      'navigation.users': { any: ['users:read'], all: [] },
+      'navigation.entraUsers': { any: ['users:manage'], all: [] },
+      'navigation.notifications': { any: ['notifications:read', 'alerts:view'], all: [] },
+      'navigation.audit': { any: ['audit:view'], all: [] },
+      'navigation.settings': { any: ['settings:manage'], all: [] },
+    });
+  });
+
   it('declares four groups', () => {
-    expect(NAV_GROUPS.map((g) => g.id)).toEqual(['overview', 'operations', 'assets', 'system']);
+    expect(NAV_GROUPS.map((g) => g.id)).toEqual(['overview', 'operations', 'people', 'system']);
   });
 });
 
@@ -54,21 +85,42 @@ describe('visibleNavItems', () => {
     ).toBe(false);
   });
 
-  it('shows items matching permissions', () => {
-    const keys = visibleNavItems(ROLE_OPERATOR_PERMS, 'OPERATOR').map((i) => i.labelKey);
-    expect(keys).toContain('navigation.dashboard');
-    expect(keys).toContain('navigation.employees');
-    expect(keys).toContain('navigation.sessions');
+  it('shows exactly the items matching permissions', () => {
+    expect(visibleNavItems(ROLE_OPERATOR_PERMS, 'OPERATOR').map((i) => i.labelKey)).toEqual([
+      'navigation.dashboard',
+      'navigation.workOrders',
+      'navigation.tracking',
+      'navigation.employees',
+    ]);
   });
 
   it('shows everything to ADMIN', () => {
     expect(visibleNavItems([], 'ADMIN')).toHaveLength(NAV_ITEMS.length);
   });
 
+  it('does not bypass for COMPANY_ADMIN: it sees only what its permissions allow', () => {
+    expect(visibleNavItems(['users:read'], 'COMPANY_ADMIN').map((i) => i.labelKey)).toEqual([
+      'navigation.users',
+    ]);
+  });
+
   it('live wall needs both permissions', () => {
     const wall = NAV_ITEMS.find((i) => i.labelKey === 'navigation.liveWall')!;
     expect(canSee(wall, ['streaming:live-wall'], 'OPERATOR')).toBe(false);
     expect(canSee(wall, ['streaming:live-wall', 'streaming:view-live'], 'OPERATOR')).toBe(true);
+  });
+
+  it('video playback needs playback:view plus work-orders:read', () => {
+    const playback = NAV_ITEMS.find((i) => i.labelKey === 'navigation.playback')!;
+    expect(canSee(playback, ['playback:view'], 'OPERATOR')).toBe(false);
+    expect(canSee(playback, ['work-orders:read'], 'OPERATOR')).toBe(false);
+    expect(canSee(playback, ['playback:view', 'work-orders:read'], 'OPERATOR')).toBe(true);
+  });
+
+  it('notifications accept either permission', () => {
+    const notifications = NAV_ITEMS.find((i) => i.labelKey === 'navigation.notifications')!;
+    expect(canSee(notifications, ['alerts:view'], 'VIEWER')).toBe(true);
+    expect(canSee(notifications, ['notifications:read'], 'VIEWER')).toBe(true);
   });
 });
 

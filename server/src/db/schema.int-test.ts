@@ -10,7 +10,6 @@ function yyyymm(offsetMonths: number): string {
 describe('P0 schema', () => {
   let ctx: HttpContext;
   let roleId: bigint;
-  let deptId: bigint;
 
   beforeAll(async () => {
     ctx = await bootHttpContext();
@@ -18,12 +17,6 @@ describe('P0 schema', () => {
       insert into "Roles" ("Code","Name") values ('T4_ROLE','Task4 role')
       on conflict ("Code") do update set "Name" = excluded."Name" returning "Id"`;
     roleId = role.Id;
-    const [dept] = await ctx.sql`
-      insert into "Departments" ("Code","Name") values ('T4_DEPT','Task4 dept')
-      on conflict do nothing returning "Id"`;
-    deptId =
-      dept?.Id ??
-      (await ctx.sql`select "Id" from "Departments" where "Code" = 'T4_DEPT' and "IsDeleted" = false`)[0].Id;
   });
 
   beforeEach(async () => {
@@ -34,7 +27,6 @@ describe('P0 schema', () => {
   afterAll(async () => {
     await ctx.sql`delete from "Employees" where "EmployeeCode" like 'T4_%'`;
     await ctx.sql`delete from "Users" where "FullName" like 'T4 %'`;
-    await ctx.sql`delete from "Departments" where "Code" = 'T4_DEPT'`;
     await ctx.sql`delete from "Roles" where "Code" = 'T4_ROLE'`;
     await ctx.close();
   });
@@ -77,6 +69,15 @@ describe('P0 schema', () => {
     await ctx.sql`delete from "AuditLogs" where "Action" = 't4.probe'`;
   });
 
+  it('single-department system: no Departments table and no DepartmentId column anywhere', async () => {
+    expect(await ctx.sql`select 1 from pg_tables where schemaname = 'public' and tablename = 'Departments'`).toHaveLength(0);
+    expect(
+      await ctx.sql`
+        select table_name from information_schema.columns
+        where table_schema = 'public' and column_name = 'DepartmentId'`,
+    ).toHaveLength(0);
+  });
+
   it('username is unique case-insensitively among live rows only', async () => {
     await insertUser('alice');
     await expect(insertUser('ALICE')).rejects.toThrow(/UQ_Users_Username/);
@@ -88,8 +89,8 @@ describe('P0 schema', () => {
     const userId = await insertUser('bob');
     const insertEmployee = (code: string) =>
       ctx.sql`
-        insert into "Employees" ("EmployeeCode","FirstName","LastName","DepartmentId","UserId")
-        values (${code}, 'T4', 'Emp', ${deptId}, ${userId})`;
+        insert into "Employees" ("EmployeeCode","FirstName","LastName","UserId")
+        values (${code}, 'T4', 'Emp', ${userId})`;
     await insertEmployee('T4_E1');
     await expect(insertEmployee('T4_E2')).rejects.toThrow(/UQ_Employees_User/);
   });

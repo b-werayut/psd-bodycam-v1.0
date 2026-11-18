@@ -10,13 +10,12 @@ export type UserFormValues = {
   email: string;
   password: string;
   roleCode: string;
-  departmentId: string;
 };
 
 export type UserFormErrors = Partial<Record<keyof UserFormValues, TranslationKey>>;
 
 export function emptyUserForm(): UserFormValues {
-  return { username: '', fullName: '', email: '', password: '', roleCode: '', departmentId: '' };
+  return { username: '', fullName: '', email: '', password: '', roleCode: '' };
 }
 
 export function userFormFrom(user: UserRow): UserFormValues {
@@ -26,7 +25,6 @@ export function userFormFrom(user: UserRow): UserFormValues {
     email: user.email ?? '',
     password: '',
     roleCode: user.roleCode,
-    departmentId: user.departmentId ?? '',
   };
 }
 
@@ -39,9 +37,6 @@ export function validateUserForm(values: UserFormValues): UserFormErrors {
   if (!values.fullName.trim()) errors.fullName = 'users.form.errorFullNameRequired';
 
   if (!values.roleCode) errors.roleCode = 'users.form.errorRoleRequired';
-  else if (values.roleCode !== 'ADMIN' && !values.departmentId) {
-    errors.departmentId = 'users.form.errorDepartmentRequired';
-  }
 
   const email = values.email.trim();
   if (email && !EMAIL_RE.test(email)) errors.email = 'users.form.errorEmail';
@@ -56,7 +51,6 @@ export function toCreatePayload(values: UserFormValues): CreateUserPayload {
     roleCode: values.roleCode,
     ...(email ? { email } : {}),
     ...(values.password ? { password: values.password } : {}),
-    ...(values.departmentId ? { departmentId: values.departmentId } : {}),
   };
 }
 
@@ -69,8 +63,5 @@ export function toUpdatePayload(
   if (values.roleCode !== original.roleCode) payload.roleCode = values.roleCode;
   if (values.password) payload.password = values.password;
   if (values.email.trim() !== original.email.trim()) payload.email = values.email.trim() || null;
-  if (values.departmentId !== original.departmentId) {
-    payload.departmentId = values.departmentId || null;
-  }
   return payload;
 }
