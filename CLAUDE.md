@@ -31,7 +31,7 @@ Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopte
 | `06-frontend-architecture.md` | Folder structure, routes, screens, component reuse, status→tone mapping |
 | `07-integration-strategy.md` | Booking push contract v1 (inbound endpoint, auth, responses), inbound mapper, optional read API, inbox, retry, idempotency, Confirmed vs Assumption |
 | `08-implementation-roadmap.md` | Phases P0–P6 with dependencies and acceptance criteria |
-| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL55) |
+| `09-risks-open-questions.md` | Risks, the Booking checklist, and the **decision log §9.5** (user decisions DL1–DL60) |
 
 - Implement in roadmap order.
 - P3c (Smart Booking go-live: agreed contract/auth, `smart-booking` mapper if their body is not our v1, optional read API adapter) is blocked until the Booking team provides a spec. Until then, build on our v1 contract, the `booking-simulator` and the `mock` driver (DL25, DL46).
@@ -46,6 +46,8 @@ Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopte
   - Server: `server/src/common/*`, `modules/auth`, `modules/realtime`, the GPS pipeline (`modules/tracking/tracking.service.ts`, `modules/scheduler/gps-poll.service.ts`), DSS providers, `modules/streaming` and `modules/talk`.
   - Client: `client/src/styles/tailwind.css` (OKLCH tokens), `client/DESIGN.md`, `components/ui`, `components/command-center`, the app shell, `lib/apiClient.ts`, `features/evidence` (DL36), `features/users/EntraUsersPage.tsx` (DL53).
 - Its `scheduler/camera-session.service.ts` is the **anti-pattern** being replaced: a pseudo work order plus reserved seed rows, `.limit(100)` with no `ORDER BY`, and a reopen loop.
+- The old system deployed in K8s `team3` is `C:\Git\psd-bwc-frontend` + `C:\Git\psd-bwc-web-backend` (Azure DevOps), with the same `src/` as the reference. It has no real users, and this system **replaces it in place** (DL60): it can be scaled to 0 now, and `server/` / `client/` replace those repos' content so the existing Azure pipelines, Harbor, gitops and Deployment/Service names are reused. Use a **new database**: the old DB's `drizzle.__drizzle_migrations` and table names clash with ours.
+  - **This repo is the source of truth.** The Azure repos are only the pipeline input: the user copies committed files of `server/` / `client/` there themselves when deploying, keeping the Azure repos' own `azure-pipelines.yml`, `sonar-project.properties` (and the backend's `.dockerignore`). Never edit the Azure repos; change code here.
 
 ## Commands
 
@@ -111,7 +113,7 @@ Client (`cd client`, Vite):
 **Unmatched sessions (DL33)**
 - No candidate, or several candidates ⇒ the session stays `AwaitingMatch` (or `NoTeam`). No work order is created.
 - It re-matches automatically when Booking data changes (`matching.rematch`, within `booking.rematch-horizon-hours`).
-- No manual link, no human classify, no review queue. There is no per-camera recording search (`/recordings` was removed, DL53): video of a camera without a work order can only be watched live while it is online (live wall).
+- No manual link, no human classify, no review queue. Video of a camera without a work order is played back on วิดีโอย้อนหลัง, which searches per camera + day (DL59), and watched live on the live wall while online.
 
 **Matching** (automatic only)
 - Order: `BookingJobs.DeviceRefs` first, then the team ref, then the team-leader ref. Exactly one winning candidate ⇒ attach.
@@ -181,9 +183,9 @@ Emit realtime events **only after commit**.
   - ปฏิบัติงาน: ภาพสดหลายจอ `/live-wall`, ใบงาน `/work-orders` (+ `/work-orders/:id`), วิดีโอย้อนหลัง `/evidence` (the old หลักฐาน page), แผนที่ติดตาม `/tracking`, ประวัติเส้นทาง `/tracking/history`
   - ผู้ใช้และพนักงาน: พนักงาน `/employees`, ผู้ใช้ระบบ `/users`, ผู้ใช้จาก Entra `/entra-users` (port of the reference page: `GET /users/entra-directory`, `POST /users/sync-entra` `{ dryRun, matchByUsername? }`, create accounts from Entra rows one by one or in bulk with one role; needs `users:manage`; `COMPANY_ADMIN` cannot assign `ADMIN`)
   - ระบบ: แจ้งเตือน `/notifications`, ประวัติการใช้งาน `/audit-logs`, ตั้งค่าระบบ `/settings`
-- Removed, menus and code (DL53): departments, Bodycam device pages, teams, depots, the integration status page (only `ADMIN` alerts + the stale banner remain), tracking sessions, `/recordings`, the per-camera Live menu, `/booking-jobs`.
-- ใบงาน `/work-orders` = table of Booking work orders (status tabs, the job's cameras with a live button when online, a playback button opening the same dialog as วิดีโอย้อนหลัง). `VIEWER` is read-only.
-- วิดีโอย้อนหลัง `/evidence` = checked-in work orders → camera (its sessions + Booking `DeviceRefs`) + time range → playback / MP4 download; needs `playback:view`. Recording segments that overlap the work order's `workWindow` (Booking check-in → check-out, computed by the server) get the "อยู่ในช่วงใบงาน" badge (DL52). Reuse an export with the same device + channel + exact start/end that is queued, processing or ready and unexpired.
+- Removed, menus and code (DL53): departments, Bodycam device pages, teams, depots, the integration status page (only `ADMIN` alerts + the stale banner remain), tracking sessions, the `/recordings` route (per-camera playback now lives in วิดีโอย้อนหลัง, DL59), the per-camera Live menu, `/booking-jobs`.
+- ใบงาน `/work-orders` = table of Booking work orders (status tabs, the job's cameras with a live button when online, a playback button for checked-in jobs only, whose dialog lists only recordings inside the job's `workWindow`, DL59). `VIEWER` is read-only.
+- วิดีโอย้อนหลัง `/evidence` = per-camera search (DL59): pick a camera + day (≤ 24h per search) → every recorded segment, each tagged with its work order (from that camera's attached session) or "ไม่ผูกใบงาน" → playback / MP4 download; needs `playback:view`. The work-order dialog (ใบงาน list and detail) lists only segments inside the job's `workWindow` (Booking check-in → check-out, computed by the server) and clips playback to it; the "อยู่ในช่วงใบงาน" badge is gone. Reuse an export with the same device + channel + exact start/end that is queued, processing or ready and unexpired.
 
 ## Editing the blueprint
 

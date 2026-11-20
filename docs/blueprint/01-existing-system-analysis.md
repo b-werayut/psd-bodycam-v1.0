@@ -3,6 +3,7 @@
 > สรุปจากการอ่าน source code จริง (ไม่ใช่เอกสารอย่างเดียว) ณ 2026-11-03 · path ทั้งหมดอ้างจาก root ของ reference project
 > ปรับ 2026-11-12: แก้เฉพาะข้อความที่พูดถึงการออกแบบใหม่ให้ตรง DL46 (Smart Booking POST เข้ามา) และ DL47 (mobile สำหรับหัวหน้าทีม) · ข้อเท็จจริงของระบบเดิมไม่เปลี่ยน
 > Reference project **ไม่ถูกแก้ไข** ในงานนี้
+> ระบบเดิมที่ deploy อยู่ใน Kubernetes `team3` คือ repo `psd-bwc-frontend` และ `psd-bwc-web-backend` (Azure DevOps) — `src/` ตรงกับ `client/src` / `server/src` ของ reference ทุกไฟล์ (ตรวจ 2026-11-20) · ไม่มีผู้ใช้จริง และระบบนี้ deploy ทับแทนที่ (DL60)
 
 ---
 
@@ -164,16 +165,16 @@ flowchart LR
 
 | กลุ่ม | รายการ |
 |---|---|
-| **Reuse** | `client/src/styles/tailwind.css` (tokens), `tailwind.config.cjs`, ส่วนที่ใช้ของ `global.css`, `client/DESIGN.md` · `components/ui/*` · `components/command-center/*` · shell (`AppLayout`, `AppHeader`, `AppSidebar`, `BranchedNav`, `Breadcrumb`, `ThemeToggle`, `LanguageSwitcher`) · i18n mechanism · `lib/apiClient.ts`, `apiError.ts`, `authEndpoints.ts`, `socket.ts`, `RealtimeProvider` · auth (`RequireAuth`, `RequirePermission`, `msalClient.ts`) · `StreamPlayer`, live wall (→ ภาพสดหลายจอ — DL53), talk module, `features/evidence` (→ หน้า วิดีโอย้อนหลัง `/evidence` + dialog ดูวิดีโอของหน้า ใบงาน + export/download flow — DL36, DL53) · `features/users/EntraUsersPage.tsx` + `entraSync.ts` / `entraBulk.ts` (→ ผู้ใช้จาก Entra `/entra-users` — DL53) · pattern `useLivePositions` + `liveMerge` |
+| **Reuse** | `client/src/styles/tailwind.css` (tokens), `tailwind.config.cjs`, ส่วนที่ใช้ของ `global.css`, `client/DESIGN.md` · `components/ui/*` · `components/command-center/*` · shell (`AppLayout`, `AppHeader`, `AppSidebar`, `BranchedNav`, `Breadcrumb`, `ThemeToggle`, `LanguageSwitcher`) · i18n mechanism · `lib/apiClient.ts`, `apiError.ts`, `authEndpoints.ts`, `socket.ts`, `RealtimeProvider` · auth (`RequireAuth`, `RequirePermission`, `msalClient.ts`) · `StreamPlayer`, live wall (→ ภาพสดหลายจอ — DL53), talk module, `features/evidence` (→ dialog ดูวิดีโอของใบงาน + player / export / download ของหน้า วิดีโอย้อนหลัง รายกล้อง — DL36, DL53, DL59) · `features/users/EntraUsersPage.tsx` + `entraSync.ts` / `entraBulk.ts` (→ ผู้ใช้จาก Entra `/entra-users` — DL53) · pattern `useLivePositions` + `liveMerge` |
 | **Refactor** | `features/tracking/MapPage.tsx` (975 บรรทัด — ตัด dashcam marker/filter, แตกไฟล์) · `tracking/history/HistoryPage.tsx` (ตัด `roadSegments`) · dashboard (ตัด FleetMatrix) · `features/users`, `features/employees` (ตัด company / แผนก) · เพิ่ม `usePermission()` แทน `permissions.includes()` กระจาย · ย้าย `Paged<T>` ไป `lib/` · เพิ่ม 404 + `errorElement` · ใช้ route จริง `/work-orders/:id` แทน `?open=` |
 | **Remove** | `features/vehicles` · dashcam marker assets · `VehicleRouteLinks`, `roadMatch.ts` · plate mask ใน `lib/inputMasks.ts` · work-order create form / approval / crew panels · `features/my-jobs` (หัวหน้าทีมใช้แอปมือถือ ไม่มีหน้า web — DL47) · `features/sites`, `features/companies`, `features/approval-delegations` · `features/departments`, `features/devices` (หน้ารายการ / แก้ไข / sync / ปลดระวาง) — DL53 · i18n keys ฝั่ง vehicle/dashcam (~110 ต่อภาษา) · dependency ที่ไม่ใช้ (`@boxicons/react`, `@fontsource/kanit`, `@fontsource/ibm-plex-sans`) |
-| **Rebuild** | หน้า ใบงาน (ตาราง + คอลัมน์กล้อง + ดูสด / ดูย้อนหลัง) + รายละเอียดใบงาน แบบ Booking-driven (อ่านอย่างเดียว · ไม่มีคิวตรวจสอบ — DL33, DL53) · Booking job reference panel · ไม่สร้างหน้า Tracking sessions, Device detail, Teams, Depots, Integration monitoring, `/recordings` (DL53) |
+| **Rebuild** | หน้า ใบงาน (ตาราง + คอลัมน์กล้อง + ดูสด / ดูย้อนหลัง) + รายละเอียดใบงาน แบบ Booking-driven (อ่านอย่างเดียว · ไม่มีคิวตรวจสอบ — DL33, DL53) · Booking job reference panel · หน้า วิดีโอย้อนหลัง รายกล้อง (เลือกกล้อง + วัน → ไฟล์ทุกช่วง + ป้ายใบงาน — DL59) · ไม่สร้างหน้า Tracking sessions, Device detail, Teams, Depots, Integration monitoring, `/recordings` (DL53) |
 
 ### Database
 
 | กลุ่ม | ตาราง |
 |---|---|
-| **Reuse (ปรับเล็กน้อย)** | `Users`, `Roles`, `Permissions`, `RolePermissions`, `RefreshTokens`, `PushTokens`, `UserDevices` (ตัดคอลัมน์ PIN/biometric, เปลี่ยน `DeviceId` → `InstallationId`), `Employees` (ตัด `DepartmentId`), `StreamingSessions`, `TalkSessions`, `EvidenceExports`, `Notifications`, `Settings`, `AuditLogs` (partition) |
+| **Reuse (ปรับเล็กน้อย)** | `Users`, `Roles`, `Permissions`, `RolePermissions`, `RefreshTokens`, `PushTokens`, `UserDevices` (ตัดคอลัมน์ PIN/biometric — PIN อยู่บนเครื่องเท่านั้น DL61, เปลี่ยน `DeviceId` → `InstallationId`), `Employees` (ตัด `DepartmentId`), `StreamingSessions`, `TalkSessions`, `EvidenceExports`, `Notifications`, `Settings`, `AuditLogs` (partition) |
 | **Refactor** | `Devices` (แยก `DeviceState`), `DeviceAssignments` (→ ทีม), `GpsLocations` (partition รายเดือน, ตัด `IgnitionOn`/`OdometerKm`), `PlaybackRecords` → `RecordingSegments`, `Alerts` (ตัด VehicleId/GeofenceId/SourceEventId) |
 | **Remove** | `Vehicles`, `Companies`, `Departments` (DL53), `Sites`, `GpsTripSummaries`, `Geofences`, `Events`, `WorkAssignments`, `WorkOrderAttachments`, `AttachmentUploads`, `ApprovalDelegations`, `TemporaryPermissionGrants` |
 | **Rebuild / New** | `Teams`, `TeamMembers`, `DeviceState`, `DeviceStatusHistory`, `TrackingSessions`, `WorkOrders` (ใหม่), `WorkOrderEvents`, `WorkOrderCounters`, `BookingJobs`, `MatchAttempts`, `IntegrationInbox`, `IntegrationSyncState`, `IntegrationCallLogs` |

@@ -344,7 +344,7 @@ erDiagram
 
 **RefreshTokens** — port ตรงจาก reference: `Id`, `UserId NN`, `TokenHash char(64) UQ`, `ExpiresAt NN`, `RevokedAt`, `ReplacedByTokenId FK self`, `UserDeviceId FK`, `CreatedAt` · IX `(UserId, ExpiresAt)`
 
-**UserDevices** — ทะเบียนเครื่องมือถือ (**ไม่มี PIN/biometric**)
+**UserDevices** — ทะเบียนเครื่องมือถือ (**ไม่มีคอลัมน์ PIN/biometric** — แอปมีหน้า PIN แต่ค่าอยู่บนเครื่องเท่านั้น DL61)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
@@ -481,7 +481,7 @@ PK `PK_GpsLocations (DeviceId, RecordedAt)` (รวม partition key ⇒ `ON CON
 | Id | bigint identity | PK | |
 | DeviceId | bigint | NN | FK → Devices |
 | TeamId | bigint | | FK → Teams (ทีม ณ เวลาเริ่ม · null = กล้องไม่ผูกทีม) |
-| WorkOrderId | bigint | | FK → WorkOrders · null = ยังไม่มีใบงาน (รอข้อมูล Booking — ไม่มีหน้าค้นวิดีโอย้อนหลังรายกล้อง ดูได้เฉพาะภาพสดเมื่อกล้องออนไลน์ · DL53) |
+| WorkOrderId | bigint | | FK → WorkOrders · null = ยังไม่มีใบงาน (รอข้อมูล Booking — วิดีโอดูย้อนหลังได้ที่หน้า วิดีโอย้อนหลัง รายกล้อง · DL59) |
 | StartedAt | timestamptz | NN | |
 | EndedAt | timestamptz | | null = เปิดอยู่ |
 | StartInferred | smallint | NN | |
@@ -653,6 +653,7 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 5. **Partitioned tables** ประกาศ `pgTable` ใน `server/src/db/schema.partitioned.ts` ซึ่ง **ไม่อยู่ใน `schema` path ของ `drizzle.config.ts`** ⇒ drizzle-kit ไม่ generate DDL ให้ แต่ query แบบ typed ได้ · ตอนนี้มี `AuditLogs` · `GpsLocations` เพิ่มใน P1
 6. **Drift gate**: port `guardMigrationsOrExit()` (`server/src/db/migration-status.ts`, `assert-migrations.ts`) + advisory lock ตอน migrate · production รัน migrate เป็น step แยกก่อน deploy (reference ยังไม่มีใน Dockerfile — ต้องทำ)
 7. **ไม่ย้ายข้อมูลจากระบบเดิม** **[Confirmed — Q13]** — เป็นระบบใหม่ทั้งหมด ระบบเดิมใช้เป็น reference เท่านั้น · master data ตั้งใหม่ในระบบนี้: พนักงาน, ผู้ใช้ (รวมสร้างจาก Entra) ตั้งผ่านหน้าจอ · อุปกรณ์ sync จาก DSS อัตโนมัติ · ทีม / หัวหน้าทีมเกิดจากใบงาน Booking · ฐานยังไม่มีหน้าจัดการ (DL53)
+   - **ใช้ database ใหม่ ไม่ migrate ทับ DB ของระบบเดิม** (DL60 — ระบบนี้ deploy ทับระบบเดิม `psd-bwc-web-backend`): ทั้งสองใช้ตาราง `drizzle.__drizzle_migrations` ตัวเดียวกัน (ระบบเดิม apply ไว้แล้ว 0000–0031) และชื่อตารางชนกันครบทุกตารางของ P0 (`Users`, `Roles`, `Employees`, `Settings`, `RefreshTokens` ฯลฯ) ⇒ `0000_baseline` จะล้มกลางทาง · สร้าง database ใหม่บน PostgreSQL เดิม · DB ของระบบเดิมเก็บเป็น backup ไว้ระยะหนึ่ง (ใช้ rollback) แล้ว drop
 8. **Schema `dss` อยู่นอก drizzle** — `drizzle.config.ts` ไม่ได้ตั้ง `schemaFilter` ⇒ drizzle-kit ดูแค่ `public` จึงไม่ยุ่งกับ `dss."RequestLogs"` · **อย่าเพิ่ม `dss` ใน `schemaFilter`** (drizzle-kit จะเห็นตารางนี้เป็นส่วนเกินและเสนอให้ลบ) · DSS middleware สร้าง schema + ตารางเองตอนเขียนครั้งแรก (`CREATE SCHEMA/TABLE IF NOT EXISTS`) และสร้างใหม่เองถ้าตารางหายระหว่างรัน ⇒ drop-recreate DB ช่วง dev (DL50) ไม่ต้อง restart DSS middleware · ถ้า DB user ไม่มีสิทธิ์ `CREATE` ให้ DBA รัน `deploy/request-logs.sql` ของ `psd-bwc-dss-services` และ GRANT ก่อน
 
 ---

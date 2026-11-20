@@ -49,7 +49,7 @@
 | POST | `/auth/logout` | Public | ใช้ refresh token |
 | GET | `/auth/me` | login | user + role + permissions · web เห็น role `TEAM_LEADER` ⇒ เปิดหน้า "ใช้งานผ่านแอปมือถือ" (DL47) |
 | POST | `/auth/change-password` | login | |
-| GET / PATCH / DELETE | `/auth/devices[/:id]` | login | ทะเบียนเครื่องของตัวเอง (`deviceName`, `pushEnabled`) — **ไม่มี PIN** |
+| GET / PATCH / DELETE | `/auth/devices[/:id]` | login | ทะเบียนเครื่องของตัวเอง (`deviceName`, `pushEnabled`) — **ไม่มี PIN ฝั่ง server** (PIN อยู่บนเครื่อง — DL61) |
 
 ### Users, Roles, Employees
 
@@ -86,16 +86,16 @@
 | GET | `/tracking/positions` | `tracking:view` ✱ | snapshot ทุกอุปกรณ์ใน scope |
 | GET | `/tracking/devices/:id/history?from&to` | `tracking:history` ✱ | polyline segments + stops (ไม่มี road-match) · ช่วง ≤ 24 ชม. |
 
-Session อ่านอย่างเดียว — ผูกกับใบงานโดย matching อัตโนมัติเท่านั้น · ไม่มี endpoint รายการ session (ไม่มีหน้า Tracking sessions — DL53) · session ของใบงานดูผ่าน `/work-orders/:id/sessions` · session ที่ยังไม่มีใบงาน (`AwaitingMatch` / `NoTeam`) รอข้อมูล Booking — ไม่มีหน้าค้นวิดีโอย้อนหลังรายกล้อง ดูได้เฉพาะภาพสดเมื่อกล้องออนไลน์ (DL53) · ไม่มี attach / classify ด้วยมือ (DL33)
+Session อ่านอย่างเดียว — ผูกกับใบงานโดย matching อัตโนมัติเท่านั้น · ไม่มี endpoint รายการ session (ไม่มีหน้า Tracking sessions — DL53) · session ของใบงานดูผ่าน `/work-orders/:id/sessions` · session ที่ยังไม่มีใบงาน (`AwaitingMatch` / `NoTeam`) รอข้อมูล Booking — วิดีโอของ session เหล่านี้ดูได้ที่หน้า วิดีโอย้อนหลัง รายกล้อง (DL59) · ไม่มี attach / classify ด้วยมือ (DL33)
 
 ### Work Orders
 
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
-| GET | `/work-orders` | `work-orders:read` | ตารางของหน้า ใบงาน และ วิดีโอย้อนหลัง (`checkedIn=true` = เฉพาะใบที่ check-in แล้ว — DL53) · filter `status`, `teamId`, `needsReview`, `checkedIn`, `from`, `to`, `q` (เลข WO / เลข Booking / เลข DO / เลข SH / ชื่อทีม — DL46) · แต่ละแถวมี `workWindow` + `booking.siteName` + `cameras[]` (กล้องจาก sessions + `DeviceRefs` พร้อม `platformState` จาก cache สถานะกล้อง DL45 — ใช้แสดงปุ่ม ดูสด) |
+| GET | `/work-orders` | `work-orders:read` | ตารางของหน้า ใบงาน · filter `status`, `teamId`, `needsReview`, `from`, `to`, `q` (เลข WO / เลข Booking / เลข DO / เลข SH / ชื่อทีม — DL46) · แต่ละแถวมี `workWindow` + `booking.siteName` + `cameras[]` (กล้องจาก sessions + `DeviceRefs` พร้อม `platformState` จาก cache สถานะกล้อง DL45 — ใช้แสดงปุ่ม ดูสด) · ปุ่ม ดูย้อนหลัง มีเมื่อ `workWindow` ไม่เป็น null (DL59) |
 | GET | `/work-orders/by-booking/:externalJobId` | `work-orders:read` | deep link จาก Booking app (Part 7 §7.9 — ผู้ใช้ web เท่านั้น) → `{ id }` · ไม่พบ / นอก scope = 404 |
 | GET | `/work-orders/:id` | `work-orders:read` | detail + booking + team + summary |
-| GET | `/work-orders/:id/sessions` | `work-orders:read` | ใช้เลือกกล้อง + ช่วงเวลาใน dialog ดูวิดีโอ (หน้า ใบงาน / วิดีโอย้อนหลัง / รายละเอียดใบงาน — DL36, DL53) |
+| GET | `/work-orders/:id/sessions` | `work-orders:read` | ใช้เลือกกล้อง + ช่วงเวลาใน dialog ดูวิดีโอ (หน้า ใบงาน / รายละเอียดใบงาน — DL36, DL59) |
 | GET | `/work-orders/:id/events` | `work-orders:read` | timeline |
 | GET | `/work-orders/:id/match-attempts` | `work-orders:read` | |
 | PATCH | `/work-orders/:id` | `work-orders:edit-note` | `{ note }` + `If-Match` (แก้ได้แค่หมายเหตุ) |
@@ -122,7 +122,7 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
 | POST | `/streams/playback` `{ deviceCode, startAt, endAt }` (≤ 24 ชม.) | `playback:view` |
 | GET | `/streams/:token/playlist.m3u8`, `/streams/:token/segment` | Public (sealed token) |
 | POST | `/streams/:token/stop` · GET `/streams/sessions` | `streaming:view-live` |
-| GET | `/streams/recordings?deviceId&from&to` · `?workOrderId=` | `playback:view` · ใช้ใน dialog ดูวิดีโอของใบงาน (หน้า ใบงาน / วิดีโอย้อนหลัง / รายละเอียดใบงาน) ซึ่งติดป้าย "อยู่ในช่วงใบงาน" ให้ไฟล์ที่ทับ `workWindow` (DL52) · ไม่มีหน้าค้นรายกล้อง (DL53) |
+| GET | `/streams/recordings?deviceId&from&to` · `?workOrderId=` | `playback:view` · `?deviceId&from&to` (ช่วง ≤ 24 ชม.) = หน้า วิดีโอย้อนหลัง รายกล้อง: ไฟล์ทุกช่วงของกล้อง แต่ละรายการมี `workOrder: { id, workOrderNo } \| null` (ใบงานของ session กล้องเดียวกันที่ทับช่วงไฟล์และผูกแล้ว — DL59) · `?workOrderId=` = dialog ดูวิดีโอของใบงาน: เฉพาะไฟล์ที่ทับ `workWindow` ของกล้องในใบงาน (sessions + `DeviceRefs`) · ใบที่ยังไม่ check-in ⇒ รายการว่าง |
 | GET / PATCH | `/streams/role-access` | `roles:manage` |
 | GET | `/evidence-exports/policy` · POST `/evidence-exports` · GET `/evidence-exports/:id` | `evidence:export` |
 | POST | `/evidence-exports/:id/download-ticket` · GET `/evidence-exports/download?ticket=` | `evidence:download` / Public (ticket) |
@@ -226,7 +226,7 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
 
 `availableActions` คำนวณที่ server (pattern จาก `/my-jobs` ของ reference) — client ไม่เดากติกาเอง · **ไม่มีปุ่มปิด/reopen/link/void** เพราะใบงานและสถานะมาจาก Booking เท่านั้น (DL33 · `closedAt` = เวลา check-out) · `refreshBooking` อยู่ในรายการเฉพาะเมื่อมี read API (`BOOKING_PROVIDER_DRIVER ≠ none`) และผู้ใช้มี `booking:refresh` (DL46)
 
-`workWindow` = ช่วงปฏิบัติงานจริงตาม Booking คำนวณที่ server (DL52): `from` = `BookingJobs.BookingCheckInAt` (null ⇒ ยังไม่ check-in ⇒ `workWindow = null`) · `to` = `BookingCheckOutAt` ?? `WorkOrders.ClosedAt` (ยกเลิก / `SafetyTimeout`) ?? `null` (ยังดำเนินการ — client ใช้เวลาปัจจุบัน) · ใช้แสดง "ปฏิบัติงานจริง" ในตารางหน้า ใบงาน / วิดีโอย้อนหลัง และติดป้าย "อยู่ในช่วงใบงาน" ให้ไฟล์ย้อนหลังที่ทับช่วงนี้ (`segment.startAt < to && segment.endAt > from`) · check-in ใหม่หลังปิด (reopen) ใช้คู่ check-in / check-out ล่าสุด
+`workWindow` = ช่วงปฏิบัติงานจริงตาม Booking คำนวณที่ server (DL52): `from` = `BookingJobs.BookingCheckInAt` (null ⇒ ยังไม่ check-in ⇒ `workWindow = null`) · `to` = `BookingCheckOutAt` ?? `WorkOrders.ClosedAt` (ยกเลิก / `SafetyTimeout`) ?? `null` (ยังดำเนินการ — client ใช้เวลาปัจจุบัน) · ใช้แสดง "ปฏิบัติงานจริง" ในตารางหน้า ใบงาน และจำกัดไฟล์ / ช่วงเล่นของ dialog ดูวิดีโอของใบงาน (ไฟล์ที่ `segment.startAt < to && segment.endAt > from` · ตัดช่วงให้อยู่ใน `workWindow` — DL59) · check-in ใหม่หลังปิด (reopen) ใช้คู่ check-in / check-out ล่าสุด
 
 `doNo` / `shNo` = เลข DO / SH จาก Smart Booking — มีในข้อมูลใบงาน **[Confirmed]** · ความหมาย (น่าจะเป็น Delivery Order / Shipment) **[Assumption]** · ใช้แสดงและค้นหาเท่านั้น ไม่ใช้จับคู่ session (DL46) · `lastSyncedAt` = เวลาที่ได้รับข้อมูลใบงานนี้ล่าสุด
 
@@ -351,7 +351,8 @@ Booking app ลิงก์มาที่ `https://{host}/work-orders/by-bookin
 
 ผู้ใช้แอป = **หัวหน้าทีมภาคสนาม role `TEAM_LEADER` เท่านั้น** (requirement ฉบับ 2026-11-12 §4 · DL47 แทน DL4 / DL16) · ขอบเขต = **live กล้องของตัวเอง + รายละเอียดใบงานจาก Smart Booking** · ไม่มี playback, GPS (แผนที่ / ประวัติ), monitoring สถานะกล้อง, talk, alert, user management — ทั้งหมดอยู่บน web (requirement §4.3 · GPS history และ talk ยังเป็น Must บน web — DL48) · check-in / check-out ยังทำใน Booking app
 
-- port จาก `docs/MOBILE-API-CONTRACT.md` ของ reference เฉพาะ login/SSO/refresh body-mode, ทะเบียนเครื่อง, push token — **ตัด PIN, my-jobs (approval/delegation), attachments, sites** · `/mobile/jobs` เขียนใหม่ อ่านอย่างเดียว
+- port จาก `docs/MOBILE-API-CONTRACT.md` ของ reference เฉพาะ login/SSO/refresh body-mode, ทะเบียนเครื่อง, push token — **ตัด PIN ฝั่ง server (`/auth/devices/:id/pin`, ธง PIN ใน `UserDevices`), my-jobs (approval/delegation), attachments, sites** · `/mobile/jobs` เขียนใหม่ อ่านอย่างเดียว
+- **PIN (DL61)**: แอปมีหน้า "ใส่รหัส PIN" (ตั้งหลัง login ครั้งแรก, 6 หลัก หรือ biometric) — แอปเก็บและตรวจเอง (Keystore / Keychain) เพื่อปลดล็อก refresh token ที่เก็บไว้ · server ไม่เก็บค่า / ธง PIN และไม่มี endpoint · ลืม PIN / ผิดเกินที่แอปกำหนด ⇒ ล้าง token กลับหน้า login · ปลด PIN แล้ว `/auth/refresh` ได้ 401 ⇒ ล้าง token ไปหน้า login ทันที ไม่วนหน้า PIN
 - **Login**: Entra SSO (`/auth/azure`) หรือ username/password (`/auth/login`) — ใช้ได้ทั้งสองแบบ: มีบัญชี Entra ⇒ SSO · ไม่มี ⇒ username/password แบบ reference (lockout ตาม Settings `auth.*`, refresh token แบบ body) **[Confirmed — DL49]** · `ADMIN` หรือ `COMPANY_ADMIN` (DL51) สร้างบัญชีใน User Management และผูกกับพนักงาน (`Employees.UserId`)
 - **Data scope `team`** (DL47): พนักงานของผู้ใช้ = `Employees.UserId = me` · ทีม = ทีมที่พนักงานนั้นเป็นหัวหน้าอยู่ (`TeamMembers.Role = 1 Leader` ที่ active — เปลี่ยนหัวหน้ามีผลทันที DL22) · ใบงานใน scope = `BookingJobs.TeamId = ทีมของฉัน` หรือ `BookingJobs.LeaderEmployeeId = พนักงานของฉัน` · กล้องใน scope = `DeviceAssignments` ที่ active ของทีม + กล้องใน `DeviceRefs` ของใบงานที่ `Planned` / `Open` · นอก scope = 404 · ไม่มีทีม / ไม่ได้เป็นหัวหน้า ⇒ list ว่าง ไม่ใช่ error
 - แอปเรียก endpoint เหล่านี้เท่านั้น (permission ตาม §5.7 คอลัมน์ `TEAM_LEADER`):
@@ -362,7 +363,7 @@ Booking app ลิงก์มาที่ `https://{host}/work-orders/by-bookin
 | GET | `/mobile/jobs?status=planned\|open\|recent` | `work-orders:read` | ใบงานของทีม (list envelope): `workOrderId, workOrderNo, status, externalJobNo, doNo, shNo, title, plannedStartAt, plannedEndAt, checkInAt, checkOutAt, site{name,address}, cameras[]` · `recent` = `Closed` / `Cancelled` ภายใน 7 วัน |
 | GET | `/mobile/jobs/:workOrderId` | `work-orders:read` + `booking:read` | Booking reference เต็ม (ไม่มี `raw`), กล้องที่ผูก, สรุป session (เริ่ม/จบเท่านั้น), ปุ่ม live ผ่าน `availableActions` |
 | POST | `/streams/live` `{ deviceCode }` (ตัวเดิม) | `streaming:view-live` | live HLS ของกล้องใน scope `team` · หยุดด้วย `/streams/:token/stop` |
-| GET / PATCH / DELETE | `/auth/devices[/:id]` | login | ทะเบียนเครื่อง (`deviceName`, `pushEnabled`) — ไม่มี PIN (เหมือนเดิม) |
+| GET / PATCH / DELETE | `/auth/devices[/:id]` | login | ทะเบียนเครื่อง (`deviceName`, `pushEnabled`) — ไม่มี PIN ฝั่ง server (DL61) |
 | POST / GET / DELETE | `/notifications/push-tokens[/:token]` | `notifications:read` | FCM token (เหมือนเดิม) |
 
 `GET /api/mobile/jobs/1042` ตัวอย่าง:
@@ -486,7 +487,7 @@ Catalog มี **24 permission** (DL53) · ทุก role web ใช้ scope `a
 | `streaming:view-live` | ✓ | ✓ | ✓ | | ✓ | ปุ่ม ดูสด · ภาพสดหลายจอ · live ในแอป |
 | `streaming:live-wall` | ✓ | ✓ | ✓ | | | ภาพสดหลายจอ |
 | `streaming:talk` | ✓ | ✓ | ✓ | | | talk ในภาพสดหลายจอ |
-| `playback:view` | ✓ | ✓ | ✓ | | | ปุ่ม ดูย้อนหลัง / ดูวิดีโอ · วิดีโอย้อนหลัง |
+| `playback:view` | ✓ | ✓ | ✓ | | | ปุ่ม ดูย้อนหลัง ของใบงาน · วิดีโอย้อนหลัง (รายกล้อง) |
 | `evidence:export` | ✓ | ✓ | ✓ | | | สร้างไฟล์ MP4 |
 | `evidence:download` | ✓ | ✓ | ✓ | | | ดาวน์โหลด MP4 |
 | `notifications:read` | ✓ | ✓ | ✓ | ✓ | ✓ | แจ้งเตือน · push token |

@@ -47,7 +47,7 @@ client/src/
     charts/                 # EChart (port)
     booking/                # BookingJobCard, BookingStaleBanner (ใหม่ — ใช้ข้ามหลาย feature)
     evidence/               # EvidencePlaybackDialog, RecordingSegmentsPanel, useEvidenceDownload, evidenceExports.api.ts
-                            # (port จาก features/evidence ของ reference — ใช้ร่วมกันระหว่าง work-orders/ และ evidence/)
+                            # (port จาก features/evidence ของ reference — player, panel ไฟล์ และ export ใช้ร่วมกันระหว่าง dialog ของใบงาน (work-orders/) และหน้า evidence/ — DL59)
   features/
     auth/                   # LoginPage, msalClient, loginDestination, sessionRevoked (port)
     dashboard/
@@ -58,7 +58,7 @@ client/src/
     talk/                   # (port)
     work-orders/            # WorkOrdersPage (ตาราง + แท็บสถานะ + คอลัมน์กล้อง — DL53), WorkOrderDetailPage, workOrders.api.ts, workOrderActions.ts
                             # (อ่านอย่างเดียว — ใบงานและสถานะมาจาก Booking · DL33)
-    evidence/               # EvidencePage — วิดีโอย้อนหลัง (ตารางใบงานที่ check-in แล้ว), evidenceCameras.ts, evidenceRange.ts (port + refactor: กล้องจาก sessions + DeviceRefs · ป้ายจาก workWindow · DL36, DL52, DL53)
+    evidence/               # EvidencePage — วิดีโอย้อนหลัง รายกล้อง (เลือกกล้อง + วัน → ไฟล์ทุกช่วง + ป้ายใบงาน — DL59), evidenceCameras.ts (กล้องของใบงาน: sessions + DeviceRefs), evidenceRange.ts (ช่วง ≤ 24 ชม. · ตัดให้อยู่ใน workWindow เมื่อเปิดจากใบงาน)
     employees/              # (port, ตัด company / แผนก · ฟิลด์ BookingEmployeeRef)
     users/                  # UsersPage (port, ตัด company / แผนก) + EntraUsersPage, entraSync.ts, entraBulk.ts (port — ผู้ใช้จาก Entra · DL53)
     notifications/  audit/  settings/
@@ -88,7 +88,7 @@ client/src/
 | `/work-orders` | ใบงาน — ตารางใบงานจาก Booking (แท็บสถานะ · คอลัมน์กล้อง + ปุ่ม ดูสด เมื่อกล้องออนไลน์ · ปุ่ม ดูย้อนหลัง เปิด dialog เดียวกับหน้า วิดีโอย้อนหลัง — DL53) | `work-orders:read` (ดูสด ต้องมี `streaming:view-live` · ดูย้อนหลัง ต้องมี `playback:view` · `VIEWER` ดูตารางอย่างเดียว) | shell |
 | `/work-orders/by-booking/:externalJobId` | deep link จาก Booking app → redirect `/work-orders/:id` (Part 7 §7.9 — ผู้ใช้ web เท่านั้น) | `work-orders:read` | shell |
 | `/work-orders/:id` | รายละเอียดใบงาน (เปิดจากแถวในหน้า ใบงาน / วิดีโอย้อนหลัง · เมนูที่ active = ใบงาน) | `work-orders:read` | shell |
-| `/evidence` | วิดีโอย้อนหลัง (หน้า หลักฐาน เดิม — DL53) — ตารางใบงานที่ check-in แล้ว → ดูวิดีโอ: เลือกกล้อง + ช่วงเวลา → ดูย้อนหลัง / ดาวน์โหลด MP4 (DL36, DL52) | `work-orders:read` + `playback:view` (export / download ต้องมี `evidence:export` / `evidence:download`) | shell |
+| `/evidence` | วิดีโอย้อนหลัง (หน้า หลักฐาน เดิม — DL53) — ค้นรายกล้อง: เลือกกล้อง + วัน → ไฟล์ทุกช่วง (ป้ายใบงาน / ไม่ผูกใบงาน) → ดูย้อนหลัง / ดาวน์โหลด MP4 (DL59) | `playback:view` + `devices:read` (export / download ต้องมี `evidence:export` / `evidence:download`) | shell |
 | `/tracking` | แผนที่ติดตาม | `tracking:view` | shell full-bleed |
 | `/tracking/history` | ประวัติเส้นทาง (`?deviceId&from&to`) | `tracking:history` | shell full-bleed |
 | `/employees` | พนักงาน | `org:read` (แก้ไข `org:manage`) | shell |
@@ -99,7 +99,7 @@ client/src/
 | `/settings` | ตั้งค่าระบบ (+ stream access ต่อ role) | `settings:manage` | shell |
 | `*` | 404 | — | shell |
 
-ไม่มี route `/sessions`, `/recordings`, `/devices`, `/devices/:id`, `/teams`, `/depots`, `/integration`, `/booking-jobs` และหน้าแผนก (DL53 — ตัดทั้งเมนูและโค้ด) · `/work-orders` เป็นหน้ารายการจริงแล้ว ไม่ redirect ไป `/evidence` (แก้ DL52)
+ไม่มี route `/sessions`, `/recordings`, `/devices`, `/devices/:id`, `/teams`, `/depots`, `/integration`, `/booking-jobs` และหน้าแผนก (DL53 — ตัดทั้งเมนูและโค้ด) · `/work-orders` เป็นหน้ารายการจริงแล้ว ไม่ redirect ไป `/evidence` (แก้ DL52) · การค้นวิดีโอรายกล้องอยู่ที่ `/evidence` ไม่ใช่ `/recordings` (DL59)
 
 - ทุก route `lazy` + `HydrateFallback = LoadingSkeleton` (pattern เดิม) · `errorElement = RouteErrorPage`
 - **ใช้ path จริงสำหรับ detail** (`/work-orders/:id`) — แทน `?open=<id>` dialog ของ reference เพื่อให้ deep link จาก alert / การแจ้งเตือน / Booking app ใช้ได้
@@ -141,11 +141,12 @@ flowchart TB
 |---|---|---|---|
 | **แดชบอร์ด** | MetricSummary: กล้อง online / unknown / offline · session เปิดอยู่ · WO วันนี้ (เปิด / ปิด) · session รอจับคู่ · match rate วันนี้ · สถานะรับข้อมูล Smart Booking (POST ล่าสุด + backlog — DL46) · alert ล่าสุด | `/dashboard/overview` | `session:*`, `workorder:changed`, `integration:status` |
 | **แผนที่ติดตาม** | แผนที่ + cluster · marker 3 สถานะ (online/offline/unknown — ค่าจาก snapshot ตอนเปิดหน้า, DL35) + halo เมื่อมี session · panel รายการกล้อง (ค้นหา, filter สถานะ/ทีม/มีงาน) · คลิก = การ์ดกล้อง: ทีม, WO ปัจจุบัน, Booking, ปุ่ม ดูสด / ประวัติเส้นทาง · วงรัศมีสถานที่ Booking (ถ้ามีพิกัด) | `/tracking/positions` | `gps:batch` (ตำแหน่ง), `session:*` |
-| **ใบงาน** (DL53) | ตารางใบงานจาก Booking · แท็บสถานะ (ทั้งหมด / รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิก) · คอลัมน์: ใบงาน (เลข WO + DO / SH) · รายการ (ชื่องาน · "ปฏิบัติงานจริง" `workWindow` หรือ "รอเริ่ม" + เวลาแผน · สถานที่) · ผู้ปฏิบัติงาน (ทีม / หัวหน้าตาม Booking) · **กล้องของใบงาน** (`cameras[]` + สถานะ + ปุ่ม **ดูสด** เมื่อออนไลน์ → `LiveStreamDialog` · ต้องมี `streaming:view-live`) · สถานะ (+ ป้าย NeedsReview) · ปุ่ม **ดูย้อนหลัง** (`playback:view`) เปิด `EvidencePlaybackDialog` ตัวเดียวกับหน้า วิดีโอย้อนหลัง · filter ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH · คลิกแถว = `/work-orders/:id` · `VIEWER` เห็นตารางอย่างเดียว (ไม่มีปุ่ม) | `/work-orders`, `/streams/live`, `/work-orders/:id/sessions`, `/streams/recordings` | `workorder:changed`, `session:*` |
-| **รายละเอียดใบงาน** | อ่านอย่างเดียว — Header: เลข, สถานะ (ตาม Booking), ป้าย NeedsReview + เหตุผล (ข้อมูลเท่านั้น), ปุ่มตาม `availableActions` (หมายเหตุ, ดูวิดีโอ — เปิด `EvidencePlaybackDialog` ตัวเดียวกับหน้า วิดีโอย้อนหลัง) · **Booking Reference panel** (รวมเลข DO / SH — DL46) · Timeline (`events`) · Sessions (กล้อง, ช่วงเวลา, เหตุผลจบ) · แผนที่เส้นทางของช่วง WO · Recordings + ปุ่มดูย้อนหลัง/Export MP4 · Match attempts (เหตุผลที่ระบบผูก session) · หมายเหตุ · ไม่มี link / unlink / void (DL33) | `/work-orders/:id` + sub-resources | `workorder:changed`, `session:*` |
+| **ใบงาน** (DL53) | ตารางใบงานจาก Booking · แท็บสถานะ (ทั้งหมด / รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิก) · คอลัมน์: ใบงาน (เลข WO + DO / SH) · รายการ (ชื่องาน · "ปฏิบัติงานจริง" `workWindow` หรือ "รอเริ่ม" + เวลาแผน · สถานที่) · ผู้ปฏิบัติงาน (ทีม / หัวหน้าตาม Booking) · **กล้องของใบงาน** (`cameras[]` + สถานะ + ปุ่ม **ดูสด** เมื่อออนไลน์ → `LiveStreamDialog` · ต้องมี `streaming:view-live`) · สถานะ (+ ป้าย NeedsReview) · ปุ่ม **ดูย้อนหลัง** (`playback:view` · เฉพาะใบที่ check-in แล้ว) เปิด `EvidencePlaybackDialog` ที่แสดงเฉพาะไฟล์ในช่วง `workWindow` (DL59) · filter ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH · คลิกแถว = `/work-orders/:id` · `VIEWER` เห็นตารางอย่างเดียว (ไม่มีปุ่ม) | `/work-orders`, `/streams/live`, `/work-orders/:id/sessions`, `/streams/recordings` | `workorder:changed`, `session:*` |
+| **รายละเอียดใบงาน** | อ่านอย่างเดียว — Header: เลข, สถานะ (ตาม Booking), ป้าย NeedsReview + เหตุผล (ข้อมูลเท่านั้น), ปุ่มตาม `availableActions` (หมายเหตุ, ดูวิดีโอ — เปิด `EvidencePlaybackDialog` ของใบงาน เฉพาะช่วง `workWindow` · DL59) · **Booking Reference panel** (รวมเลข DO / SH — DL46) · Timeline (`events`) · Sessions (กล้อง, ช่วงเวลา, เหตุผลจบ) · แผนที่เส้นทางของช่วง WO · Recordings ในช่วงใบงาน + ปุ่มดูย้อนหลัง/Export MP4 · Match attempts (เหตุผลที่ระบบผูก session) · หมายเหตุ · ไม่มี link / unlink / void (DL33) | `/work-orders/:id` + sub-resources | `workorder:changed`, `session:*` |
 | **Booking Reference Information** | (1) panel ใน WO detail: เลข/ชื่องาน, **เลข DO / SH** (DL46), สถานะ Booking (raw + canonical), **เวลา check-in / check-out** (เป็นตัวกำหนดสถานะใบงาน), กล้องที่ Booking ระบุ (`deviceRefs`), แผนเวลา, สถานที่, ทีม/หัวหน้าตาม Booking, `lastSyncedAt` (ได้รับข้อมูลล่าสุดเมื่อ) + ป้าย stale, ปุ่ม refresh เฉพาะเมื่อมี `refreshBooking` ใน `availableActions` (มี read API — DL46) · ไม่มีปุ่ม "ดูข้อมูลดิบ" และไม่มีหน้า `/booking-jobs` แยก (DL52, DL53) · mapping issue แจ้ง `ADMIN` ด้วย alert รายวัน (ไม่มีหน้า integration — DL53) | `/work-orders/:id` | `integration:status` |
 | **ประวัติเส้นทาง** | port HistoryPage: เลือกกล้อง + ช่วงวัน, polyline + จุดหยุด + gap, timeline คลิกโฟกัส · เพิ่ม: แถบ session/WO บน timeline · ตัด road-match | `/tracking/devices/:id/history` | — |
-| **วิดีโอย้อนหลัง (Evidence)** — หน้า หลักฐาน เดิมเปลี่ยนชื่อ (DL53) | port `EvidencePage` ของ reference: (1) **ตารางใบงานที่ check-in แล้ว** (`GET /work-orders?checkedIn=true`) คอลัมน์: ใบงาน (เลข WO + DO / SH) · รายการ (ชื่องาน · "ปฏิบัติงานจริง" `workWindow` from – to + ระยะเวลา · สถานที่) · ผู้ปฏิบัติงาน (ทีม / หัวหน้าตาม Booking) · สถานะ (+ ป้าย NeedsReview) · ปุ่ม ดูวิดีโอ · filter สถานะ, ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH (DL46) · คลิกแถว = `/work-orders/:id` → (2) **dialog ดูวิดีโอ**: เลือกกล้อง (กล้องจาก sessions ของใบงาน + กล้องใน `DeviceRefs` ที่ไม่มี session · `evidenceCameras`) + บรรทัด "ใช้ในใบงานนี้" (ช่วง session ของกล้อง) · panel ไฟล์ย้อนหลัง (ค้นย้อนหลังเป็นวัน ≤ 30 วัน) — ไฟล์ที่ทับ `workWindow` แม้บางส่วน ⇒ ป้าย "อยู่ในช่วงใบงาน" + เน้นการ์ด (`evidenceRange.inWorkWindow`) · ยังไม่ check-in ⇒ ไม่มีป้าย → (3) ปรับช่วง (≤ 24 ชม., `evidenceRange`) → ดูย้อนหลัง หรือดาวน์โหลด MP4 (ใช้ export job เดิมเมื่อ device + channel + start/end ตรงกันและยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่) | `/work-orders`, `/work-orders/:id/sessions`, `/streams/recordings`, `/streams/playback`, `/evidence-exports*` | `stream:status`, `workorder:changed` |
+| **วิดีโอย้อนหลัง (Evidence)** — หน้า หลักฐาน เดิมเปลี่ยนชื่อ (DL53) · ค้นรายกล้อง (DL59) | (1) toolbar: เลือกกล้อง (ทุกกล้อง · ค้นรหัส / ชื่อ) + วัน (ย้อนหลังได้ 3 เดือน · ค้นครั้งละ ≤ 24 ชม.) → (2) panel ไฟล์บันทึกทุกช่วงของกล้อง: ช่วงเวลา + ระยะเวลา + ป้ายใบงาน (เลข WO คลิกไป `/work-orders/:id`) หรือ "ไม่ผูกใบงาน" → (3) player + ปรับช่วง (≤ 24 ชม., `evidenceRange`) → ดูย้อนหลัง หรือดาวน์โหลด MP4 (ใช้ export job เดิมเมื่อ device + channel + start/end ตรงกันและยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่) · player / panel / export ใช้ component เดียวกับ `EvidencePlaybackDialog` (port `features/evidence` ของ reference) · alert `RECORDING_OUTSIDE_WORK` ลิงก์มาหน้านี้พร้อมกล้อง + วัน | `/devices`, `/streams/recordings`, `/streams/playback`, `/evidence-exports*` | `stream:status` |
+| **dialog ดูวิดีโอของใบงาน** (`EvidencePlaybackDialog` — จากหน้า ใบงาน / รายละเอียดใบงาน · DL59) | เลือกกล้อง (กล้องจาก sessions ของใบงาน + กล้องใน `DeviceRefs` ที่ไม่มี session · `evidenceCameras`) + บรรทัด "ใช้ในใบงานนี้" (ช่วง session ของกล้อง) · panel เฉพาะไฟล์ที่ทับ `workWindow` (ส่วนที่อยู่นอกช่วงตัดออก) · ปรับช่วงได้เฉพาะใน `workWindow` (≤ 24 ชม.) → ดูย้อนหลัง / ดาวน์โหลด MP4 · เปิดได้เฉพาะใบที่ check-in แล้ว | `/work-orders/:id/sessions`, `/streams/recordings?workOrderId=`, `/streams/playback`, `/evidence-exports*` | `stream:status`, `workorder:changed` |
 | **ภาพสดหลายจอ** (live wall — DL53 แทนเมนู Live ของ DL36) | port ทั้งหน้า (1/4/6/9/16, drag-drop, slot ใน URL, talk) · รายการกล้องจัดกลุ่มตามทีม · สถานะกล้องดึงตอนเปิดหน้า (DL35) · เป็นทางเดียวที่ดูวิดีโอของกล้องที่ไม่มีใบงาน — ภาพสดเมื่อออนไลน์ ไม่มีย้อนหลังรายกล้อง (DL53) | `/streams/*`, `/devices` | `stream:status` |
 | **พนักงาน** | port `/employees` (ตัด company / แผนก) · ฟิลด์ `BookingEmployeeRef` (ใช้ map หัวหน้าทีมจากใบงาน — DL53) · ผูกบัญชีผู้ใช้ (`Employees.UserId`) | `/employees` | — |
 | **ผู้ใช้ระบบ** | port `/users` (ตัด company / แผนก) + role-permission matrix + ระงับบัญชี · **`COMPANY_ADMIN` (DL51)**: ไม่เห็นบัญชี `ADMIN` ในรายการเลย (server ไม่คืน — DL55) · ปุ่มต่อแถวตาม `availableActions` · dropdown บทบาทไม่มี `ADMIN` · matrix: คอลัมน์ `ADMIN` ล็อก, ช่อง `reservedPermissions` ล็อกในคอลัมน์ role อื่น, ผู้ไม่มี `roles:manage` เห็นแบบอ่านอย่างเดียว (ไม่มีปุ่มบันทึก) · แบบหน้าจอ [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §5.5–5.7 | `/users`, `/roles` | `session:revoked` |
@@ -181,7 +182,7 @@ flowchart TB
 
 ## 6.6 State & Data Fetching
 
-- Query keys แบบ root ตาม feature: `['work-orders', 'list', filters]` (หน้า ใบงาน และ วิดีโอย้อนหลัง ใช้ root เดียวกัน ต่างกันที่ `checkedIn`), `['work-orders', 'detail', id]`, `['devices', 'list', filters]`, `['evidence-exports', id]`, `['users', 'entra-directory']`
+- Query keys แบบ root ตาม feature: `['work-orders', 'list', filters]`, `['recordings', deviceId, from, to]` (หน้า วิดีโอย้อนหลัง — DL59), `['work-orders', 'detail', id]`, `['devices', 'list', filters]`, `['evidence-exports', id]`, `['users', 'entra-directory']`
 - Mutation ที่ต้องใช้ `If-Match` อ่าน `rowVersion` จาก cache ของ detail · 412 ⇒ toast "ข้อมูลถูกแก้โดยผู้อื่น" + refetch
 - `availableActions` จาก server เป็นตัวกำหนดปุ่ม (ไม่คำนวณกติกาซ้ำที่ client)
 - `usePermission(code | code[])` + `<Can permission>` แทน `permissions.includes()` กระจาย (refactor จาก reference)
@@ -204,7 +205,7 @@ flowchart TB
 
 - Unit: pure logic ทุกไฟล์ (`workOrderActions.ts`, `evidenceCameras.ts`, `evidenceRange.ts` รวม `inWorkWindow` — ทับบางส่วน / ขอบพอดี / `to = null` / ไม่มี `workWindow`, status mapping, filters) · component test ด้วย Testing Library (pattern เดิม, `src/test/setup.ts` บล็อก XHR จริง)
 - Design guard tests ของ reference (`design-foundation.test.ts`, `design-system-source-rules.test.ts`) — port มาด้วยเพื่อกันการหลุด design rules
-- E2E (Playwright) ชุดเล็กเฉพาะ flow หลัก: login → map → (`booking-simulator` POST check-in) → หน้า ใบงาน แสดงใบงาน + กล้อง (ปุ่ม ดูสด เมื่อออนไลน์) → รายละเอียดใบงานแสดง session ที่ระบบผูก + เลข DO / SH → ดูย้อนหลัง: เลือกกล้อง + ช่วงเวลา → playback / export → (`booking-simulator` POST check-out) → ใบงานปิด · sidebar มี 12 เมนูสำหรับ `ADMIN` และ 10 เมนูสำหรับ `COMPANY_ADMIN` (DL53) · login ด้วยบัญชี `TEAM_LEADER` ⇒ เห็นหน้า `/mobile-only` (DL46, DL47)
+- E2E (Playwright) ชุดเล็กเฉพาะ flow หลัก: login → map → (`booking-simulator` POST check-in) → หน้า ใบงาน แสดงใบงาน + กล้อง (ปุ่ม ดูสด เมื่อออนไลน์) → รายละเอียดใบงานแสดง session ที่ระบบผูก + เลข DO / SH → ดูย้อนหลังจากใบงาน: เลือกกล้อง + ช่วงเวลาในช่วงใบงาน → playback / export → หน้า วิดีโอย้อนหลัง: เลือกกล้อง + วัน เห็นทั้งไฟล์ที่ผูกใบงานและไม่ผูก → (`booking-simulator` POST check-out) → ใบงานปิด · sidebar มี 12 เมนูสำหรับ `ADMIN` และ 10 เมนูสำหรับ `COMPANY_ADMIN` (DL53) · login ด้วยบัญชี `TEAM_LEADER` ⇒ เห็นหน้า `/mobile-only` (DL46, DL47)
 
 ---
 
@@ -217,6 +218,7 @@ flowchart TB
 | หน้าจอ | เนื้อหา | API | Realtime / Push |
 |---|---|---|---|
 | Login | ปุ่ม Entra SSO (มีบัญชี Entra) + ฟอร์ม username/password (ไม่มี Entra) — ทั้งสองแบบ (DL49) · หลัง login ลงทะเบียนเครื่อง + FCM token | `/auth/login`, `/auth/azure`, `/auth/devices`, `/notifications/push-tokens` | `session:revoked` ⇒ logout |
+| **ใส่รหัส PIN** (DL61) | ตั้ง PIN 6 หลักหลัง login ครั้งแรก · เปิดแอปครั้งถัดไปใส่ PIN (หรือ biometric) ก่อนเข้าหน้าแรก · ตรวจในแอปเท่านั้น (Keystore / Keychain ปลดล็อก refresh token) · ลืม PIN / "ออกจากระบบ" ⇒ ล้าง token กลับหน้า Login · refresh ได้ 401 ⇒ ไปหน้า Login ทันที ไม่วนหน้า PIN | — (ไม่เรียก API · `/auth/refresh` หลังปลดล็อก) | — |
 | **งานของฉัน** (หน้าแรก) | ชื่อทีม + ปุ่มลัด "กล้องของฉัน" · แท็บ **รอเริ่ม** (`Planned`) / **กำลังทำ** (`Open`) / **ล่าสุด** (`Closed` / `Cancelled` ≤ 7 วัน) · การ์ด: เลขใบงาน, ชื่องาน, DO / SH, เวลาแผน, สถานที่ · ไม่มีทีม / ไม่ได้เป็นหัวหน้า ⇒ empty state | `/mobile/me`, `/mobile/jobs?status=planned\|open\|recent` | `workorder:changed` (room `team:{id}`) ⇒ refetch |
 | **รายละเอียดใบงาน** | เลขใบงาน, เลข Booking, DO, SH, สถานะ, เวลาแผน, check-in / check-out, สถานที่, กล้อง + ปุ่ม Live (ตาม `availableActions`), ช่วงเวลาที่กล้องเปิด (session เริ่ม/จบ) | `/mobile/jobs/:workOrderId` | `workorder:changed` · push "ใบงานใหม่ของทีม" เปิดหน้านี้ (`bodycam://jobs/{workOrderId}`) |
 | **Live กล้องของฉัน** | full-screen player (HLS) · หยุดสตรีมเมื่อออกจากหน้า (`/streams/:token/stop`) | `POST /streams/live` | — |
@@ -224,7 +226,8 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-  LOGIN["Login<br/>Entra SSO / username + password"] --> HOME["งานของฉัน<br/>แท็บ รอเริ่ม · กำลังทำ · ล่าสุด"]
+  LOGIN["Login<br/>Entra SSO / username + password"] --> PINLOCK["ใส่รหัส PIN<br/>ตรวจบนเครื่องเท่านั้น"]
+  PINLOCK --> HOME["งานของฉัน<br/>แท็บ รอเริ่ม · กำลังทำ · ล่าสุด"]
   HOME --> DETAIL["รายละเอียดใบงาน<br/>เลขใบงาน · DO · SH · เวลาแผน<br/>check-in / check-out · สถานที่ · กล้อง"]
   HOME --> MYCAM["กล้องของฉัน<br/>ปุ่มลัดหน้าแรก"]
   DETAIL --> LIVE["Live กล้องของฉัน<br/>full-screen player"]

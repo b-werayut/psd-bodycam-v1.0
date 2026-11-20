@@ -106,15 +106,20 @@ flowchart LR
   - จำกัดงานแปลงพร้อมกันของ queue `evidence-export` ด้วย env `EVIDENCE_EXPORT_CONCURRENCY` (port จาก reference: default 1, สูงสุด 8) · งานที่เกินรอคิว · timeout ต่องาน `EVIDENCE_EXPORT_TIMEOUT_MINUTES` (default 180)
   - ffmpeg ใช้ `-c:v copy` (ไม่ encode วิดีโอใหม่) จึงกิน CPU น้อย — ภาระหลักคือ network (ดึง segment จาก DSS) กับ disk (เขียน MP4) · คิวยาวให้เพิ่ม pod `worker-media` (× 1..N) แทนการเพิ่ม concurrency ในเครื่องเดียว
 - **ไฟล์ export (DL34)**: Local disk (PVC, `STORAGE_DRIVER=local`) mount ทั้ง `api` และ `worker-media` — `worker-media` เขียนไฟล์ MP4, `api` stream ให้ดาวน์โหลดผ่าน download ticket · ลบไฟล์หลัง 24 ชม. (`EvidenceCleanup`) แต่เก็บแถว `EvidenceExports` 12 เดือน · ไม่มี MinIO / object storage · ตอนนี้มี node เดียว (PSD Server) ใช้ PVC แบบ ReadWriteOnce ได้ · ถ้าเพิ่ม node ภายหลังต้องเป็น ReadWriteMany (Part 9 R16)
-- **เส้นทาง HTTP เหมือนระบบเดิมที่รันอยู่** (`psd-bwc-frontend`): ingress ส่งทุก path ไปที่ container `web` แล้ว nginx ของ `web` proxy `/api/`, `/api/talk/ws` (WebSocket ดิบของ talk) และ `/socket.io/` ต่อไปที่ API ผ่าน env `BACKEND_URL` (`scheme://host:port` ไม่มี path) — ดู `client/nginx.conf` · หน้าเว็บกับ API จึงเป็น same-origin (`VITE_API_BASE=/api`) ไม่ต้องตั้ง CORS / `COOKIE_SAMESITE` ข้ามโดเมน
+- **เส้นทาง HTTP เหมือนระบบเดิม** (`psd-bwc-frontend` ที่ระบบนี้มาแทน — DL60): ingress ส่งทุก path ไปที่ container `web` แล้ว nginx ของ `web` proxy `/api/`, `/api/talk/ws` (WebSocket ดิบของ talk) และ `/socket.io/` ต่อไปที่ API ผ่าน env `BACKEND_URL` (`scheme://host:port` ไม่มี path) — ดู `client/nginx.conf` · หน้าเว็บกับ API จึงเป็น same-origin (`VITE_API_BASE=/api`) ไม่ต้องตั้ง CORS / `COOKIE_SAMESITE` ข้ามโดเมน
   - container `web` ไม่ยอม start ถ้าไม่มี `BACKEND_URL` หรือมี path (`client/docker-entrypoint.d/15-require-backend-url.sh`)
   - API อยู่หลัง proxy 2 ชั้น (ingress + nginx ของ `web`) ⇒ ตั้ง `TRUST_PROXY=2` หรือช่วง IP ของ pod / ingress — ค่าเริ่มต้น `loopback` ใช้ไม่ได้บน Kubernetes (`req.ip` จะเป็น IP ของ nginx ทุกคำขอ)
   - ลำดับปล่อยเวอร์ชัน: API ก่อน `web` เสมอ
   - POST จาก Smart Booking (`/api/integration/booking/*`) ใช้เส้นทางเดียวกันนี้ (ingress → nginx `web` → api — DL29) · ไม่มีอะไรใหม่ใน K8s (DL46)
-- **Namespace = `team3` เดิม (DL41)** — namespace ของทีมที่ระบบเดิม (`psd-bwc-frontend`, `psd-bwc-web-backend`) ใช้อยู่ ไม่ใช่ชื่อระบบ · ระบบนี้ deploy ร่วมใน namespace เดียวกัน
-  - ชื่อ Deployment / Service ต้องไม่ชนกับของระบบเดิม (`psd-bwc-*`) · ชื่อจริงกำหนดใน gitops
-  - `BACKEND_URL` ของ `web` = `http://<api-service>.team3.svc:3000`
-  - quota CPU / memory ของ namespace ใช้ร่วมกับระบบเดิม ⇒ `requests` / `limits` ตาม DL39 ต้องตั้งให้ครบทุก container
+- **Namespace = `team3` เดิม (DL41) · deploy ทับระบบเดิม ไม่รันคู่ (DL60)** — `team3` เป็น namespace ของทีม ไม่ใช่ชื่อระบบ · ระบบเดิมที่รันอยู่ (`psd-bwc-frontend`, `psd-bwc-web-backend` — โค้ดชุดเดียวกับ reference) ไม่มีผู้ใช้จริง ระบบนี้จึงมาแทนที่
+  - ปิดระบบเดิมได้ทันที (scale web / api / worker เดิมเป็น 0 ใน gitops) — ไม่ poll DSS ซ้ำ (Part 9 R12)
+  - ใช้ repo, Azure pipeline (`nodejs-full-nwl` / `web-full-nwl`), Harbor และ `gitops-dev-nwl` / `gitops-uat-nwl` ชุดเดิม: `server/` แทนเนื้อหา `psd-bwc-web-backend` และ `client/` แทน `psd-bwc-frontend` ทั้งก้อน (tag HEAD เดิมไว้ rollback) · โค้ดหลักอยู่ที่ `psd-bodycam-v1.0` — ตอน deploy copy ไฟล์ที่ commit แล้วไป repo บน Azure (ผู้ใช้ทำเอง) โดยคง `azure-pipelines.yml`, `sonar-project.properties` (และ `.dockerignore` ของ backend) ของ repo บน Azure ไว้
+  - Deployment / Service ชื่อเดิม: `psd-bwc-web-backend` = `api`, `psd-bwc-frontend` = `web`, worker ใช้ชื่อเดิมใน gitops ⇒ ingress, โดเมน และ redirect URI ของ Entra เหมือนเดิม
+  - `BACKEND_URL` ของ `web` = `http://psd-bwc-web-backend.team3.svc:3000`
+  - env ใน gitops เป็นชุดใหม่ทั้งหมด: ตัดของระบบเดิม (`BRMS_*`, `ROAD_MATCH_DRIVER` / `OSRM_URL`, `INTEGRATION_WEBHOOK_*`, driver `DEVICE_*` / `LOCATION_*` เดิม) · ถอด OSRM ถ้ามี (ระบบนี้ไม่มี road-match) · port ของ `web` เปลี่ยนจาก 80 เป็น 8080
+  - **database ใหม่** บน PostgreSQL เดิม ไม่ migrate ทับ DB ของระบบเดิม (ชื่อตารางและ `drizzle.__drizzle_migrations` ชนกัน — Part 4 §4.7) · DSS middleware ชี้ `REQUEST_LOG_DATABASE_URL` ไป DB ใหม่
+  - rollback = revert gitops กลับ image tag เดิมใน Harbor + `DATABASE_URL` เดิม
+  - quota CPU / memory ของ namespace ใช้ร่วมกับระบบอื่นของทีม ⇒ `requests` / `limits` ตาม DL39 ต้องตั้งให้ครบทุก container
 - **ทั้งระบบอยู่ใน PSD on-premise (DL43)** — อยู่ใน data center ของ PSD **2 VM (DL44)**
   - **PSD Server** (VM Ubuntu · `xxx.xxx.x.xx`) เครื่องเดียวรัน Kubernetes namespace `team3` (web / api / worker-\*), data tier (PostgreSQL / Redis / PVC) และ DSS middleware (systemd นอก K8s)
   - **Dahua DSS Platform** (VM Windows · `xxx.xxx.x.xx`) อยู่คนละเครื่อง
@@ -174,7 +179,7 @@ flowchart TB
 
 | Module | Responsibility | Reuse จาก reference |
 |---|---|---|
-| `auth` | login password + Entra SSO, refresh rotation, lockout, ทะเบียนเครื่องมือถือ (ไม่มี PIN) | `modules/auth` เกือบทั้งหมด |
+| `auth` | login password + Entra SSO, refresh rotation, lockout, ทะเบียนเครื่องมือถือ (PIN อยู่บนเครื่องเท่านั้น server ไม่เก็บ — DL61) | `modules/auth` เกือบทั้งหมด |
 | `users` | ผู้ใช้, role, role-permission matrix, ระงับบัญชี (`cutAllSessions`) · ผู้ใช้จาก Entra (`GET /users/entra-directory`, `POST /users/sync-entra` ผ่าน Microsoft Graph — DL53) · บัญชี `TEAM_LEADER` ต้องผูก employee (`Employees.UserId`) — ตรวจใน service (DL47) | `modules/users` (ตัด company · รวม `entra-user-sync.*`, `graph-users.client.ts`) |
 | `org` | employees, link employee ↔ user, `BookingEmployeeRef` · ไม่มีแผนก (DL53) | `employees` |
 | `teams` | ทีม + หัวหน้าทีม (ประวัติใน `TeamMembers`) — สร้าง/อัปเดตโดย inbox processor จาก `teamRef` / leader ref ของใบงาน **[Assumption]** · ไม่มีหน้าจัดการทีม (DL53) · `BookingTeamRef` | ใหม่ |
@@ -263,7 +268,7 @@ flowchart LR
 
 Browser → `POST /api/streams/live` → `StreamingService` ตรวจสิทธิ์สด + scope + `StreamingEnabled` + quota → ขอ URL จาก DSS middleware (ชี้กลับ `/proxy` ของ middleware) → seal AES-GCM → browser เล่นผ่าน proxy `/api/streams/:token/playlist.m3u8` (port จาก reference ทั้ง flow)
 
-Evidence (dialog ดูวิดีโอ จากหน้า ใบงาน `/work-orders` หรือ วิดีโอย้อนหลัง `/evidence` — DL36, DL52, DL53): เลือกใบงาน → กล้อง (sessions + `DeviceRefs`) + ไฟล์ย้อนหลังที่ทับช่วง check-in – check-out ของ Booking ติดป้าย "อยู่ในช่วงใบงาน" → playback หรือ `POST /api/evidence-exports` (device + channel + start/end เดิมที่ยัง queued / processing / ready ไม่หมดอายุ ⇒ ใช้ job เดิม) → `worker-media` ดึง HLS → ffmpeg → เขียน MP4 ลง Local disk (PVC) → ดาวน์โหลดผ่าน ticket จาก `api` (DL34)
+Evidence (DL36, DL53, DL59): (ก) หน้า วิดีโอย้อนหลัง `/evidence` — เลือกกล้อง + วัน → `GET /api/streams/recordings?deviceId&from&to` คืนไฟล์ทุกช่วงพร้อมใบงานที่ผูก (หรือ ไม่ผูกใบงาน) (ข) dialog ดูวิดีโอของใบงาน (หน้า ใบงาน / รายละเอียดใบงาน) — กล้อง (sessions + `DeviceRefs`) + เฉพาะไฟล์ที่ทับ `workWindow` และตัดช่วงให้อยู่ใน `workWindow` → playback หรือ `POST /api/evidence-exports` (device + channel + start/end เดิมที่ยัง queued / processing / ready ไม่หมดอายุ ⇒ ใช้ job เดิม) → `worker-media` ดึง HLS → ffmpeg → เขียน MP4 ลง Local disk (PVC) → ดาวน์โหลดผ่าน ticket จาก `api` (DL34)
 
 ---
 
