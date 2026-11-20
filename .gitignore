@@ -1,0 +1,6 @@
+# draw.io desktop backup / temp files (e.g. docs/diagrams/.$infrastructure.drawio.bkp)
+.$*.bkp
+.$*.dtmp
+
+# Microsoft Office lock files (e.g. docs/requirements/~$quirement ... .docx)
+~$*
