@@ -16,6 +16,7 @@ import { APP_FILTER, NestFactory } from '@nestjs/core';
 import { IsString } from 'class-validator';
 import request from 'supertest';
 import { AppController } from '../../app.controller';
+import { HEALTH_STUB_PROVIDERS } from '../../test/health-stubs';
 import { RequestContextMiddleware } from '../context/request-context.middleware';
 import { applyHttpBasics } from '../http/apply-http-basics';
 import { AppException } from './app-exception';
@@ -53,7 +54,7 @@ class TestController {
 
 @Module({
   controllers: [AppController, TestController],
-  providers: [{ provide: APP_FILTER, useClass: GlobalExceptionFilter }],
+  providers: [{ provide: APP_FILTER, useClass: GlobalExceptionFilter }, ...HEALTH_STUB_PROVIDERS],
 })
 class TestModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

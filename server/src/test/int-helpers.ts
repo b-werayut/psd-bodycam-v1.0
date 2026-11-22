@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { INestApplication } from '@nestjs/common';
+import { Module, type INestApplication, type Type } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import postgres, { type Sql } from 'postgres';
 import supertest from 'supertest';
@@ -17,14 +17,20 @@ export type HttpContext = {
   close(): Promise<void>;
 };
 
-/** Boots AppModule exactly like main.api.ts (via configureApp) against the _test database. */
-export async function bootHttpContext(): Promise<HttpContext> {
+/**
+ * Boots AppModule exactly like main.api.ts (via configureApp) against the _test database.
+ * `controllers` adds test-only controllers; the global guards and filters still apply to them.
+ */
+export async function bootHttpContext(options: { controllers?: Type<unknown>[] } = {}): Promise<HttpContext> {
   const sql = postgres(process.env.DATABASE_URL as string, {
     max: 4,
     types: { bigint: postgres.BigInt },
   }) as unknown as TestSql;
 
-  const app = await NestFactory.create(AppModule, { rawBody: true, logger: false });
+  @Module({ imports: [AppModule], controllers: options.controllers ?? [] })
+  class IntTestModule {}
+
+  const app = await NestFactory.create(IntTestModule, { rawBody: true, logger: false });
   await configureApp(app);
   await app.init();
 
@@ -59,4 +65,67 @@ export async function eventually<T>(
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
+}
+
+export type TestUserSpec = { username: string; role: string; status?: number; email?: string | null };
+
+/**
+ * Inserts users for a test (same password for all). Removes leftovers of the same usernames first.
+ * Returns username ⇒ Id.
+ */
+export async function createTestUsers(
+  sql: TestSql,
+  users: TestUserSpec[],
+  passwordHash: string,
+): Promise<Map<string, bigint>> {
+  await dropTestUsers(
+    sql,
+    users.map((u) => u.username),
+  );
+  const ids = new Map<string, bigint>();
+  for (const u of users) {
+    const [row] = await sql`
+      insert into "Users" ("Username", "FullName", "RoleId", "PasswordHash", "Status", "Email")
+      select ${u.username}, ${'Test ' + u.username}, r."Id", ${passwordHash}, ${u.status ?? 1}, ${u.email ?? null}
+      from "Roles" r where r."Code" = ${u.role}
+      returning "Id"`;
+    if (!row) throw new Error(`createTestUsers: unknown role ${u.role}`);
+    ids.set(u.username, row.Id as bigint);
+  }
+  return ids;
+}
+
+/**
+ * Hard-deletes test users (any username matching one of `patterns`, SQL LIKE) and every row that
+ * points at them, so FKs (CreatedBy / UpdatedBy / DeletedBy, Settings.UpdatedBy, Employees) never block.
+ */
+export async function dropTestUsers(sql: TestSql, patterns: string[]): Promise<void> {
+  if (!patterns.length) return;
+  const ids: bigint[] = [];
+  for (const pattern of patterns) {
+    for (const row of await sql`select "Id" from "Users" where "Username" like ${pattern}`) ids.push(row.Id as bigint);
+  }
+  if (!ids.length) return;
+  await sql`update "Settings" set "UpdatedBy" = null where "UpdatedBy" in ${sql(ids)}`;
+  await sql`update "Employees" set "UserId" = null where "UserId" in ${sql(ids)}`;
+  await sql`update "Employees" set "CreatedBy" = null where "CreatedBy" in ${sql(ids)}`;
+  await sql`update "Employees" set "UpdatedBy" = null where "UpdatedBy" in ${sql(ids)}`;
+  await sql`update "Employees" set "DeletedBy" = null where "DeletedBy" in ${sql(ids)}`;
+  await sql`update "Users" set "CreatedBy" = null, "UpdatedBy" = null, "DeletedBy" = null
+            where "CreatedBy" in ${sql(ids)} or "UpdatedBy" in ${sql(ids)} or "DeletedBy" in ${sql(ids)}`;
+  await sql`delete from "PushTokens" where "UserId" in ${sql(ids)}`;
+  await sql`delete from "RefreshTokens" where "UserId" in ${sql(ids)}`;
+  await sql`delete from "UserDevices" where "UserId" in ${sql(ids)}`;
+  await sql`delete from "Users" where "Id" in ${sql(ids)}`;
+}
+
+/** Logs in through the API and returns the Bearer header value. */
+export async function bearerFor(
+  http: ReturnType<typeof supertest>,
+  username: string,
+  password: string,
+): Promise<string> {
+  const r = await http.post('/api/auth/login').send({ username, password });
+  if (r.status !== 200) throw new Error(`login ${username} failed: ${r.status} ${JSON.stringify(r.body)}`);
+  return `Bearer ${r.body.accessToken}`;
 }

@@ -112,6 +112,7 @@ flowchart LR
   - ลำดับปล่อยเวอร์ชัน: API ก่อน `web` เสมอ
   - POST จาก Smart Booking (`/api/integration/booking/*`) ใช้เส้นทางเดียวกันนี้ (ingress → nginx `web` → api — DL29) · ไม่มีอะไรใหม่ใน K8s (DL46)
 - **Namespace = `team3` เดิม (DL41) · deploy ทับระบบเดิม ไม่รันคู่ (DL60)** — `team3` เป็น namespace ของทีม ไม่ใช่ชื่อระบบ · ระบบเดิมที่รันอยู่ (`psd-bwc-frontend`, `psd-bwc-web-backend` — โค้ดชุดเดียวกับ reference) ไม่มีผู้ใช้จริง ระบบนี้จึงมาแทนที่
+  - **ช่วง dev ยังไม่ deploy ที่นี่ (DL63)**: พัฒนาบนเครื่อง local (PostgreSQL + Redis บนเครื่อง, DSS middleware ผ่าน VPN) · deploy ทับระบบเดิมเมื่อผู้ใช้สั่ง
   - ปิดระบบเดิมได้ทันที (scale web / api / worker เดิมเป็น 0 ใน gitops) — ไม่ poll DSS ซ้ำ (Part 9 R12)
   - ใช้ repo, Azure pipeline (`nodejs-full-nwl` / `web-full-nwl`), Harbor และ `gitops-dev-nwl` / `gitops-uat-nwl` ชุดเดิม: `server/` แทนเนื้อหา `psd-bwc-web-backend` และ `client/` แทน `psd-bwc-frontend` ทั้งก้อน (tag HEAD เดิมไว้ rollback) · โค้ดหลักอยู่ที่ `psd-bodycam-v1.0` — ตอน deploy copy ไฟล์ที่ commit แล้วไป repo บน Azure (ผู้ใช้ทำเอง) โดยคง `azure-pipelines.yml`, `sonar-project.properties` (และ `.dockerignore` ของ backend) ของ repo บน Azure ไว้
   - Deployment / Service ชื่อเดิม: `psd-bwc-web-backend` = `api`, `psd-bwc-frontend` = `web`, worker ใช้ชื่อเดิมใน gitops ⇒ ingress, โดเมน และ redirect URI ของ Entra เหมือนเดิม
@@ -318,7 +319,7 @@ Evidence (DL36, DL53, DL59): (ก) หน้า วิดีโอย้อน�
 |---|---|---|
 | `ADMIN` | all | super admin — ทุกอย่าง รวม settings, roles, audit · bypass permission/scope |
 | `COMPANY_ADMIN` | all | ผู้ดูแลบริษัท (web — DL51): งานแบบ `OPERATOR` + จัดการพนักงาน (`org:manage`) + จัดการผู้ใช้ทุก role **ยกเว้น `ADMIN`** (รวมผู้ใช้จาก Entra) · ไม่มี audit, settings, แก้ matrix สิทธิ์ (permission สงวนของ `ADMIN` — DL53 เหลือ 3 ตัว) · ไม่ bypass |
-| `OPERATOR` | all | ศูนย์ควบคุม (web): เฝ้าดู (แผนที่ / ภาพสดหลายจอ / ดูสดจากหน้า ใบงาน / talk), playback / export หลักฐาน, ack alert · ไม่มีคิวตรวจสอบ / link / classify (DL33) · ไม่มีงานจัดการทีม (ทีมมาจาก Booking — DL53) |
+| `OPERATOR` | all | ศูนย์ควบคุม (web): เฝ้าดู (แผนที่ / ภาพสดหลายจอ / ดูสดจากหน้า ใบงาน และแผนที่ / talk ในทุกจุดที่ดูสด — DL62), playback / export หลักฐาน, ack alert · ไม่มีคิวตรวจสอบ / link / classify (DL33) · ไม่มีงานจัดการทีม (ทีมมาจาก Booking — DL53) |
 | `VIEWER` | all | อ่านอย่างเดียว (web) |
 | `TEAM_LEADER` | team | **แอปมือถือเท่านั้น**: live กล้องของตัวเอง/ทีม + รายละเอียดใบงานของทีมจาก Smart Booking · ไม่มี web UI (login เว็บเห็นหน้า "ใช้งานผ่านแอปมือถือ") · ไม่มี playback / หลักฐาน / GPS / สถานะกล้อง / talk / alert (DL47) |
 

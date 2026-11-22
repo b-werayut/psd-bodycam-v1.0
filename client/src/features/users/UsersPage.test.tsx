@@ -27,13 +27,23 @@ const row = (over: Partial<UserRow>): UserRow => ({
   status: 1,
   lastLoginAt: null,
   azureLinked: false,
+  availableActions: ['edit', 'suspend', 'delete'],
   ...over,
 });
 
 const ROWS = [
   row({}),
-  row({ id: '1', username: 'admin1', fullName: 'ผู้ดูแล', roleCode: 'ADMIN', roleName: 'ผู้ดูแลระบบ' }),
+  row({
+    id: '1',
+    username: 'admin1',
+    fullName: 'ผู้ดูแล',
+    roleCode: 'ADMIN',
+    roleName: 'ผู้ดูแลระบบ',
+    availableActions: ['edit'],
+  }),
 ];
+
+const RESERVED = ['audit:view', 'settings:manage', 'roles:manage'];
 
 const ROLES = [
   { id: '1', code: 'ADMIN', name: 'ผู้ดูแลระบบ', isSystem: true },
@@ -44,7 +54,8 @@ function mockGets(total = 2) {
   vi.mocked(api.get).mockImplementation((url: string) => {
     if (url === '/users')
       return Promise.resolve({ data: { data: ROWS, page: 1, pageSize: 50, total } });
-    if (url === '/roles') return Promise.resolve({ data: { data: ROLES, total: 2 } });
+    if (url === '/roles')
+      return Promise.resolve({ data: { data: ROLES, total: 2, reservedPermissions: RESERVED } });
     if (/^\/roles\/\d+\/permissions$/.test(url))
       return Promise.resolve({ data: { data: [], total: 0 } });
     return Promise.reject(new Error(`unmocked GET ${url}`));
@@ -128,7 +139,7 @@ describe('UsersPage', () => {
   });
 
   it('shows no management tools to a read-only viewer', async () => {
-    signIn(['users:read'], { roleCode: 'VIEWER' });
+    signIn(['dashboard:view'], { roleCode: 'VIEWER' });
     renderWithProviders(<UsersPage />);
 
     await screen.findByText('field1');
@@ -164,24 +175,68 @@ describe('UsersPage', () => {
     expect(await screen.findByText(t('users.suspendedToast'))).toBeInTheDocument();
   });
 
-  it('disables suspend and delete on the own row with a reason', async () => {
+  it('shows only the row actions the server allows', async () => {
     signIn(['users:read', 'users:manage'], { id: '1' });
     renderWithProviders(<UsersPage />);
 
     await screen.findByText('admin1');
+    // own row: the server sends ['edit'] => edit button, no suspend / delete menu
+    expect(
+      screen.getByRole('button', { name: t('users.editUser', { name: 'admin1' }) }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: t('users.moreActions', { name: 'admin1' }) }),
+    ).toBeNull();
+
     await userEvent.click(
-      screen.getByRole('button', { name: t('users.moreActions', { name: 'admin1' }) }),
+      screen.getByRole('button', { name: t('users.moreActions', { name: 'field1' }) }),
     );
-    const suspend = await screen.findByRole('menuitem', {
-      name: new RegExp(t('users.suspendUser', { name: 'admin1' })),
-    });
-    expect(suspend).toHaveAttribute('aria-disabled', 'true');
-    expect(within(suspend).getByText(t('users.cannotSuspendSelf'))).toBeInTheDocument();
-    const del = screen.getByRole('menuitem', {
-      name: new RegExp(t('users.deleteUser', { name: 'admin1' })),
-    });
-    expect(del).toHaveAttribute('aria-disabled', 'true');
-    expect(within(del).getByText(t('users.cannotDeleteSelf'))).toBeInTheDocument();
+    expect(
+      await screen.findByRole('menuitem', { name: t('users.suspendUser', { name: 'field1' }) }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: t('users.deleteUser', { name: 'field1' }) }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: t('users.restoreUser', { name: 'field1' }) }),
+    ).toBeNull();
+  });
+
+  it('offers restore (not suspend) when the server says so', async () => {
+    signIn(['users:read', 'users:manage']);
+    vi.mocked(api.get).mockImplementation((url: string) =>
+      url === '/users'
+        ? Promise.resolve({
+            data: {
+              data: [row({ status: 2, availableActions: ['edit', 'restore', 'delete'] })],
+              page: 1,
+              pageSize: 50,
+              total: 1,
+            },
+          })
+        : Promise.reject(new Error(`unmocked GET ${url}`)),
+    );
+    renderWithProviders(<UsersPage />);
+    await screen.findByText('field1');
+    await userEvent.click(
+      screen.getByRole('button', { name: t('users.moreActions', { name: 'field1' }) }),
+    );
+    expect(
+      await screen.findByRole('menuitem', { name: t('users.restoreUser', { name: 'field1' }) }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: t('users.suspendUser', { name: 'field1' }) }),
+    ).toBeNull();
+  });
+
+  it('shows the roles tab read-only for users:read without roles:manage', async () => {
+    signIn(['users:read', 'users:manage'], { roleCode: 'COMPANY_ADMIN' });
+    renderWithProviders(<UsersPage />);
+    await userEvent.click(await screen.findByRole('tab', { name: t('users.tab.roles') }));
+    expect(await screen.findByText(t('users.permissions.readOnlyHint'))).toBeInTheDocument();
+    const boxes = await screen.findAllByRole('checkbox');
+    for (const box of boxes) expect(box).toBeDisabled();
+    expect(screen.queryByRole('button', { name: t('users.roles.save') })).toBeNull();
   });
 
   it('shows the backend message under the username field on 409 USERNAME_TAKEN', async () => {

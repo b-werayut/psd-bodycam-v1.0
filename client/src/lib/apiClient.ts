@@ -6,13 +6,25 @@ const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api';
 
 export const API_BASE = BASE;
 
-export const api = axios.create({ baseURL: BASE, withCredentials: true });
+/** A request that hangs longer than this fails instead of spinning forever. */
+export const REQUEST_TIMEOUT_MS = 15_000;
 
-api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken;
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+export const api = axios.create({ baseURL: BASE, withCredentials: true, timeout: REQUEST_TIMEOUT_MS });
+
+type TrackedConfig = InternalAxiosRequestConfig & { _retried?: boolean; _epoch?: number };
+
+api.interceptors.request.use(
+  (config: TrackedConfig) => {
+    const { accessToken, epoch } = useAuthStore.getState();
+    if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
+    // The session this request belongs to (setAuth / clear bump the epoch).
+    config._epoch = epoch;
+    return config;
+  },
+  undefined,
+  // Run at call time, not a microtask later, so the token and epoch are the caller's.
+  { synchronous: true },
+);
 
 /**
  * Wait before the single retry after `REFRESH_RACE`. Another tab or request rotated the same
@@ -106,7 +118,7 @@ export function resetRefreshState(): void {
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
-    const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+    const original = error.config as TrackedConfig | undefined;
     if (
       error.response?.status === 401 &&
       original &&
@@ -114,6 +126,16 @@ api.interceptors.response.use(
       !isAuthEndpoint(original.url)
     ) {
       original._retried = true;
+      const { epoch, accessToken } = useAuthStore.getState();
+      if (original._epoch !== undefined && original._epoch !== epoch) {
+        // The session changed while this request was in flight.
+        // Signed out meanwhile: never refresh (that would sign the user back in, or rotate the cookie
+        // logout is revoking). Refreshed / signed in meanwhile: retry once with the current token.
+        if (!accessToken) return Promise.reject(error);
+        original.headers.Authorization = `Bearer ${accessToken}`;
+        original._epoch = epoch;
+        return api(original);
+      }
       const token = await refreshToken();
       if (token) {
         original.headers.Authorization = `Bearer ${token}`;

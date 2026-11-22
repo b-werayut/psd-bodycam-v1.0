@@ -46,7 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'navigation.trackingHistory', icon: Route, group: 'operations', permissions: ['tracking:history'] },
   { labelKey: 'navigation.employees', icon: IdCard, group: 'people', to: '/employees', permissions: ['org:read'] },
   { labelKey: 'navigation.users', icon: UsersRound, group: 'people', to: '/users', permissions: ['users:read'] },
-  { labelKey: 'navigation.entraUsers', icon: UserSearch, group: 'people', permissions: ['users:manage'] },
+  { labelKey: 'navigation.entraUsers', icon: UserSearch, group: 'people', to: '/entra-users', permissions: ['users:manage'] },
   { labelKey: 'navigation.notifications', icon: Bell, group: 'system', permissions: ['notifications:read', 'alerts:view'] },
   { labelKey: 'navigation.audit', icon: History, group: 'system', to: '/audit-logs', permissions: ['audit:view'] },
   { labelKey: 'navigation.settings', icon: Settings, group: 'system', to: '/settings', permissions: ['settings:manage'] },

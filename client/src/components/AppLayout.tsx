@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import { RealtimeProvider } from '@/providers/RealtimeProvider';
 import { useLanguage } from '@/i18n/useLanguage';
 import { actionToast } from '@/components/ui/action-toast';
-import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/stores/authStore';
 import { AppHeader } from './layout/AppHeader';
 import { AppSidebar } from './layout/AppSidebar';
@@ -88,7 +87,6 @@ function AppLayoutContent() {
           />
         </DialogContent>
       </Dialog>
-      <Toaster />
     </div>
   );
 }

@@ -1,0 +1,53 @@
+[     459ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[     484ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[    1141ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[    1176ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[    6482ms] [LOG] [Hotkeys] ENGLISH_US_MACOS → AZERTY_FR_MACOS @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  212767ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  212800ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  213401ms] [LOG] Sync established @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  213440ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://app.paper.design/assets/main-B1IofkfU.js:61
+[  222045ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  222049ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  222165ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  222206ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  231351ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  231356ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  232018ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  232055ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  240623ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  240629ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  241229ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  241264ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  249902ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  249907ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  250016ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  250056ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  259240ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  259245ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  259897ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  259932ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  287068ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  287074ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  287208ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  287248ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  362174ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  362180ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  362752ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  362786ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  475400ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  475406ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  476021ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  476055ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  678810ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  678818ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  679463ms] [LOG] Sync established @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  679499ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://app.paper.design/assets/main-B1IofkfU.js:61
+[  805697ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  805703ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  806288ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  806325ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  861033ms] [LOG] Client build: 1795164083174 (2026-11-20T08:41:23.174Z) @ https://app.paper.design/assets/main-B1IofkfU.js:537
+[  861039ms] [LOG] Initializing socket connection @ https://app.paper.design/assets/main-B1IofkfU.js:3
+[  861688ms] [LOG] Sync established @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1
+[  861727ms] [INFO] File loaded for 01M77NJJTSB848JFQWK8RPZA3P, sync: 185e7ddc6139d8 @ https://cdn-ph.paper.design/static/posthog-recorder.js?v=1.328.0:1

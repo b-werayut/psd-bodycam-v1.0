@@ -17,7 +17,7 @@
 | **สถานะใบงานตาม Booking check-in/check-out** · check-out = ปิดใบงาน · ไม่มีการปิดในระบบเรา | **[Confirmed]** ผู้ใช้ยืนยัน (Q1, Q2, Q8) | ใบงานมีเวลา check-in / check-out **[Confirmed]** (DL46) · ชื่อ field / รูปแบบ = **[Assumption]** (§7.2.1) |
 | การผูกกล้องกับงาน/ทีม (รวมกล้องสำรอง) มาจาก Booking **เท่านั้น** | **[Confirmed]** (Q4, Q20) | field `DeviceRefs` / ข้อมูลกล้องประจำทีม = **[Assumption]** |
 | พัฒนาด้วย mock adapter ก่อน แล้วเปลี่ยนเป็นของจริงเมื่อได้ spec | **[Confirmed]** (Q14) | `booking-simulator` ยิง POST ตาม contract v1 ครอบ งานใหม่, check-in, check-out, ยกเลิก, DeviceRefs, กล้องประจำทีม · `mock` driver ให้ข้อมูล read API (§7.3) |
-| Booking ยกเลิกงาน ⇒ ใบงาน "ยกเลิกโดย Booking" และตรวจหลักฐานได้ | **[Confirmed]** (Q6) | |
+| Booking ยกเลิกงาน ⇒ ใบงานสถานะ `Cancelled` (บนจอ "ยกเลิก" — DL64) และตรวจหลักฐานได้ | **[Confirmed]** (Q6) | |
 | Retention: ใบงาน 3 เดือน · GPS 3 เดือน · audit 12 เดือน · DSS 3 เดือน | **[Confirmed]** (Q12) | |
 | ไม่ย้ายข้อมูลจากระบบเดิม | **[Confirmed]** (Q13) | |
 | ทุกข้อข้างบนอาจเปลี่ยนตามทีม Booking | **[Note]** ผู้ใช้ระบุ | |

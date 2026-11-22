@@ -38,7 +38,7 @@
 - ผู้ใช้ **web** = `ADMIN` (super admin ของฝั่ง dev — ไม่ใช่บทบาทของลูกค้า · DL55), `COMPANY_ADMIN` (ผู้ดูแลบริษัท = แอดมินฝ่ายความปลอดภัยใน requirement · จัดการผู้ใช้ทุก role ยกเว้น `ADMIN` · ไม่มี audit / ตั้งค่าระบบ / แก้ matrix สิทธิ์ — DL51, DL53), `OPERATOR` (ผู้จัดการฝ่าย), `VIEWER` — ทุก role web ใช้ scope `all` · ฝั่ง monitoring และตรวจหลักฐาน · ไม่เปลี่ยนชื่อ role และไม่ใช้คำว่า Safety (DL48)
 - ผู้ใช้ **mobile** = **หัวหน้าทีม** role `TEAM_LEADER` (scope `team`) เท่านั้น: ดู live กล้องของตัวเอง + รายละเอียดใบงานจาก Smart Booking ของทีม · ไม่มี playback / GPS / สถานะกล้อง / talk บนมือถือ · `TEAM_LEADER` ไม่มีเมนู web (DL47)
 - Retention: GPS 3 เดือน · ใบงาน 3 เดือน · audit 12 เดือน · ไม่ย้ายข้อมูลจากระบบเดิม
-- **Deploy ทับระบบเดิม ไม่รันคู่** (DL60): ระบบเดิมใน `team3` (`psd-bwc-frontend`, `psd-bwc-web-backend` — โค้ดชุดเดียวกับ reference) ไม่มีผู้ใช้จริง ⇒ ปิดได้ทันที · ระบบนี้ใช้ repo / Azure pipeline / gitops / ชื่อ Deployment ของระบบเดิม (โค้ดหลักอยู่ที่ `psd-bodycam-v1.0` · copy ไป repo บน Azure ตอน deploy) แต่ใช้ **database ใหม่** (ชื่อตารางและ migration table ชนกับ DB เดิม) · env และ OSRM ของระบบเดิมตัดทิ้ง
+- **Deploy ทับระบบเดิม ไม่รันคู่** (DL60): ระบบเดิมใน `team3` (`psd-bwc-frontend`, `psd-bwc-web-backend` — โค้ดชุดเดียวกับ reference) ไม่มีผู้ใช้จริง ⇒ ปิดได้ทันที · ระบบนี้ใช้ repo / Azure pipeline / gitops / ชื่อ Deployment ของระบบเดิม (โค้ดหลักอยู่ที่ `psd-bodycam-v1.0` · copy ไป repo บน Azure ตอน deploy) แต่ใช้ **database ใหม่** (ชื่อตารางและ migration table ชนกับ DB เดิม) · env และ OSRM ของระบบเดิมตัดทิ้ง · **ช่วง dev รันบนเครื่อง local** (PostgreSQL + Redis บนเครื่อง, DSS middleware ผ่าน VPN) และยังไม่ deploy Azure จนกว่าผู้ใช้สั่ง (DL63)
 - **ทั้งหมดอาจปรับตามข้อมูลจากทีม Booking** (ผู้ใช้ระบุ 2026-11-04)
 - Real-time tracking **ไม่ขึ้นกับ Booking** — Booking ล่ม แผนที่/สถานะ/session/หลักฐานยังทำงานครบ · สถานะ online/offline บนหน้าจอดึงจาก DSS ตอนเปิด ไม่ push (DL35)
 - Stack เดิม: **NestJS 10 + Drizzle + PostgreSQL + Redis/BullMQ + Socket.IO** · **React 18 + Vite + Tailwind + shadcn** · กล้องผ่าน **DSS middleware** ชุดเดิม (ไม่ใช้ BRMS MQ — DL30) · ไฟล์ export MP4 อยู่บน Local disk (PVC) 24 ชม. ไม่ใช้ MinIO (DL34)
@@ -187,7 +187,7 @@ Invariant สำคัญที่ DB บังคับ:
 | P1 Devices & Tracking | device sync อัตโนมัติจาก DSS (worker), status/GPS ingest, live map, GPS history (Must — DL48) | Must |
 | P2 Sessions & Work Orders | session engine (`AwaitingMatch` / `IdleOrCharging`), หน้า ใบงาน + รายละเอียด (ใบงานจาก `booking-simulator`) | Must |
 | P3 Booking Integration | P3a inbound endpoint `POST /api/integration/booking/jobs` + inbox + mapper `v1` + simulator → projection + ทีม / หัวหน้าทีมจากใบงาน + upsert WO 1:1 · P3b matching อัตโนมัติ + rematch · P3c Smart Booking go-live: ตกลง contract/auth, mapper `smart-booking` ถ้าจำเป็น, read API adapter (optional), pilot (**ติด Booking spec gate**) | Must |
-| P4 Media | ภาพสดหลายจอ + talk (Must — DL48), ดูสด / ดูย้อนหลังจากหน้า ใบงาน, วิดีโอย้อนหลัง `/evidence` + MP4 export (Local disk PVC) | Must |
+| P4 Media | ภาพสดหลายจอ + talk (Must — DL48), ดูสด / ดูย้อนหลังจากหน้า ใบงาน (dialog ดูสดทุกจุดมี talk — DL62), วิดีโอย้อนหลัง `/evidence` + MP4 export (Local disk PVC) | Must |
 | P5 Mobile app (หัวหน้าทีม) API & Notifications | role `TEAM_LEADER` + scope `team`, `/mobile/me`, `/mobile/jobs`, live กล้องของทีม, push "ใบงานใหม่ของทีม" (FCM), device registry (PIN อยู่บนเครื่องเท่านั้น — DL61) (DL47) | Must |
 | P6 Hardening & Go-live | retention 3/12 เดือน, observability, security (รวม inbound endpoint), load test, ตั้ง master data ใหม่, UAT | Must |
 

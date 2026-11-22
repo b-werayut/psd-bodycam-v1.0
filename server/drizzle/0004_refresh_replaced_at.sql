@@ -1,0 +1,1 @@
+ALTER TABLE "RefreshTokens" ADD COLUMN "ReplacedAt" timestamp with time zone;

@@ -54,7 +54,7 @@ client/src/
     tracking/               # LiveMapPage, useLivePositions, liveMerge (port + refactor)
     tracking-history/       # HistoryPage (port, ตัด roadMatch)
     live-wall/              # LiveWallPage — ภาพสดหลายจอ (port)
-    streaming/              # StreamPlayer, LiveStreamDialog, streamStops (port — LiveStreamDialog ใช้กับปุ่ม ดูสด ในหน้า ใบงาน)
+    streaming/              # StreamPlayer, LiveStreamDialog, streamStops (port — LiveStreamDialog ใช้กับปุ่ม ดูสด ทุกจุด: หน้า ใบงาน, รายละเอียดใบงาน, การ์ดกล้องบนแผนที่ติดตาม · มีปุ่ม talk ในตัวเมื่อผู้ใช้มี `streaming:talk` · ปิด dialog = หยุด talk + หยุดสตรีม — DL62)
     talk/                   # (port)
     work-orders/            # WorkOrdersPage (ตาราง + แท็บสถานะ + คอลัมน์กล้อง — DL53), WorkOrderDetailPage, workOrders.api.ts, workOrderActions.ts
                             # (อ่านอย่างเดียว — ใบงานและสถานะมาจาก Booking · DL33)
@@ -140,8 +140,8 @@ flowchart TB
 | หน้าจอ | เนื้อหาหลัก | Data | Realtime |
 |---|---|---|---|
 | **แดชบอร์ด** | MetricSummary: กล้อง online / unknown / offline · session เปิดอยู่ · WO วันนี้ (เปิด / ปิด) · session รอจับคู่ · match rate วันนี้ · สถานะรับข้อมูล Smart Booking (POST ล่าสุด + backlog — DL46) · alert ล่าสุด | `/dashboard/overview` | `session:*`, `workorder:changed`, `integration:status` |
-| **แผนที่ติดตาม** | แผนที่ + cluster · marker 3 สถานะ (online/offline/unknown — ค่าจาก snapshot ตอนเปิดหน้า, DL35) + halo เมื่อมี session · panel รายการกล้อง (ค้นหา, filter สถานะ/ทีม/มีงาน) · คลิก = การ์ดกล้อง: ทีม, WO ปัจจุบัน, Booking, ปุ่ม ดูสด / ประวัติเส้นทาง · วงรัศมีสถานที่ Booking (ถ้ามีพิกัด) | `/tracking/positions` | `gps:batch` (ตำแหน่ง), `session:*` |
-| **ใบงาน** (DL53) | ตารางใบงานจาก Booking · แท็บสถานะ (ทั้งหมด / รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิก) · คอลัมน์: ใบงาน (เลข WO + DO / SH) · รายการ (ชื่องาน · "ปฏิบัติงานจริง" `workWindow` หรือ "รอเริ่ม" + เวลาแผน · สถานที่) · ผู้ปฏิบัติงาน (ทีม / หัวหน้าตาม Booking) · **กล้องของใบงาน** (`cameras[]` + สถานะ + ปุ่ม **ดูสด** เมื่อออนไลน์ → `LiveStreamDialog` · ต้องมี `streaming:view-live`) · สถานะ (+ ป้าย NeedsReview) · ปุ่ม **ดูย้อนหลัง** (`playback:view` · เฉพาะใบที่ check-in แล้ว) เปิด `EvidencePlaybackDialog` ที่แสดงเฉพาะไฟล์ในช่วง `workWindow` (DL59) · filter ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH · คลิกแถว = `/work-orders/:id` · `VIEWER` เห็นตารางอย่างเดียว (ไม่มีปุ่ม) | `/work-orders`, `/streams/live`, `/work-orders/:id/sessions`, `/streams/recordings` | `workorder:changed`, `session:*` |
+| **แผนที่ติดตาม** | แผนที่ + cluster · marker 3 สถานะ (online/offline/unknown — ค่าจาก snapshot ตอนเปิดหน้า, DL35) + halo เมื่อมี session · panel รายการกล้อง (ค้นหา, filter สถานะ/ทีม/มีงาน) · คลิก = การ์ดกล้อง: ทีม, WO ปัจจุบัน, Booking, ปุ่ม ดูสด (`LiveStreamDialog` + talk — DL62) / ประวัติเส้นทาง · วงรัศมีสถานที่ Booking (ถ้ามีพิกัด) | `/tracking/positions` | `gps:batch` (ตำแหน่ง), `session:*` |
+| **ใบงาน** (DL53) | ตารางใบงานจาก Booking · แท็บสถานะ (ทั้งหมด / รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิก) · คอลัมน์: ใบงาน (เลข WO + DO / SH) · รายการ (ชื่องาน · "ปฏิบัติงานจริง" `workWindow` หรือ "รอเริ่ม" + เวลาแผน · สถานที่) · ผู้ปฏิบัติงาน (ทีม / หัวหน้าตาม Booking) · **กล้องของใบงาน** (`cameras[]` + สถานะ + ปุ่ม **ดูสด** เมื่อออนไลน์ → `LiveStreamDialog` · ต้องมี `streaming:view-live` · ปุ่ม talk ใน dialog ต้องมี `streaming:talk` — DL62) · สถานะ (+ ป้าย NeedsReview) · ปุ่ม **ดูย้อนหลัง** (`playback:view` · เฉพาะใบที่ check-in แล้ว) เปิด `EvidencePlaybackDialog` ที่แสดงเฉพาะไฟล์ในช่วง `workWindow` (DL59) · filter ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH · คลิกแถว = `/work-orders/:id` · `VIEWER` เห็นตารางอย่างเดียว (ไม่มีปุ่ม) | `/work-orders`, `/streams/live`, `/work-orders/:id/sessions`, `/streams/recordings` | `workorder:changed`, `session:*` |
 | **รายละเอียดใบงาน** | อ่านอย่างเดียว — Header: เลข, สถานะ (ตาม Booking), ป้าย NeedsReview + เหตุผล (ข้อมูลเท่านั้น), ปุ่มตาม `availableActions` (หมายเหตุ, ดูวิดีโอ — เปิด `EvidencePlaybackDialog` ของใบงาน เฉพาะช่วง `workWindow` · DL59) · **Booking Reference panel** (รวมเลข DO / SH — DL46) · Timeline (`events`) · Sessions (กล้อง, ช่วงเวลา, เหตุผลจบ) · แผนที่เส้นทางของช่วง WO · Recordings ในช่วงใบงาน + ปุ่มดูย้อนหลัง/Export MP4 · Match attempts (เหตุผลที่ระบบผูก session) · หมายเหตุ · ไม่มี link / unlink / void (DL33) | `/work-orders/:id` + sub-resources | `workorder:changed`, `session:*` |
 | **Booking Reference Information** | (1) panel ใน WO detail: เลข/ชื่องาน, **เลข DO / SH** (DL46), สถานะ Booking (raw + canonical), **เวลา check-in / check-out** (เป็นตัวกำหนดสถานะใบงาน), กล้องที่ Booking ระบุ (`deviceRefs`), แผนเวลา, สถานที่, ทีม/หัวหน้าตาม Booking, `lastSyncedAt` (ได้รับข้อมูลล่าสุดเมื่อ) + ป้าย stale, ปุ่ม refresh เฉพาะเมื่อมี `refreshBooking` ใน `availableActions` (มี read API — DL46) · ไม่มีปุ่ม "ดูข้อมูลดิบ" และไม่มีหน้า `/booking-jobs` แยก (DL52, DL53) · mapping issue แจ้ง `ADMIN` ด้วย alert รายวัน (ไม่มีหน้า integration — DL53) | `/work-orders/:id` | `integration:status` |
 | **ประวัติเส้นทาง** | port HistoryPage: เลือกกล้อง + ช่วงวัน, polyline + จุดหยุด + gap, timeline คลิกโฟกัส · เพิ่ม: แถบ session/WO บน timeline · ตัด road-match | `/tracking/devices/:id/history` | — |
@@ -173,10 +173,12 @@ flowchart TB
 | ค่า | Tone (`StatusBadge`) | ข้อความ (th) |
 |---|---|---|
 | Device online / offline / unknown | success / neutral / `unknown` token | ออนไลน์ / ออฟไลน์ / ไม่ทราบสถานะ |
-| WO Planned / Open / Closed / Cancelled | neutral / info / success / neutral | รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิกโดย Booking |
-| Session open / closed / awaiting / no team / charging | info / neutral / warning / warning / neutral | กำลังใช้งาน / สิ้นสุด / รอข้อมูล Booking / กล้องยังไม่ผูกทีม / ชาร์จที่ฐาน |
+| WO Planned / Open / Closed / Cancelled | neutral / info / success / neutral | รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิก |
+| Session open / closed / awaiting / no team / charging | info / neutral / warning / warning / neutral | กำลังใช้งาน / สิ้นสุด / รอข้อมูลใบงาน / กล้องยังไม่ผูกทีม / ชาร์จที่ฐาน |
 
 กติกาจาก `client/DESIGN.md` ที่ต้องรักษา: สีคู่ข้อความเสมอ · cobalt เฉพาะ action/selection/link/focus · 1 primary action ต่อหน้า · ปุ่ม disabled ต้องบอกเหตุผล · row tools 3+ ยุบ `•••` · ตาราง scroll ในกรอบ · skeleton ตาม layout จริง · empty ≠ filtered-empty · สำเร็จ = toast, ล้มเหลว = toast + Alert ค้าง · target ≥ 44px
+
+**ข้อความบนจอไม่บอกที่มาของข้อมูล (DL64)**: สถานะ หัวข้อ คำอธิบาย เหตุผล และข้อความแจ้งเตือน ไม่เขียน "จาก Booking" / "โดย Booking" / "ใน Booking" / "Smart Booking" — เช่น สถานะ "ยกเลิก" (ไม่ใช่ "ยกเลิกโดย Booking"), panel "ข้อมูลงาน", แถบ "ได้รับข้อมูลใบงานล่าสุดเมื่อ …", คอลัมน์ "ทีม" · คงไว้เฉพาะชื่อช่องที่เป็นเลขอ้างอิงที่ผู้ใช้ต้องใช้ค้นหรือเทียบ: "เลข Booking", "รหัสอ้างอิง Booking" และคำว่า Booking ในช่องค้นหา "เลขใบงาน / Booking / DO / SH" · ชื่อใน code / blueprint (`BookingStaleBanner`, Booking Reference panel) ไม่ต้องเปลี่ยน
 
 ---
 

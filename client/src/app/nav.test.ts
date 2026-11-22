@@ -45,9 +45,14 @@ describe('NAV_ITEMS', () => {
       '/',
       '/employees',
       '/users',
+      '/entra-users',
       '/audit-logs',
       '/settings',
     ]);
+  });
+
+  it('routes the Entra users menu item to /entra-users', () => {
+    expect(NAV_ITEMS.find((i) => i.labelKey === 'navigation.entraUsers')?.to).toBe('/entra-users');
   });
 
   it('declares the permissions of each item', () => {

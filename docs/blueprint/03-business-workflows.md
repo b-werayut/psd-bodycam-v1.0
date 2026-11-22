@@ -520,6 +520,8 @@ User flow (DL47):
 
 | Key | Default | Bounds | ใช้ที่ |
 |---|---|---|---|
+| `auth.max-failed-logins` | **3** (DL65) | 3–20 | ล็อกบัญชีชั่วคราวเมื่อใส่รหัสผ่านผิดติดกันครบจำนวน (login ด้วยชื่อผู้ใช้ + รหัสผ่าน) |
+| `auth.lockout-minutes` | 15 | 1–1440 | ระยะเวลาล็อก · ล็อกหมดแล้วนับรหัสผิดใหม่จาก 0 |
 | `status.unknown-after-seconds` | 120 | ≥ 2 × poll | คำนวณ UNKNOWN |
 | `status.display-cache-seconds` | 10 | 0–60 (0 = ไม่ cache) | อายุ cache Redis ของสถานะกล้องที่ `api` ดึงจาก DSS ให้หน้าจอ (DL45) · ไม่กระทบ session engine |
 | `gps.poll-interval-seconds` | 15 | 5–300 | GpsPoll (เดิม) |

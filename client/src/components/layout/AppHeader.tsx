@@ -81,28 +81,33 @@ export function AppHeader({
   const emailLine = user?.email?.trim() || '-';
 
   const loggingOut = useRef(false);
-  const onLogout = async () => {
+  const onLogout = () => {
     if (loggingOut.current) return;
     loggingOut.current = true;
-    // A refresh still in flight rotates the cookie. Logging out alongside it would revoke the old
-    // cookie and leave the rotated one alive, so wait, then send the token it produced.
-    await waitForPendingRefresh();
     const token = useAuthStore.getState().accessToken;
-    let serverSignedOut = true;
-    try {
-      await authApi.logout(token);
-    } catch {
-      serverSignedOut = false;
+    if (!token) {
+      // The session already ended (expired / revoked): nothing to revoke, and clearing again would
+      // wipe the notice the login page is about to show (e.g. sessionExpired).
+      navigate('/login', { replace: true });
+      return;
     }
-    // Always sign out locally. If the server was not told, say so: the toast now, and the notice
-    // as a persistent Alert on the login page.
-    clear(serverSignedOut ? undefined : { key: 'auth.logoutServerFailed' });
+
+    // A refresh still in flight rotates the cookie: capture it before resetting the refresh state, and
+    // revoke only after it settles, so the rotated cookie is the one revoked, not the one it used up.
+    const pendingRefresh = waitForPendingRefresh();
+
+    // Sign out locally first, so the screen never waits on the network.
+    clear();
     resetRefreshState();
     resetQueryCache();
-    if (!serverSignedOut) {
-      actionToast.error(t('header.logoutFailedTitle'), t('auth.logoutServerFailed'));
-    }
     navigate('/login', { replace: true });
+
+    // Then revoke the refresh cookie in the background.
+    void pendingRefresh
+      .then(() => authApi.logout(token))
+      .catch(() => {
+        actionToast.error(t('header.logoutFailedTitle'), t('auth.logoutServerFailed'));
+      });
   };
 
   return (
@@ -181,7 +186,7 @@ export function AppHeader({
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem
-              onClick={() => void onLogout()}
+              onClick={onLogout}
               className="min-h-11 text-destructive focus:bg-destructive/10 focus:text-destructive"
             >
               <LogOut aria-hidden="true" size={16} strokeWidth={1.5} />

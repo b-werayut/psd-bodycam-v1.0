@@ -155,6 +155,8 @@ export const RefreshTokens = pgTable(
     ExpiresAt: tstz('ExpiresAt').notNull(),
     RevokedAt: tstz('RevokedAt'),
     ReplacedByTokenId: ref('ReplacedByTokenId', (): AnyPgColumn => RefreshTokens.Id),
+    // when this token was rotated; a replaced token seen again within the grace window = race, not reuse
+    ReplacedAt: tstz('ReplacedAt'),
     UserDeviceId: ref('UserDeviceId', () => UserDevices.Id),
     CreatedAt: createdAt(),
   },

@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Toaster } from '@/components/ui/sonner';
 import bodycamSecurityReferenceBackground from '@/assets/auth/bodycam-security-reference-background.jpg';
 import { useLanguage } from '@/i18n/useLanguage';
 import { resetRefreshState } from '@/lib/apiClient';
@@ -607,9 +606,6 @@ export function LoginPage() {
           </footer>
         </section>
       </div>
-      {/* Toasts raised on the way out (e.g. logout that could not reach the server) land here;
-          AppLayout's Toaster unmounts with the signed-in shell. */}
-      <Toaster />
     </main>
   );
 }

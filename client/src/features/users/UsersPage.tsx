@@ -35,7 +35,6 @@ import { apiErrorOf } from '@/lib/apiError';
 import { queryErrorDescription } from '@/lib/queryErrorCopy';
 import { formatDateTime } from '@/lib/time';
 import { usePermission } from '@/lib/usePermission';
-import { useAuthStore } from '@/stores/authStore';
 import { RolePermissionsPanel } from './components/RolePermissionsPanel';
 import { UserFormDialog } from './components/UserFormDialog';
 import { USER_STATUS, usersApi, type UserRow } from './users.api';
@@ -56,8 +55,8 @@ const STATUS_TONE: Record<number, StatusTone> = {
 export function UsersPage() {
   const { t, language } = useLanguage();
   const canManage = usePermission('users:manage');
+  const canReadRoles = usePermission('users:read');
   const canManageRoles = usePermission('roles:manage');
-  const currentUserId = useAuthStore((s) => s.user?.id);
   const qc = useQueryClient();
   const { ask, dialog: confirmDialog } = useConfirm();
 
@@ -215,8 +214,13 @@ export function UsersPage() {
             </TableHeader>
             <TableBody>
               {rows.map((user) => {
-                const isSelf = user.id === currentUserId;
-                const enabled = user.status !== USER_STATUS.ACTIVE;
+                // The server computes which buttons this caller gets for this row.
+                const actions = new Set(user.availableActions ?? []);
+                const accessAction = actions.has('restore')
+                  ? 'restore'
+                  : actions.has('suspend')
+                    ? 'suspend'
+                    : null;
                 const statusKey = STATUS_KEY[user.status];
                 return (
                   <TableRow key={user.id}>
@@ -244,69 +248,81 @@ export function UsersPage() {
                     {canManage ? (
                       <TableCell className="w-px whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <ToolButton
-                            tone="edit"
-                            aria-label={t('users.editUser', { name: user.username })}
-                            title={t('users.editUser', { name: user.username })}
-                            onClick={() => setEditing(user)}
-                          >
-                            <Pencil aria-hidden="true" />
-                          </ToolButton>
-                          <RowActionsMenu label={t('users.moreActions', { name: user.username })}>
-                            <RowActionItem
-                              icon={
-                                enabled ? (
-                                  <UserCheck aria-hidden="true" />
-                                ) : (
-                                  <UserX aria-hidden="true" />
-                                )
-                              }
-                              label={t(enabled ? 'users.restoreUser' : 'users.suspendUser', {
-                                name: user.username,
-                              })}
-                              tone={enabled ? 'neutral' : 'danger'}
-                              reason={!enabled && isSelf ? t('users.cannotSuspendSelf') : undefined}
-                              disabled={setAccess.isPending || (!enabled && isSelf)}
-                              onSelect={() =>
-                                ask({
-                                  title: t(
-                                    enabled
-                                      ? 'users.restoreConfirmTitle'
-                                      : 'users.suspendConfirmTitle',
-                                  ),
-                                  description: t(
-                                    enabled
-                                      ? 'users.restoreConfirmBody'
-                                      : 'users.suspendConfirmBody',
+                          {actions.has('edit') ? (
+                            <ToolButton
+                              tone="edit"
+                              aria-label={t('users.editUser', { name: user.username })}
+                              title={t('users.editUser', { name: user.username })}
+                              onClick={() => setEditing(user)}
+                            >
+                              <Pencil aria-hidden="true" />
+                            </ToolButton>
+                          ) : null}
+                          {accessAction || actions.has('delete') ? (
+                            <RowActionsMenu label={t('users.moreActions', { name: user.username })}>
+                              {accessAction ? (
+                                <RowActionItem
+                                  icon={
+                                    accessAction === 'restore' ? (
+                                      <UserCheck aria-hidden="true" />
+                                    ) : (
+                                      <UserX aria-hidden="true" />
+                                    )
+                                  }
+                                  label={t(
+                                    accessAction === 'restore'
+                                      ? 'users.restoreUser'
+                                      : 'users.suspendUser',
                                     { name: user.username },
-                                  ),
-                                  confirmLabel: t(
-                                    enabled
-                                      ? 'users.restoreConfirmLabel'
-                                      : 'users.suspendConfirmLabel',
-                                  ),
-                                  tone: enabled ? 'default' : 'destructive',
-                                  onConfirm: () => setAccess.mutate({ user, enabled }),
-                                })
-                              }
-                            />
-                            <RowActionItem
-                              icon={<Trash2 aria-hidden="true" />}
-                              label={t('users.deleteUser', { name: user.username })}
-                              tone="danger"
-                              reason={isSelf ? t('users.cannotDeleteSelf') : undefined}
-                              disabled={remove.isPending || isSelf}
-                              onSelect={() =>
-                                ask({
-                                  title: t('common.confirmDeleteTitle'),
-                                  description: t('users.deleteConfirm', { name: user.username }),
-                                  confirmLabel: t('common.delete'),
-                                  tone: 'destructive',
-                                  onConfirm: () => remove.mutate(user),
-                                })
-                              }
-                            />
-                          </RowActionsMenu>
+                                  )}
+                                  tone={accessAction === 'restore' ? 'neutral' : 'danger'}
+                                  disabled={setAccess.isPending}
+                                  onSelect={() => {
+                                    const enabled = accessAction === 'restore';
+                                    ask({
+                                      title: t(
+                                        enabled
+                                          ? 'users.restoreConfirmTitle'
+                                          : 'users.suspendConfirmTitle',
+                                      ),
+                                      description: t(
+                                        enabled
+                                          ? 'users.restoreConfirmBody'
+                                          : 'users.suspendConfirmBody',
+                                        { name: user.username },
+                                      ),
+                                      confirmLabel: t(
+                                        enabled
+                                          ? 'users.restoreConfirmLabel'
+                                          : 'users.suspendConfirmLabel',
+                                      ),
+                                      tone: enabled ? 'default' : 'destructive',
+                                      onConfirm: () => setAccess.mutate({ user, enabled }),
+                                    });
+                                  }}
+                                />
+                              ) : null}
+                              {actions.has('delete') ? (
+                                <RowActionItem
+                                  icon={<Trash2 aria-hidden="true" />}
+                                  label={t('users.deleteUser', { name: user.username })}
+                                  tone="danger"
+                                  disabled={remove.isPending}
+                                  onSelect={() =>
+                                    ask({
+                                      title: t('common.confirmDeleteTitle'),
+                                      description: t('users.deleteConfirm', {
+                                        name: user.username,
+                                      }),
+                                      confirmLabel: t('common.delete'),
+                                      tone: 'destructive',
+                                      onConfirm: () => remove.mutate(user),
+                                    })
+                                  }
+                                />
+                              ) : null}
+                            </RowActionsMenu>
+                          ) : null}
                         </div>
                       </TableCell>
                     ) : null}
@@ -329,16 +345,17 @@ export function UsersPage() {
           <TabsTrigger variant="underline" value="users">
             {t('users.tab.users')}
           </TabsTrigger>
-          {canManageRoles ? (
+          {canReadRoles ? (
             <TabsTrigger variant="underline" value="roles">
               {t('users.tab.roles')}
             </TabsTrigger>
           ) : null}
         </TabsList>
         <TabsContent value="users">{usersList}</TabsContent>
-        {canManageRoles ? (
+        {canReadRoles ? (
           <TabsContent value="roles">
-            <RolePermissionsPanel />
+            {/* Seeing the matrix needs users:read; changing it needs roles:manage (ADMIN). */}
+            <RolePermissionsPanel readOnly={!canManageRoles} />
           </TabsContent>
         ) : null}
       </Tabs>

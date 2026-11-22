@@ -13,6 +13,7 @@ import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { authApi, type AuthConfig } from './auth.api';
 import { LoginPage } from './LoginPage';
+import { Toaster } from '@/components/ui/sonner';
 import { clearAzureSession, completeAzureSignIn, startAzureSignIn } from './msalClient';
 
 vi.mock('./auth.api', () => ({
@@ -77,6 +78,7 @@ function renderLogin(language: 'th' | 'en' = 'th') {
         <MemoryRouter>
           <LoginPage />
         </MemoryRouter>
+        <Toaster />
       </ThemeProvider>
     </LanguageProvider>,
   );
@@ -149,15 +151,17 @@ describe('LoginPage', () => {
     expect(useAuthStore.getState().notice).toBeNull();
   });
 
-  it('logout ที่แจ้งเซิร์ฟเวอร์ไม่สำเร็จ -> toast ที่ยิงก่อนเด้งมาต้องเห็นบนหน้า login + Alert ค้างไว้', async () => {
-    // AppHeader ยิง toast แล้ว navigate -> Toaster ของ AppLayout หายไปพร้อมหน้า
-    // หน้า login ต้องมี Toaster เอง ไม่งั้น toast ไม่โผล่ (แล้วไปโผล่ทีหลังตอนล็อกอินรอบถัดไป)
-    useAuthStore.setState({ notice: { key: 'auth.logoutServerFailed' } });
-    actionToast.error(th['header.logoutFailedTitle'], th['auth.logoutServerFailed']);
-
+  it('a toast raised on the way out (background logout failed) shows on the login page', async () => {
+    // The one Toaster lives in AppProviders and outlives the signed-in shell.
     renderLogin();
-
+    actionToast.error(th['header.logoutFailedTitle'], th['auth.logoutServerFailed']);
     expect(await screen.findByText(th['header.logoutFailedTitle'])).toBeInTheDocument();
+  });
+
+  it('a notice still waiting (e.g. logoutServerFailed) shows as the persistent Alert', async () => {
+    useAuthStore.setState({ notice: { key: 'auth.logoutServerFailed' } });
+    renderLogin();
+    await screen.findByRole('button', { name: /เข้าสู่ระบบด้วยบัญชีองค์กร/ });
     const notice = document.querySelector('[data-slot="signed-out-notice"]');
     expect(notice).toHaveTextContent(th['auth.logoutServerFailed']);
   });

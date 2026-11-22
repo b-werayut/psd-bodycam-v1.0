@@ -6,6 +6,7 @@ import { NestFactory } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import request from 'supertest';
 import { AppController } from '../../app.controller';
+import { HEALTH_STUB_PROVIDERS } from '../../test/health-stubs';
 import { RequestContextMiddleware } from '../context/request-context.middleware';
 import { createLoggerOptions } from './logger.module';
 
@@ -17,7 +18,11 @@ const sink = new Writable({
   },
 });
 
-@Module({ imports: [LoggerModule.forRoot(createLoggerOptions(sink))], controllers: [AppController] })
+@Module({
+  imports: [LoggerModule.forRoot(createLoggerOptions(sink))],
+  controllers: [AppController],
+  providers: HEALTH_STUB_PROVIDERS,
+})
 class M implements NestModule {
   configure(c: MiddlewareConsumer) {
     c.apply(RequestContextMiddleware).forRoutes('*');

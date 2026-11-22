@@ -11,7 +11,13 @@ import { useAuthStore, type AuthUser } from '@/stores/authStore';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { appRoutes } from './router';
 
-vi.mock('@/lib/apiClient', () => ({ refreshSession: vi.fn() }));
+// RealtimeProvider (inside the signed-in shell) refreshes on a refused socket and resets on revoke.
+vi.mock('@/lib/apiClient', () => ({
+  refreshSession: vi.fn(),
+  refreshToken: vi.fn(() => Promise.resolve(null)),
+  resetRefreshState: vi.fn(),
+  waitForPendingRefresh: vi.fn(() => Promise.resolve()),
+}));
 vi.mock('@/features/auth/auth.api', () => ({
   authApi: {
     config: vi.fn(() => new Promise(() => {})),
@@ -121,5 +127,22 @@ describe('router', () => {
     renderAt('/users');
     // the page title matches its menu item ("ผู้ใช้ระบบ")
     expect(await screen.findByRole('heading', { name: t('navigation.users') })).toBeInTheDocument();
+  });
+
+  it('renders the Entra users page with users:manage', async () => {
+    signIn(['users:read', 'users:manage']);
+    renderAt('/entra-users');
+    expect(
+      await screen.findByRole('heading', { level: 1, name: t('navigation.entraUsers') }),
+    ).toBeInTheDocument();
+  });
+
+  it('denies the Entra users page without users:manage', async () => {
+    signIn(['users:read']);
+    renderAt('/entra-users');
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { level: 1, name: t('navigation.entraUsers') }),
+    ).not.toBeInTheDocument();
   });
 });

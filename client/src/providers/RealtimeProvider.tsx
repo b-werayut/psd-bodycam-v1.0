@@ -83,6 +83,14 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     };
   }, [hasToken]);
 
+  // A socket refused at the handshake while the refresh also failed (e.g. the server was down) has
+  // given up for good (`active` false). When a new access token arrives some other way — the next API
+  // call refreshed the session — bring it back; a socket that is connected or retrying is left alone.
+  const accessToken = useAuthStore((state) => state.accessToken);
+  useEffect(() => {
+    if (socket && accessToken && !socket.active) socket.connect();
+  }, [accessToken, socket]);
+
   const subscribe = useCallback<RealtimeSubscribe>(
     (event, listener) => {
       if (!socket) return () => undefined;

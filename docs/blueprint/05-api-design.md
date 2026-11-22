@@ -126,7 +126,7 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
 | GET / PATCH | `/streams/role-access` | `roles:manage` |
 | GET | `/evidence-exports/policy` · POST `/evidence-exports` · GET `/evidence-exports/:id` | `evidence:export` |
 | POST | `/evidence-exports/:id/download-ticket` · GET `/evidence-exports/download?ticket=` | `evidence:download` / Public (ticket) |
-| POST | `/talk/sessions` `{ streamSessionToken }` · WS `/api/talk/ws?ticket=` | `streaming:talk` |
+| POST | `/talk/sessions` `{ streamSessionToken }` · WS `/api/talk/ws?ticket=` | `streaming:talk` · ใช้ได้กับทุก live session บน web: ภาพสดหลายจอ และ dialog ดูสดทุกจุด (DL62) |
 
 `POST /evidence-exports` ใช้ job เดิมเมื่อ device + channel + start/end ตรงกันพอดีและ job ยัง `Queued` / `Processing` / `Ready` ที่ยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่ (port `evidence-export-rules.ts` · ใช้จาก dialog ดูวิดีโอของใบงาน — DL36, DL53)
 
@@ -486,7 +486,7 @@ Catalog มี **24 permission** (DL53) · ทุก role web ใช้ scope `a
 | `roles:manage` | ✓ | ✕ | | | | แก้ matrix สิทธิ์ · `/streams/role-access` |
 | `streaming:view-live` | ✓ | ✓ | ✓ | | ✓ | ปุ่ม ดูสด · ภาพสดหลายจอ · live ในแอป |
 | `streaming:live-wall` | ✓ | ✓ | ✓ | | | ภาพสดหลายจอ |
-| `streaming:talk` | ✓ | ✓ | ✓ | | | talk ในภาพสดหลายจอ |
+| `streaming:talk` | ✓ | ✓ | ✓ | | | talk ในภาพสดหลายจอ และทุก dialog ดูสดบน web (DL62) |
 | `playback:view` | ✓ | ✓ | ✓ | | | ปุ่ม ดูย้อนหลัง ของใบงาน · วิดีโอย้อนหลัง (รายกล้อง) |
 | `evidence:export` | ✓ | ✓ | ✓ | | | สร้างไฟล์ MP4 |
 | `evidence:download` | ✓ | ✓ | ✓ | | | ดาวน์โหลด MP4 |
@@ -499,7 +499,7 @@ Catalog มี **24 permission** (DL53) · ทุก role web ใช้ scope `a
 - ✕ = **permission สงวนของ `ADMIN`** (DL51 · เหลือ 3 ตัวตาม DL53): `audit:view`, `settings:manage`, `roles:manage`
 - **ตัดตาม DL53** (ยังไม่มีโค้ด — ไม่ต้องสงวน code): `sessions:read`, `teams:read`, `teams:manage`, `devices:manage`, `devices:sync`, `integration:view`, `integration:manage`
 - **ไม่มี permission ปิด/reopen ใบงาน** — สถานะใบงานตาม check-in/check-out ของ Booking **[Confirmed — Q1, Q2, Q9]**
-- **ไม่มี permission link / void ใบงาน หรือ classify session** — ใบงานมาจาก Booking เท่านั้น และ session ผูกกับใบงานโดย matching อัตโนมัติ (DL33) · OPERATOR = monitor (แผนที่, ภาพสดหลายจอ, talk), ดูย้อนหลัง/export หลักฐาน, รับทราบ alert · ไม่มีงานจัดการทีม (ทีมมาจาก Booking — DL53)
+- **ไม่มี permission link / void ใบงาน หรือ classify session** — ใบงานมาจาก Booking เท่านั้น และ session ผูกกับใบงานโดย matching อัตโนมัติ (DL33) · OPERATOR = monitor (แผนที่, ภาพสดหลายจอ, dialog ดูสด + talk — DL62), ดูย้อนหลัง/export หลักฐาน, รับทราบ alert · ไม่มีงานจัดการทีม (ทีมมาจาก Booking — DL53)
 - **role `TEAM_LEADER` (DL47)** — หัวหน้าทีมภาคสนาม ใช้ **แอปมือถือเท่านั้น** (live กล้องของตัวเอง + รายละเอียดใบงาน — §5.4) · ทุก permission ประเมินด้วย data scope **`team`** · **ไม่มี web UI** — login web แล้วเห็นหน้า "ใช้งานผ่านแอปมือถือ" (ไม่มีเมนู) · check-in/check-out ยังทำใน Booking app · role ใส่ผ่าน data migration · บัญชีต้องผูกพนักงาน (`Employees.UserId` — ตรวจใน service)
 - ชื่อ role ไม่เปลี่ยน (DL48): "แอดมินฝ่ายความปลอดภัย" ใน requirement = `COMPANY_ADMIN` (DL55 — `ADMIN` เป็นบัญชี super admin ของฝั่ง dev ไม่ใช่บทบาทของลูกค้า) · "ผู้จัดการแผนก/ฝ่าย" = `OPERATOR` (scope `all` — ไม่มีแผนก DL53) · `VIEWER` คงไว้
 - **role `COMPANY_ADMIN` (DL51)** — ผู้ดูแลบริษัท (web, scope `all`) = ชุดของ `OPERATOR` + `org:manage` + `users:read` / `users:manage` · **ไม่ bypass** permission · ต่างจาก `ADMIN` แค่ audit, settings, แก้ matrix สิทธิ์ และบัญชี `ADMIN` (DL53) · ✕ = **permission สงวนของ `ADMIN`** (`audit:view`, `settings:manage`, `roles:manage`) — ให้ role ที่ไม่ใช่ `ADMIN` ไม่ได้ (`PUT /roles/:id/permissions` ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN` · matrix ล็อกช่องตาม `reservedPermissions` จาก `GET /roles`) · จัดการบัญชีทุก role ยกเว้น `ADMIN` — บัญชี `ADMIN` ถูกซ่อน (⇒ 404) และกำหนด role `ADMIN` ไม่ได้ (⇒ 403 `ADMIN_ACCOUNT_PROTECTED` · §5.2 · DL55) · ดู matrix ได้อย่างเดียวผ่าน `users:read`

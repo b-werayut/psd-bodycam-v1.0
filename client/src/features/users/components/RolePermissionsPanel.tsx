@@ -26,14 +26,20 @@ import { rolesApi, type RoleRow } from '../users.api';
 const GROUPS = groupPermissions();
 const isAdmin = (role: RoleRow) => role.code === 'ADMIN';
 
-export function RolePermissionsPanel() {
+/**
+ * Permission matrix. The server decides: `readOnly` when the caller lacks roles:manage (COMPANY_ADMIN sees
+ * the matrix but cannot change it), and the ADMIN-reserved codes from GET /roles are locked for every
+ * role but ADMIN — the server would refuse them anyway (400 PERMISSION_RESERVED_FOR_ADMIN).
+ */
+export function RolePermissionsPanel({ readOnly }: { readOnly: boolean }) {
   const { t } = useLanguage();
   const qc = useQueryClient();
   const [draft, setDraft] = useState<Record<string, string[]>>({});
   const [error, setError] = useState<string | null>(null);
 
   const roles = useQuery({ queryKey: ['roles'], queryFn: rolesApi.list });
-  const roleList = roles.data ?? [];
+  const roleList = roles.data?.roles ?? [];
+  const reserved = new Set(roles.data?.reservedPermissions ?? []);
   const editable = roleList.filter((role) => !isAdmin(role));
   const permissionQueries = useQueries({
     queries: editable.map((role) => ({
@@ -73,7 +79,7 @@ export function RolePermissionsPanel() {
         const wanted = new Set(draft[role.id]);
         await rolesApi.savePermissions(
           role.id,
-          PERMISSION_CATALOG.filter((code) => wanted.has(code)),
+          PERMISSION_CATALOG.filter((code) => wanted.has(code) && !reserved.has(code)),
         );
         await qc.invalidateQueries({ queryKey: ['roles', role.id, 'permissions'] });
         setDraft((prev) => {
@@ -130,25 +136,29 @@ export function RolePermissionsPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">{t('users.roles.description')}</p>
-        <div className="flex items-center gap-3">
-          {dirtyRoles.length === 0 ? (
-            <span className="text-sm text-muted-foreground">{t('users.roles.unchanged')}</span>
-          ) : null}
-          <Button
-            type="button"
-            className="min-h-11 gap-2"
-            disabled={dirtyRoles.length === 0 || save.isPending}
-            onClick={() => save.mutate()}
-          >
-            {save.isPending ? (
-              <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin" />
+      {readOnly ? (
+        <p className="text-sm text-muted-foreground">{t('users.permissions.readOnlyHint')}</p>
+      ) : (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">{t('users.roles.description')}</p>
+          <div className="flex items-center gap-3">
+            {dirtyRoles.length === 0 ? (
+              <span className="text-sm text-muted-foreground">{t('users.roles.unchanged')}</span>
             ) : null}
-            {t('users.roles.save')}
-          </Button>
+            <Button
+              type="button"
+              className="min-h-11 gap-2"
+              disabled={dirtyRoles.length === 0 || save.isPending}
+              onClick={() => save.mutate()}
+            >
+              {save.isPending ? (
+                <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin" />
+              ) : null}
+              {t('users.roles.save')}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {error ? (
         <Alert variant="destructive" feedbackScope="page">
@@ -187,7 +197,14 @@ export function RolePermissionsPanel() {
                 </TableRow>
                 {group.codes.map((code) => (
                   <TableRow key={code}>
-                    <TableCell className="font-mono text-xs">{code}</TableCell>
+                    <TableCell>
+                      <span className="font-mono text-xs">{code}</span>
+                      {reserved.has(code) ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {t('users.permissions.reservedHint')}
+                        </span>
+                      ) : null}
+                    </TableCell>
                     {roleList.map((role) => (
                       <TableCell key={role.id} className="text-center">
                         <Checkbox
@@ -196,7 +213,12 @@ export function RolePermissionsPanel() {
                             role: role.name,
                           })}
                           checked={checkedOf(role).has(code)}
-                          disabled={isAdmin(role) || save.isPending}
+                          disabled={
+                            readOnly ||
+                            isAdmin(role) ||
+                            (reserved.has(code) && !isAdmin(role)) ||
+                            save.isPending
+                          }
                           onCheckedChange={(next) => toggle(role, code, next === true)}
                           className="size-5 [@media(pointer:coarse)]:size-6"
                         />

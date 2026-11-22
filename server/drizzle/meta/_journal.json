@@ -22,6 +22,20 @@
       "when": 1794977033870,
       "tag": "0002_drop_departments",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795329177578,
+      "tag": "0003_reference_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795352172270,
+      "tag": "0004_refresh_replaced_at",
+      "breakpoints": true
     }
   ]
 }

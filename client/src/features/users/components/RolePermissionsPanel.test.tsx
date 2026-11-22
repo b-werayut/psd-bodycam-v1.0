@@ -29,6 +29,7 @@ beforeEach(() => {
             { id: '2', code: 'OPERATOR', name: 'เจ้าหน้าที่', isSystem: true },
           ],
           total: 2,
+          reservedPermissions: ['audit:view', 'settings:manage', 'roles:manage'],
         },
       });
     if (url === '/roles/2/permissions')
@@ -84,7 +85,7 @@ describe('PERMISSION_CATALOG', () => {
 
 describe('RolePermissionsPanel', () => {
   it('shows each resource group under its label (org reads as employees)', async () => {
-    renderWithProviders(<RolePermissionsPanel />);
+    renderWithProviders(<RolePermissionsPanel readOnly={false} />);
     await screen.findByRole('checkbox', {
       name: t('users.roles.cell', { permission: 'dashboard:view', role: 'เจ้าหน้าที่' }),
     });
@@ -97,7 +98,7 @@ describe('RolePermissionsPanel', () => {
   });
 
   it('lists all catalog permissions and locks the ADMIN column with a reason', async () => {
-    renderWithProviders(<RolePermissionsPanel />);
+    renderWithProviders(<RolePermissionsPanel readOnly={false} />);
     await screen.findByRole('checkbox', {
       name: t('users.roles.cell', { permission: 'dashboard:view', role: 'เจ้าหน้าที่' }),
     });
@@ -115,7 +116,7 @@ describe('RolePermissionsPanel', () => {
 
   it('saves the checked codes of the edited role', async () => {
     vi.mocked(api.put).mockResolvedValue({ data: {} });
-    renderWithProviders(<RolePermissionsPanel />);
+    renderWithProviders(<RolePermissionsPanel readOnly={false} />);
     await screen.findByRole('checkbox', {
       name: t('users.roles.cell', { permission: 'dashboard:view', role: 'เจ้าหน้าที่' }),
     });
@@ -123,16 +124,65 @@ describe('RolePermissionsPanel', () => {
     const save = screen.getByRole('button', { name: t('users.roles.save') });
     expect(save).toBeDisabled();
 
-    await userEvent.click(cell('audit:view', 'เจ้าหน้าที่'));
+    await userEvent.click(cell('alerts:view', 'เจ้าหน้าที่'));
     await userEvent.click(cell('dashboard:view', 'เจ้าหน้าที่'));
     await userEvent.click(save);
 
     await waitFor(() =>
       expect(api.put).toHaveBeenCalledWith('/roles/2/permissions', {
-        permissions: ['users:read', 'audit:view'],
+        permissions: ['users:read', 'alerts:view'],
       }),
     );
     expect(api.put).toHaveBeenCalledTimes(1);
     expect(await screen.findByText(t('users.roles.savedToast'))).toBeInTheDocument();
+  });
+
+  it('locks the reserved permissions for non-ADMIN roles, with a reason', async () => {
+    renderWithProviders(<RolePermissionsPanel readOnly={false} />);
+    await screen.findByRole('checkbox', {
+      name: t('users.roles.cell', { permission: 'dashboard:view', role: 'เจ้าหน้าที่' }),
+    });
+    for (const code of ['audit:view', 'settings:manage', 'roles:manage']) {
+      expect(cell(code, 'เจ้าหน้าที่')).toBeDisabled();
+    }
+    expect(screen.getAllByText(t('users.permissions.reservedHint'))).toHaveLength(3);
+    expect(cell('alerts:view', 'เจ้าหน้าที่')).toBeEnabled();
+  });
+
+  it('a stray reserved grant from the server is never sent back', async () => {
+    vi.mocked(api.get).mockImplementation((url: string) => {
+      if (url === '/roles')
+        return Promise.resolve({
+          data: {
+            data: [{ id: '2', code: 'OPERATOR', name: 'เจ้าหน้าที่', isSystem: true }],
+            total: 1,
+            reservedPermissions: ['audit:view', 'settings:manage', 'roles:manage'],
+          },
+        });
+      return Promise.resolve({ data: { data: ['dashboard:view', 'audit:view'], total: 2 } });
+    });
+    vi.mocked(api.put).mockResolvedValue({ data: {} });
+    renderWithProviders(<RolePermissionsPanel readOnly={false} />);
+    await userEvent.click(
+      await screen.findByRole('checkbox', {
+        name: t('users.roles.cell', { permission: 'alerts:view', role: 'เจ้าหน้าที่' }),
+      }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: t('users.roles.save') }));
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/roles/2/permissions', {
+        permissions: ['dashboard:view', 'alerts:view'],
+      }),
+    );
+  });
+
+  it('read-only: every box disabled, no save button, a hint instead', async () => {
+    renderWithProviders(<RolePermissionsPanel readOnly />);
+    await screen.findByRole('checkbox', {
+      name: t('users.roles.cell', { permission: 'dashboard:view', role: 'เจ้าหน้าที่' }),
+    });
+    for (const box of screen.getAllByRole('checkbox')) expect(box).toBeDisabled();
+    expect(screen.queryByRole('button', { name: t('users.roles.save') })).toBeNull();
+    expect(screen.getByText(t('users.permissions.readOnlyHint'))).toBeInTheDocument();
   });
 });

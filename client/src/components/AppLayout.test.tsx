@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppLayout } from '@/components/AppLayout';
 import { act } from '@testing-library/react';
 import { actionToast } from '@/components/ui/action-toast';
+import { Toaster } from '@/components/ui/sonner';
 import { resetRefreshState, waitForPendingRefresh } from '@/lib/apiClient';
 import { deferred } from '@/test/deferred';
 import { resetQueryCache } from '@/lib/queryClient';
@@ -107,6 +108,7 @@ function AppLayoutHarness({ initialEntry = '/' }: { initialEntry?: string }) {
               <Route path="/login" element={<p>Login destination</p>} />
             </Routes>
           </MemoryRouter>
+          <Toaster />
         </ThemeProvider>
       </LanguageProvider>
     </QueryClientProvider>
@@ -234,42 +236,39 @@ describe('AppLayout', () => {
     expect(screen.queryByRole('button', { name: /การแจ้งเตือน/ })).toBeNull();
   });
 
-  it('logout clears auth, calls the API with the token and goes to /login', async () => {
+  it('logout signs out locally at once and tells the server in the background', async () => {
+    const server = deferred<undefined>();
+    vi.mocked(authApi.logout).mockReturnValue(server.promise);
     render(<AppLayoutHarness />);
     fireEvent.click(await openUserMenu());
 
+    // no waiting for the server: the store is empty and the login page is shown right away
     await waitFor(() => expect(screen.getByText('Login destination')).toBeInTheDocument());
-    expect(authApi.logout).toHaveBeenCalledWith('token');
     expect(useAuthStore.getState().accessToken).toBeNull();
     expect(useAuthStore.getState().notice).toBeNull();
     expect(resetRefreshState).toHaveBeenCalledTimes(1);
     expect(resetQueryCache).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(authApi.logout).toHaveBeenCalledWith('token'));
+    server.resolve(undefined);
   });
 
-  it('logout waits for an in-flight refresh, then posts with the token that refresh produced', async () => {
+  it('logout with a refresh in flight posts only after that refresh settles (so the rotated cookie is revoked)', async () => {
     const refresh = deferred<void>();
     vi.mocked(waitForPendingRefresh).mockReturnValue(refresh.promise);
     render(<AppLayoutHarness />);
     fireEvent.click(await openUserMenu());
 
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(waitForPendingRefresh).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByText('Login destination')).toBeInTheDocument());
+    expect(useAuthStore.getState().accessToken).toBeNull();
     expect(authApi.logout).not.toHaveBeenCalled();
-    expect(useAuthStore.getState().accessToken).toBe('token');
 
     await act(async () => {
-      useAuthStore.setState({ accessToken: 'rotated' });
       refresh.resolve();
     });
-
-    await waitFor(() => expect(screen.getByText('Login destination')).toBeInTheDocument());
-    expect(authApi.logout).toHaveBeenCalledWith('rotated');
-    expect(useAuthStore.getState().accessToken).toBeNull();
+    await waitFor(() => expect(authApi.logout).toHaveBeenCalledTimes(1));
   });
 
-  it('logout POST failure still signs out locally, with an error toast and a login-page notice', async () => {
+  it('logout POST failure: still signed out, with an error toast', async () => {
     vi.mocked(authApi.logout).mockRejectedValue(new Error('server down'));
     const toastError = vi.spyOn(actionToast, 'error');
     render(<AppLayoutHarness />);
@@ -278,13 +277,25 @@ describe('AppLayout', () => {
     await waitFor(() => expect(screen.getByText('Login destination')).toBeInTheDocument());
     expect(useAuthStore.getState().accessToken).toBeNull();
     expect(useAuthStore.getState().user).toBeNull();
-    expect(useAuthStore.getState().notice).toEqual({ key: 'auth.logoutServerFailed' });
-    expect(toastError).toHaveBeenCalledWith(
-      t('header.logoutFailedTitle'),
-      t('auth.logoutServerFailed'),
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        t('header.logoutFailedTitle'),
+        t('auth.logoutServerFailed'),
+      ),
     );
-    expect(resetRefreshState).toHaveBeenCalledTimes(1);
-    expect(resetQueryCache).toHaveBeenCalledTimes(1);
+  });
+
+  it('logout after the session already ended posts nothing and keeps the sessionExpired notice', async () => {
+    render(<AppLayoutHarness />);
+    const item = await openUserMenu();
+    act(() => {
+      useAuthStore.setState({ accessToken: null, notice: { key: 'auth.sessionExpired' } });
+    });
+    fireEvent.click(item);
+
+    await waitFor(() => expect(screen.getByText('Login destination')).toBeInTheDocument());
+    expect(authApi.logout).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().notice).toEqual({ key: 'auth.sessionExpired' });
   });
 
   it('on session:revoked (account) clears auth and goes to /login with notice', async () => {

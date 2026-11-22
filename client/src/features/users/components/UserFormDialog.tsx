@@ -36,11 +36,25 @@ const FIELD_ORDER: ReadonlyArray<readonly [keyof UserFormValues, string]> = [
   ['email', 'user-email'],
 ];
 
-export function UserFormDialog({ user, onClose }: { user?: UserRow; onClose: () => void }) {
+export function UserFormDialog({
+  user,
+  prefill,
+  onClose,
+}: {
+  user?: UserRow;
+  /** Create-form values to start from, e.g. an Entra row (`userFormFromEntra`). */
+  prefill?: UserFormValues;
+  onClose: () => void;
+}) {
   const { t } = useLanguage();
   const qc = useQueryClient();
   const mode = user ? 'edit' : 'create';
-  const [original] = useState<UserFormValues>(() => (user ? userFormFrom(user) : emptyUserForm()));
+  const [original] = useState<UserFormValues>(() =>
+    user ? userFormFrom(user) : (prefill ?? emptyUserForm()),
+  );
+  // An account created from Entra signs in with Microsoft only: no password, name/email from Entra.
+  const ssoOnly = !user && Boolean(original.azureObjectId);
+  const entraHint = ssoOnly ? t('users.form.fromEntraHint') : undefined;
   const [values, setValues] = useState<UserFormValues>(original);
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +114,9 @@ export function UserFormDialog({ user, onClose }: { user?: UserRow; onClose: () 
       <DialogContent closeLabel={t('users.form.close')} className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t(user ? 'users.form.editTitle' : 'users.form.createTitle')}</DialogTitle>
-          <DialogDescription>{t('users.form.description')}</DialogDescription>
+          <DialogDescription>
+            {t(ssoOnly ? 'users.form.entraDescription' : 'users.form.description')}
+          </DialogDescription>
           <FormRequirementNote>{t('common.requiredExceptOptional')}</FormRequirementNote>
         </DialogHeader>
 
@@ -127,6 +143,7 @@ export function UserFormDialog({ user, onClose }: { user?: UserRow; onClose: () 
           <FormField
             id="user-fullname"
             label={t('users.form.fullName')}
+            hint={entraHint}
             error={errorOf('fullName')}
           >
             <Input
@@ -134,6 +151,7 @@ export function UserFormDialog({ user, onClose }: { user?: UserRow; onClose: () 
               value={values.fullName}
               onChange={(e) => set('fullName', e.target.value)}
               maxLength={150}
+              readOnly={ssoOnly}
               className="min-h-11"
             />
           </FormField>
@@ -149,7 +167,7 @@ export function UserFormDialog({ user, onClose }: { user?: UserRow; onClose: () 
               disabled={roles.isPending}
             >
               <option value="">{t('users.form.select')}</option>
-              {(roles.data ?? []).map((role) => (
+              {(roles.data?.roles ?? []).map((role) => (
                 <option key={role.id} value={role.code}>
                   {role.name}
                 </option>
@@ -160,6 +178,7 @@ export function UserFormDialog({ user, onClose }: { user?: UserRow; onClose: () 
             id="user-email"
             label={t('users.form.email')}
             optionalText={t('common.optional')}
+            hint={entraHint}
             error={errorOf('email')}
           >
             <Input
@@ -168,25 +187,28 @@ export function UserFormDialog({ user, onClose }: { user?: UserRow; onClose: () 
               value={values.email}
               onChange={(e) => set('email', e.target.value)}
               maxLength={255}
+              readOnly={ssoOnly}
               className="min-h-11"
             />
           </FormField>
-          <FormField
-            id="user-password"
-            label={t('users.form.password')}
-            optionalText={t('common.optional')}
-            hint={t(user ? 'users.form.passwordHintEdit' : 'users.form.passwordHint')}
-          >
-            <Input
+          {ssoOnly ? null : (
+            <FormField
               id="user-password"
-              type="password"
-              value={values.password}
-              onChange={(e) => set('password', e.target.value)}
-              maxLength={200}
-              autoComplete="new-password"
-              className="min-h-11"
-            />
-          </FormField>
+              label={t('users.form.password')}
+              optionalText={t('common.optional')}
+              hint={t(user ? 'users.form.passwordHintEdit' : 'users.form.passwordHint')}
+            >
+              <Input
+                id="user-password"
+                type="password"
+                value={values.password}
+                onChange={(e) => set('password', e.target.value)}
+                maxLength={200}
+                autoComplete="new-password"
+                className="min-h-11"
+              />
+            </FormField>
+          )}
         </div>
 
         {touched && hasErrors ? (

@@ -4,6 +4,7 @@ import { Controller, Get, INestApplication, MiddlewareConsumer, Module, NestModu
 import { NestFactory } from '@nestjs/core';
 import request from 'supertest';
 import { AppController } from '../../app.controller';
+import { HEALTH_STUB_PROVIDERS } from '../../test/health-stubs';
 import { RequestContextMiddleware } from './request-context.middleware';
 import { getContext, getCorrelationId, getCurrentUser, getUserId } from './request-context';
 
@@ -20,7 +21,7 @@ class CtxController {
   }
 }
 
-@Module({ controllers: [AppController, CtxController] })
+@Module({ controllers: [AppController, CtxController], providers: HEALTH_STUB_PROVIDERS })
 class M implements NestModule {
   configure(c: MiddlewareConsumer) {
     c.apply(RequestContextMiddleware).forRoutes('*');

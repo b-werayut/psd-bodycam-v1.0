@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { emptyUserForm, toCreatePayload, toUpdatePayload, validateUserForm } from './userForm';
+import {
+  emptyUserForm,
+  toCreatePayload,
+  toUpdatePayload,
+  userFormFromEntra,
+  validateUserForm,
+} from './userForm';
 
 const valid = {
   ...emptyUserForm(),
@@ -57,6 +63,54 @@ describe('toCreatePayload', () => {
     const payload = toCreatePayload({ ...valid, password: 'secret-pass', email: 'a@b.co' });
     expect(payload.password).toBe('secret-pass');
     expect(payload.email).toBe('a@b.co');
+  });
+
+  it('sends azureObjectId only when the form has one', () => {
+    expect('azureObjectId' in toCreatePayload(valid)).toBe(false);
+    expect(toCreatePayload({ ...valid, azureObjectId: 'oid-1' }).azureObjectId).toBe('oid-1');
+  });
+});
+
+describe('userFormFromEntra', () => {
+  const source = { upn: 'Somchai.J@psd.co.th', displayName: 'สมชาย ใจดี', mail: null, oid: 'oid-1' };
+
+  it('prefills username from the UPN local part, the name, the UPN as email and the oid', () => {
+    expect(userFormFromEntra(source)).toEqual({
+      ...emptyUserForm(),
+      username: 'somchai.j',
+      fullName: 'สมชาย ใจดี',
+      email: 'Somchai.J@psd.co.th',
+      azureObjectId: 'oid-1',
+    });
+  });
+
+  it('never guesses a role or sets a password', () => {
+    const values = userFormFromEntra(source);
+    expect(values.roleCode).toBe('');
+    expect(values.password).toBe('');
+  });
+
+  it('drops characters the server rejects and leaves a too-short username empty', () => {
+    expect(userFormFromEntra({ ...source, upn: 'som chai+x@psd.co.th' }).username).toBe('somchaix');
+    expect(userFormFromEntra({ ...source, upn: 'ก@psd.co.th' }).username).toBe('');
+    expect(userFormFromEntra({ ...source, upn: 'ab@psd.co.th' }).username).toBe('');
+  });
+
+  it('falls back to the UPN local part when Entra has no display name', () => {
+    expect(userFormFromEntra({ ...source, displayName: null }).fullName).toBe('Somchai.J');
+  });
+
+  it('uses mail when the UPN is not an email address', () => {
+    const values = userFormFromEntra({ ...source, upn: 'somchai', mail: 'somchai@psd.co.th' });
+    expect(values.email).toBe('somchai@psd.co.th');
+  });
+
+  it('has no azureObjectId without an oid', () => {
+    expect('azureObjectId' in userFormFromEntra({ ...source, oid: undefined })).toBe(false);
+  });
+
+  it('produces a form that passes validation once a role is picked', () => {
+    expect(validateUserForm({ ...userFormFromEntra(source), roleCode: 'OPERATOR' })).toEqual({});
   });
 });
 

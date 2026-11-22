@@ -26,6 +26,8 @@ function makeFakeSocket() {
   const listeners = new Map<string, Set<Listener>>();
   const socket = {
     connected: false,
+    // socket.io: true while connected or retrying; false after the server refused the handshake
+    active: true,
     on: vi.fn((event: string, listener: Listener) => {
       const eventListeners = listeners.get(event) ?? new Set<Listener>();
       eventListeners.add(listener);
@@ -242,6 +244,48 @@ describe('RealtimeProvider', () => {
     act(() => fake.emit('connect_error', new Error('unauthorized')));
 
     await waitFor(() => expect(refreshToken).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(fake.socket.connect).not.toHaveBeenCalled();
+  });
+
+  it('socket ที่ถูกปฏิเสธแล้วเลิกลอง (inactive) -> ต่อใหม่เองเมื่อได้ access token ใหม่จากทางอื่น', async () => {
+    vi.mocked(refreshToken).mockResolvedValue(null);
+    const fake = makeFakeSocket();
+    vi.mocked(connectRealtime).mockReturnValue(fake.socket as never);
+
+    render(
+      <RealtimeProvider>
+        <Subscriber onEvent={vi.fn()} />
+      </RealtimeProvider>,
+    );
+    await waitFor(() => expect(fake.listenerCount('connect_error')).toBe(1));
+
+    // server down / token refused: socket.io gives up, the refresh fails too
+    fake.socket.active = false;
+    act(() => fake.emit('connect_error', new Error('unauthorized')));
+    await waitFor(() => expect(refreshToken).toHaveBeenCalled());
+    expect(fake.socket.connect).not.toHaveBeenCalled();
+
+    // later an API call refreshes the session: the socket must come back on its own
+    act(() => {
+      useAuthStore.setState({ accessToken: 'token-b' });
+    });
+    await waitFor(() => expect(fake.socket.connect).toHaveBeenCalledTimes(1));
+    expect(connectRealtime).toHaveBeenCalledTimes(1);
+  });
+
+  it('token เปลี่ยนระหว่างที่ socket ยังทำงานอยู่ -> ไม่สั่ง connect ซ้ำ', async () => {
+    const fake = makeFakeSocket();
+    vi.mocked(connectRealtime).mockReturnValue(fake.socket as never);
+    render(
+      <RealtimeProvider>
+        <Subscriber onEvent={vi.fn()} />
+      </RealtimeProvider>,
+    );
+    await waitFor(() => expect(connectRealtime).toHaveBeenCalledTimes(1));
+    act(() => {
+      useAuthStore.setState({ accessToken: 'token-b' });
+    });
     await Promise.resolve();
     expect(fake.socket.connect).not.toHaveBeenCalled();
   });

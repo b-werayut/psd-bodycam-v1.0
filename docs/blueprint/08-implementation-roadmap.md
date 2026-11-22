@@ -52,7 +52,8 @@ flowchart LR
 
 **Deliverables**
 - โครง repo `client/` + `server/` · scripts dev/test/build · Docker images (api, worker+ffmpeg, web) · CI: lint, **typecheck**, unit, integration (Postgres + Redis ใน CI)
-- Deploy ทับระบบเดิม (DL60): ปิดระบบเดิม (scale เป็น 0 ใน gitops) ได้ทันที · `server/` แทนเนื้อหา `psd-bwc-web-backend` และ `client/` แทน `psd-bwc-frontend` (tag HEAD เดิมก่อน · copy จาก `psd-bodycam-v1.0` ซึ่งเป็นที่เก็บโค้ดหลัก โดยคง `azure-pipelines.yml` / `sonar-project.properties` ของ repo บน Azure) เพื่อใช้ Azure pipeline / Harbor / gitops ชุดเดิม · ต้องมี `server/Dockerfile` (stage `runner` + ffmpeg) และ script `coverage` / `test:ci:full` ที่ใช้ได้ · gitops: ชื่อ Deployment / Service เดิม, database ใหม่ (ไม่ใช้ DB ของระบบเดิม — Part 4 §4.7), env ชุดใหม่ (ตัด `BRMS_*`, `ROAD_MATCH_DRIVER` / `OSRM_URL`, `INTEGRATION_WEBHOOK_*`), `web` port 8080
+- **ช่วง dev รันบนเครื่อง local (DL63)**: PostgreSQL + Redis บนเครื่อง (database ใหม่) · DSS middleware ผ่าน VPN · คู่มือ `docs/runbooks/local-dev.md` · ยังไม่ deploy Azure
+- Deploy ทับระบบเดิม (DL60 · **ทำเมื่อผู้ใช้สั่ง** — DL63): ปิดระบบเดิม (scale เป็น 0 ใน gitops) ได้ทันที · `server/` แทนเนื้อหา `psd-bwc-web-backend` และ `client/` แทน `psd-bwc-frontend` (tag HEAD เดิมก่อน · copy จาก `psd-bodycam-v1.0` ซึ่งเป็นที่เก็บโค้ดหลัก โดยคง `azure-pipelines.yml` / `sonar-project.properties` ของ repo บน Azure) เพื่อใช้ Azure pipeline / Harbor / gitops ชุดเดิม · ต้องมี `server/Dockerfile` (stage `runner` + ffmpeg) และ script `coverage` / `test:ci:full` ที่ใช้ได้ · gitops: ชื่อ Deployment / Service เดิม, database ใหม่ (ไม่ใช้ DB ของระบบเดิม — Part 4 §4.7), env ชุดใหม่ (ตัด `BRMS_*`, `ROAD_MATCH_DRIVER` / `OSRM_URL`, `INTEGRATION_WEBHOOK_*`), `web` port 8080
 - Port `server/src/common/*` (db, scope แบบใหม่ `all` — `team` เพิ่มใน P5 · ไม่มี `department` DL53, settings + spec, lock, queue, rate limit, storage, context, audit interceptor, permission check, realtime bus, migration guards, prod-readiness)
 - DB baseline + custom migration (extensions, partitions) + `0002_drop_departments` (DL53) + data migration ของ roles / permissions (catalog 24 ตัว — DL53) / settings (role `ADMIN`, `COMPANY_ADMIN` — DL51, `OPERATOR`, `VIEWER`) · seed dev-only
 - Auth: password + Entra SSO + refresh rotation + lockout + ระงับบัญชี · users / roles / employees (ไม่มีแผนก — DL53) · **ผู้ใช้จาก Entra** (port `GET /users/entra-directory`, `POST /users/sync-entra` + Microsoft Graph client · env `GRAPH_*` — DL53) · กติกา `COMPANY_ADMIN` (DL51): permission สงวนของ `ADMIN` (`audit:view`, `settings:manage`, `roles:manage` · `PERMISSION_RESERVED_FOR_ADMIN`) + ป้องกันบัญชี `ADMIN` (`ADMIN_ACCOUNT_PROTECTED`) + `availableActions` ต่อแถวผู้ใช้
@@ -60,7 +61,7 @@ flowchart LR
 - Client: shell + nav 12 เมนู 4 กลุ่ม (DL53), design tokens, primitives, composites, i18n, auth pages, `usePermission`, router + 404/errorElement · หน้า พนักงาน, ผู้ใช้ระบบ, ผู้ใช้จาก Entra (`/entra-users` — port `EntraUsersPage`) · port design guard tests
 
 **Acceptance criteria**
-- Login password + Entra ทำงานใน staging · refresh rotation/reuse detection ผ่าน integration test
+- Login password + Entra ทำงานบนเครื่อง dev local (DL63 · Entra ต้องมี redirect URI `http://localhost:5173`) · refresh rotation/reuse detection ผ่าน integration test
 - endpoint ทุกตัวไม่มี `@RequirePermission` ⇒ test fail (secure by default)
 - `npm run build` รวม typecheck · migrate รันซ้ำได้ผลเดิม · drift gate หยุด process เมื่อ migration ค้าง
 - `COMPANY_ADMIN` จัดการผู้ใช้ role อื่นได้ · รายการผู้ใช้ / `/roles` / หน้า ผู้ใช้จาก Entra ไม่มีบัญชีและ role `ADMIN` · เรียก `/users/:id` ของบัญชี `ADMIN` ⇒ 404 · กำหนด role `ADMIN` ⇒ 403 (DL55) · เรียก `/audit-logs`, `/settings`, `PUT /roles/:id/permissions` ⇒ 403 · ใส่ permission สงวนให้ role อื่น ⇒ 400 (integration test — DL51)
@@ -132,6 +133,7 @@ flowchart LR
 - port streaming (live, playback, proxy, quota, role/device access) · talk (Must — DL48)
 - **ภาพสดหลายจอ** `/live-wall` + talk (DL53 — ไม่มีเมนู Live รายกล้อง · ใช้ดูภาพสดของกล้องที่ไม่มีใบงาน)
 - หน้า **ใบงาน** (จาก P2): ปุ่ม **ดูสด** ต่อกล้องที่ออนไลน์ (`LiveStreamDialog`) + ปุ่ม **ดูย้อนหลัง** (DL53)
+- **talk ในทุก dialog ดูสด** (DL62): `LiveStreamDialog` ที่เปิดจากหน้า ใบงาน, รายละเอียดใบงาน และการ์ดกล้องบนแผนที่ติดตาม มีปุ่ม talk แบบเดียวกับภาพสดหลายจอ (ผู้ใช้ต้องมี `streaming:talk`) — acceptance: เปิด dialog จากทั้ง 3 จุดแล้วพูดออกลำโพงกล้องได้ · ปิด dialog แล้ว talk session ปิดด้วย
 - **วิดีโอย้อนหลัง** `/evidence` รายกล้อง (DL59 · player / export port จาก `client/src/features/evidence`): เลือกกล้อง + วัน → ไฟล์ทุกช่วง + ป้ายใบงาน / ไม่ผูกใบงาน → playback / ดาวน์โหลด MP4
 - **dialog ดูวิดีโอของใบงาน** (หน้า ใบงาน และรายละเอียดใบงาน): กล้อง (sessions + `DeviceRefs`) · เฉพาะไฟล์และช่วงเวลาใน `workWindow` (check-in – check-out ของ Booking) · เปิดได้เฉพาะใบที่ check-in แล้ว (DL59)
 - ไม่มี route `/recordings` — การค้นรายกล้องอยู่ที่ `/evidence` (DL59)
