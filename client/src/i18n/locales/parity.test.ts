@@ -16,8 +16,8 @@ describe('locale parity', () => {
     }
   });
 
-  it('only uses P0 key prefixes and no company or department keys', () => {
-    const prefixes = /^(app|navigation|breadcrumb|header|language|theme|auth|permission|common|users|employees|settings|audit)\./;
+  it('only uses known key prefixes (P0 + P1 tracking/map) and no company or department keys', () => {
+    const prefixes = /^(app|navigation|breadcrumb|header|language|theme|auth|permission|common|users|employees|settings|audit|tracking|map)\./;
     for (const key of Object.keys(th)) {
       expect(key).toMatch(prefixes);
       expect(key.toLowerCase()).not.toContain('compan');

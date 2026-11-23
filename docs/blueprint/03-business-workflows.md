@@ -1,7 +1,7 @@
 # Part 3 — Business Workflows
 
 > ชื่อตาราง/enum ตาม [04-database-design.md](04-database-design.md) · ค่าตัวเลขในวงเล็บคือ default ของ Settings (ดู §3.11)
-> กติกาในส่วนนี้ปรับตามคำตอบของผู้ใช้ 2026-11-04, DL33/DL35 (2026-11-09), DL46–DL49 (2026-11-12 — requirement ฉบับ 2026-11-12) และ DL53 (2026-11-18 — ไม่มีแผนก · ทีมจากใบงาน · กล้อง sync อัตโนมัติ · `Depots` ว่าง) (Part 9 §9.5) — **อาจเปลี่ยนตามข้อมูลจากทีม Booking**
+> กติกาในส่วนนี้ปรับตามคำตอบของผู้ใช้ 2026-11-04, DL33/DL35 (2026-11-09), DL46–DL49 (2026-11-12 — requirement ฉบับ 2026-11-12) และ DL53 (2026-11-18 — ไม่มีแผนก · ทีมจากใบงาน · กล้อง sync อัตโนมัติ · `Depots` ว่าง) · DL66–DL75 (2026-11-23 — ตาม code P1: observation, GpsPoll, GPS ingest, settings `tracking`) (Part 9 §9.5) — **อาจเปลี่ยนตามข้อมูลจากทีม Booking**
 > **DL33**: ใบงานมาจากข้อมูล Smart Booking เท่านั้น (1 ต่อ 1 กับ `BookingJobs`) · ระบบไม่สร้างใบงานเอง · ไม่มีใบรวม ไม่มีการผูก/void ด้วยมือ ไม่มีคิวตรวจสอบ
 > **DL46**: Smart Booking **POST** ใบงานเข้ามาที่ `POST /api/integration/booking/jobs` (process `api` → `IntegrationInbox` → inbox processor ของ worker `integration`) แทนการ pull ทุก 2 นาทีของ DL31 · read API ของ Booking (refresh ต่องาน / reconcile ตอนกลางคืน) เป็น **optional** · **DL47**: แอปมือถือสำหรับหัวหน้าทีม (`TEAM_LEADER`, scope `team`) — ดู live กล้องของตัวเอง + รายละเอียดใบงาน
 
@@ -13,7 +13,7 @@
 |---|---|---|---|
 | **Device Online** | กล้องต่อ platform อยู่ (`DeviceState.PlatformState = 1` และข้อมูลไม่เก่าเกิน `status.unknown-after-seconds`) | GpsPoll: DSS `/location` (`status`) — DL32 | เปิด/ปิด session (ใช้ภายใน session engine) · หน้าจอไม่ได้รับ push สถานะ — ดึงสถานะจาก DSS ตอนเปิดหน้า (DL35) |
 | **Device Unknown** | ไม่มี observation ใหม่นานเกินกำหนด (คำนวณ ไม่ได้เก็บ) | อายุของ `LastObservedAt` | **hold** — ไม่เปิดและไม่ปิด session จนกว่าจะเกิน `session.unknown-max-minutes` |
-| **GPS Active** | มี fix ที่ valid อายุ ≤ 2 นาที | GpsPoll | แสดงตำแหน่ง · ตรวจว่าอยู่ฐาน (ถ้ามี fix) · ไม่ใช้เป็น trigger |
+| **GPS Active** | มี fix ที่ valid อายุ ≤ `status.unknown-after-seconds` + 2 × `gps.poll-interval-seconds` (= `fixActiveSeconds` 150 วินาทีตามค่าเริ่มต้น — `server/src/modules/tracking/fix-freshness.ts`) | GpsPoll | แสดงตำแหน่ง (เกินนี้ marker บนแผนที่จาง · เป็นเกณฑ์ gap ของประวัติเส้นทาง) · ตรวจว่าอยู่ฐาน (ถ้ามี fix) · ไม่ใช้เป็น trigger |
 | **At Base** | fix ล่าสุดอยู่ในรัศมีฐาน/จุดชาร์จ (`Depots` — รองรับหลายจุด) | `DeviceState.LastLat/LastLng` · vendor **ไม่มี** charging state (Q21) | **ไม่นับเป็นงาน** — session จัดเป็น `IdleOrCharging` (Q15) · ระยะแรกไม่มีหน้าจัดการฐาน ⇒ `Depots` ว่าง ⇒ ไม่มีกล้องใดเป็น At Base (DL53) |
 | **Camera Active (เริ่มใช้งาน)** | Online ต่อเนื่อง ≥ `camera.activation-debounce-minutes` (**15**) และไม่ได้อยู่ฐาน | คำนวณจาก `StateSince` | **trigger เปิด Tracking Session ที่นับเป็นงาน** |
 | **Recording Started** | มีไฟล์บันทึกในช่วงเวลานั้นจริง | DSS recording search (หลังเกิดเหตุเท่านั้น) → `RecordingSegments` | แสดงหลักฐาน · **ไม่ใช้เป็น trigger และไม่สมมติว่าเปิดกล้อง = อัด** |
@@ -65,11 +65,19 @@ sequenceDiagram
 ```
 
 กติกา:
-- `applyObservation` เป็น `UPDATE` เดียว ใช้ `IS DISTINCT FROM` ตรวจ transition · เวลาใช้ DB `now()`
-- **ไม่ล้างสถานะเป็น null** เมื่อ DSS หลุด/worker restart (ต่างจาก `clearPlatformStatuses()` ของ reference) — ความเก่าของข้อมูลถูกตีความเป็น UNKNOWN เอง
-- GPS fix ที่สดถือเป็น ONLINE observation ด้วย (source = DssLocation) · fix ที่ valid ใช้คำนวณ `DeviceState.IsAtDepot`
+- `applyObservation` เป็น `UPDATE` เดียว ใช้ `IS DISTINCT FROM` ตรวจ transition · เวลาใช้ DB `now()` · แถว `DeviceState` มีอยู่แล้วตั้งแต่ `DeviceSync` สร้างกล้อง (DL67) จึงไม่ upsert · transaction สั้น 1 ต่อกล้อง เรียงตาม `DeviceId` (`server/src/modules/device-status/device-status.service.ts`)
+- **ไม่ล้างสถานะเป็น null** เมื่อ DSS หลุด/worker restart (ต่างจาก `clearPlatformStatuses()` ของ reference) — ความเก่าของข้อมูลถูกตีความเป็น UNKNOWN เอง · DSS ตอบไม่ได้ / ตอบผิดรูป ⇒ ไม่มี observation ของกล้องนั้นในรอบนั้น (ไม่เดาสถานะ) และกล้องอื่นในรอบเดียวกันไม่กระทบ
+- GPS fix ที่สดถือเป็น ONLINE observation ด้วย (source = DssLocation) — fix ใหม่ที่ DSS ไม่ได้บอก status ⇒ นับเป็น online · fix ที่ valid ใช้คำนวณ `DeviceState.IsAtDepot`
 - **แหล่งสถานะเดียวคือ GpsPoll** (DL32): `/location` ให้ทั้ง GPS และ online/offline ในรอบเดียว · ไม่มี StatusPoll / BRMS MQ / device webhook จึงไม่ต้องตัดสินลำดับระหว่าง source · observation ซ้ำแค่ bump `LastObservedAt`
-- **ไม่มี event `device:status`** (DL35): `DeviceState` ใช้ภายใน session engine เท่านั้น · หน้าจอที่แสดงสถานะกล้อง (ภาพสดหลายจอ / คอลัมน์กล้องในหน้า ใบงาน / ก่อนเปิด live) ดึงสถานะจาก DSS ผ่าน API ตอนเปิดหน้า · ตำแหน่งบนแผนที่ยังมาทาง `gps:batch` ตามเดิม
+- **GpsPoll ทุกกล้อง ทุกรอบ** (DL70 · `server/src/modules/tracking/gps-poll.service.ts`): กล้องที่ `IsDeleted = false` และ `Status ≠ 4` ทั้งหมด ไม่มี cap จำนวน · ส่งคำขอพร้อมกัน `GPS_POLL_CONCURRENCY` (default 8 · 1–32) · รอบไม่ซ้อนกัน — รอบถัดไปเริ่ม `gps.poll-interval-seconds` หลังรอบก่อนจบ · รอบนานกว่า interval ⇒ log warn ไม่ข้ามกล้อง · lock `gps:poll` (TTL 300 วินาที) · ปิดด้วย `GPS_POLL_ENABLED=false`
+- **ไม่มี event `device:status`** (DL35): `DeviceState` ใช้ภายใน session engine เท่านั้น · หน้าจอที่แสดงสถานะกล้อง (ภาพสดหลายจอ / คอลัมน์กล้องในหน้า ใบงาน / แผนที่ติดตาม / ก่อนเปิด live) ได้สถานะจาก DSS device list ผ่าน API ตอนเปิดหน้า (cache Redis — DL45, DL69) · ตำแหน่งบนแผนที่ยังมาทาง `gps:batch` ตามเดิม
+
+**GPS ingest** (`server/src/modules/tracking/gps-ingest.service.ts` · port pipeline ของ reference แต่ตัด road matching):
+1. ตัดจุดที่เวลาเกินอนาคต > 2 นาที (เทียบเวลา server) และจุดที่ `RecordedAt` ≤ `DeviceState.LastFixAt` (เก่า / ซ้ำ)
+2. drift: ความเร็วจากจุดก่อนหน้า > 200 km/h ⇒ `IsValidFix = false` (เก็บไว้ ไม่ทิ้ง) · ระยะ < 5 m ไม่ถือว่าน่าสงสัย
+3. stale-start revalidation ตามกฎ reference (250 m / 3 จุด / 300 วินาที / 30 km/h / factor 5 — `stale-start.ts`): กล้องที่เพิ่งต่อมักส่งพิกัดเก่าที่ค้างไว้ก่อนแล้วค่อยได้พิกัดจริง ⇒ จุดจริงจุดแรกดูเหมือนกระโดดและถูกตั้ง suspect · ถ้าจุดถัดไปยืนยันว่าเป็นตำแหน่งจริง ระบบคืน `IsValidFix = true` ให้จุดนั้นแล้วเทียบ drift ต่อจากจุดนั้น
+4. `INSERT … ON CONFLICT DO NOTHING` ลง `GpsLocations` · snapshot ใน `DeviceState` (`LastFixAt`, `LastLat` / `LastLng`, …) เดินหน้าอย่างเดียว · `IsAtDepot` = fix valid ที่อายุไม่เกิน `depot.fix-max-age-minutes` และอยู่ในรัศมี `Depots` ที่ active
+5. หลังเขียนเสร็จ emit `gps:batch` `{ points: [{ deviceId, lat, lng, speedKph, heading, recordedAt, isValidFix: true }] }` เข้า room `tracking` (เฉพาะจุด valid)
 
 ---
 
@@ -522,14 +530,16 @@ User flow (DL47):
 |---|---|---|---|
 | `auth.max-failed-logins` | **3** (DL65) | 3–20 | ล็อกบัญชีชั่วคราวเมื่อใส่รหัสผ่านผิดติดกันครบจำนวน (login ด้วยชื่อผู้ใช้ + รหัสผ่าน) |
 | `auth.lockout-minutes` | 15 | 1–1440 | ระยะเวลาล็อก · ล็อกหมดแล้วนับรหัสผิดใหม่จาก 0 |
-| `status.unknown-after-seconds` | 120 | ≥ 2 × poll | คำนวณ UNKNOWN |
-| `status.display-cache-seconds` | 10 | 0–60 (0 = ไม่ cache) | อายุ cache Redis ของสถานะกล้องที่ `api` ดึงจาก DSS ให้หน้าจอ (DL45) · ไม่กระทบ session engine |
-| `gps.poll-interval-seconds` | 15 | 5–300 | GpsPoll (เดิม) |
+| `status.unknown-after-seconds` | 120 | 30–3600 และ ≥ 2 × `gps.poll-interval-seconds` (PATCH ที่ทำให้ผิดเงื่อนไขนี้ ⇒ 400 `SETTING_OUT_OF_RANGE`) | คำนวณ UNKNOWN · `fixActiveSeconds` (§3.0) |
+| `status.display-cache-seconds` | 10 | 0–60 (0 = ไม่ cache) | อายุ cache Redis ของสถานะกล้องที่ `api` ดึงจาก DSS ให้หน้าจอ (DL45, DL69) · ไม่กระทบ session engine |
+| `gps.poll-interval-seconds` | 15 | 5–300 | GpsPoll — นับจากรอบก่อนจบ (DL70) · `fixActiveSeconds` (§3.0) |
 | `camera.activation-debounce-minutes` | **15** **[Confirmed — Q3]** | 1–60 | เปิด session |
 | `session.merge-gap-minutes` | 15 | 0–240 | ตัด session เมื่อ offline (ไม่ใช่การปิดใบงาน) |
 | `session.unknown-max-minutes` | 30 | 5–240 | ปิด session เมื่อ unknown |
 | `session.max-segment-hours` | 12 | 1–24 (**ผูกกับ playback 24 ชม.**) | split |
 | `depot.fix-max-age-minutes` | 30 | 5–240 | ตรวจอยู่ฐาน (ไม่มีผลจนกว่า `Depots` มีข้อมูล — DL53) |
+| `tracking.stop-min-minutes` | 5 | 1–120 | ประวัติเส้นทาง: จอดนิ่งนานอย่างน้อยเท่านี้จึงแสดงเป็นจุดจอด |
+| `tracking.stop-radius-meters` | 50 | 10–500 | ประวัติเส้นทาง: รัศมีที่ถือว่ายังจอดอยู่ที่เดิม |
 | `matching.window-before-minutes` / `after` | 60 / 60 **[Confirmed — Q3]** | 0–240 | candidate window |
 | `matching.extended-window-minutes` | 180 **[Confirmed — Q3]** | ≥ window | MEDIUM — attach อัตโนมัติ (DL37) |
 | `matching.auto-switch-enabled` | true **[Confirmed — Q5]** | bool | A→B |
@@ -541,4 +551,4 @@ User flow (DL47):
 
 ไม่มี setting ของใบรวม / auto-void / SLA คิวตรวจสอบแล้ว (DL33) · ตัด `booking.sync-interval-seconds` (ไม่มี pull ทุก 2 นาทีแล้ว — DL46 · ยังไม่มีโค้ด จึงลบได้เลย)
 
-เพิ่ม key = แก้ `SETTING_DEFAULTS` + `SETTING_BOUNDS` (`setting-spec.ts`) + data migration (กติกาเดิมของ reference — ไม่พึ่ง seed) · `booking.inbound-silence-alert-hours` ต้องทำครบทั้ง 3 จุดนี้
+เพิ่ม key = แก้ `SETTING_DEFAULTS` + `SETTING_BOUNDS` (`setting-spec.ts`) + data migration (กติกาเดิมของ reference — ไม่พึ่ง seed) · `booking.inbound-silence-alert-hours` ต้องทำครบทั้ง 3 จุดนี้ · ที่มีใน code แล้ว: `auth.*` (`0003_reference_data`) และ 6 key ของ P1 — `gps.poll-interval-seconds`, `status.unknown-after-seconds`, `status.display-cache-seconds`, `depot.fix-max-age-minutes`, `tracking.stop-min-minutes`, `tracking.stop-radius-meters` (`0006_p1_tracking_custom`, Category `tracking`)

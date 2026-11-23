@@ -31,6 +31,14 @@ export const SEED_EMPLOYEES: readonly SeedEmployee[] = [
   { employeeCode: 'E0002', firstName: 'สมหญิง', lastName: 'รักงาน', username: null, bookingEmployeeRef: 'BK-EMP-0002' },
 ];
 
+export type SeedDepot = { code: string; name: string; lat: number; lng: number; radiusM: number };
+
+/** Mock charging bases (Q22): production has none until a depot screen exists (DL53). */
+export const SEED_DEPOTS: readonly SeedDepot[] = [
+  { code: 'DEPOT-01', name: 'ฐานสำนักงาน (ทดสอบ)', lat: 13.7563, lng: 100.5018, radiusM: 150 },
+  { code: 'DEPOT-02', name: 'ฐานจตุจักร (ทดสอบ)', lat: 13.8, lng: 100.55, radiusM: 150 },
+];
+
 export const DEFAULT_ADMIN_PASSWORD = 'Admin@12345';
 export const DEFAULT_DEMO_PASSWORD = 'Demo@12345';
 
@@ -50,7 +58,10 @@ export function seedPassword(role: RoleCode, env: Env): string {
  * Upserts the demo users and employees in one transaction. Re-running resets the demo
  * accounts (role, password, active, unlocked) so the seed doubles as "reset dev logins".
  */
-export async function runDevSeed(sql: Sql, env: Env): Promise<{ users: number; employees: number }> {
+export async function runDevSeed(
+  sql: Sql,
+  env: Env,
+): Promise<{ users: number; employees: number; depots: number }> {
   assertSeedAllowed(env);
 
   // Hash outside the transaction: argon2 is slow on purpose.
@@ -104,7 +115,23 @@ export async function runDevSeed(sql: Sql, env: Env): Promise<{ users: number; e
           values (${e.employeeCode}, ${e.firstName}, ${e.lastName}, ${linkedUserId ?? null}, ${e.bookingEmployeeRef}, 1)`;
       }
     }
+
+    for (const d of SEED_DEPOTS) {
+      const [existing] = await tx`
+        select "Id" from "Depots" where "Code" = ${d.code} and "IsDeleted" = false`;
+      if (existing) {
+        await tx`
+          update "Depots" set
+            "Name" = ${d.name}, "Lat" = ${d.lat}, "Lng" = ${d.lng}, "RadiusM" = ${d.radiusM},
+            "IsActive" = true, "UpdatedAt" = now()
+          where "Id" = ${existing.Id}`;
+      } else {
+        await tx`
+          insert into "Depots" ("Code", "Name", "Lat", "Lng", "RadiusM")
+          values (${d.code}, ${d.name}, ${d.lat}, ${d.lng}, ${d.radiusM})`;
+      }
+    }
   });
 
-  return { users: users.length, employees: SEED_EMPLOYEES.length };
+  return { users: users.length, employees: SEED_EMPLOYEES.length, depots: SEED_DEPOTS.length };
 }

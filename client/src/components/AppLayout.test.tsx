@@ -69,7 +69,7 @@ const operator: AuthUser = {
   email: 'somchai@example.com',
   roleCode: 'OPERATOR',
   roleName: 'ผู้ปฏิบัติงาน',
-  permissions: ['dashboard:view', 'org:read', 'tracking:view'],
+  permissions: ['dashboard:view', 'org:read', 'tracking:view', 'work-orders:read'],
 };
 
 function LocationProbe() {
@@ -172,7 +172,8 @@ describe('AppLayout', () => {
   it('renders disabled nav items without links', () => {
     render(<AppLayoutHarness />);
     const nav = screen.getByRole('navigation', { name: t('navigation.label') });
-    const disabled = within(nav).getByText(t('navigation.tracking')).closest('[aria-disabled]');
+    // ใบงาน has no page until P3
+    const disabled = within(nav).getByText(t('navigation.workOrders')).closest('[aria-disabled]');
 
     expect(disabled).toHaveAttribute('aria-disabled', 'true');
     expect(disabled).not.toHaveAttribute('href');

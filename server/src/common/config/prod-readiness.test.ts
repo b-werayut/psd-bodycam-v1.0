@@ -12,6 +12,9 @@ const base: NodeJS.ProcessEnv = {
   REDIS_URL: 'redis://r:6379',
   AZURE_AD_TENANT_ID: '00000000-0000-0000-0000-000000000001',
   AZURE_AD_CLIENT_ID: '00000000-0000-0000-0000-000000000002',
+  DSS_DRIVER: 'dss',
+  DSS_BASE_URL: 'http://dss-services:3004',
+  DSS_API_KEY: 'd'.repeat(32),
 };
 
 const level = (env: NodeJS.ProcessEnv, id: string) =>
@@ -58,6 +61,17 @@ describe('checkProdEnv', () => {
     expect(ids).toContain('REFRESH_TOKEN_TTL_HOURS_DEVICE');
     for (const gone of ['ROAD_MATCH_DRIVER', 'OSRM_URL', 'STORAGE_LOCAL_DIR', 'MINIO_*', 'STREAM_PROVIDER_DRIVER', 'PUSH_PROVIDER_DRIVER', 'GPS_POLL_ENABLED', 'INTEGRATION_WEBHOOK_SECRET'])
       expect(ids).not.toContain(gone);
+  });
+
+  it('DSS: the simulator driver, a missing URL or key fails; a short key warns', () => {
+    expect(level(base, 'DSS_DRIVER')).toBe('pass');
+    const noDriver = { ...base };
+    delete noDriver.DSS_DRIVER;
+    expect(level(noDriver, 'DSS_DRIVER')).toBe('fail');
+    expect(level({ ...base, DSS_DRIVER: 'mock' }, 'DSS_DRIVER')).toBe('fail');
+    expect(level({ ...base, DSS_BASE_URL: '' }, 'DSS_BASE_URL')).toBe('fail');
+    expect(level({ ...base, DSS_API_KEY: '' }, 'DSS_API_KEY')).toBe('fail');
+    expect(level({ ...base, DSS_API_KEY: 'short' }, 'DSS_API_KEY')).toBe('warn');
   });
 
   it('warns when NODE_ENV is not production', () => {

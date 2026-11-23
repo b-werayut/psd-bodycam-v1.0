@@ -2,7 +2,7 @@
 
 **PSD Body worn camera** — ระบบติดตาม Bodycam และหลักฐานตามใบงานจาก Smart Booking (repo `psd-bodycam-v1.0`)
 
-> เอกสารออกแบบก่อน Implementation ของระบบ **PSD Body worn camera** (`psd-bodycam-v1.0`) · ฉบับ 2026-11-03 · ปรับ 2026-11-09 (DL33–DL36) · ปรับ 2026-11-12 (DL46–DL49) · ปรับ 2026-11-18 (DL53 — เมนู web 12 รายการ · ไม่มีแผนก)
+> เอกสารออกแบบก่อน Implementation ของระบบ **PSD Body worn camera** (`psd-bodycam-v1.0`) · ฉบับ 2026-11-03 · ปรับ 2026-11-09 (DL33–DL36) · ปรับ 2026-11-12 (DL46–DL49) · ปรับ 2026-11-18 (DL53 — เมนู web 12 รายการ · ไม่มีแผนก) · ปรับ 2026-11-23 (DL66–DL75 — ตาม code P1 Devices & Tracking)
 > Requirement: [requirement ฉบับ 2026-11-12](../requirements/2026-11-12-body-camera-requirements.md) — ยึดทั้งฉบับ (Q24) ยกเว้น 2 ข้อ (Q25 — DL48): ชื่อ role คงเดิม `ADMIN` / `OPERATOR` / `VIEWER` (ไม่ใช้คำว่า Safety) · GPS history และ talk เป็น Must
 > Reference: `C:\Git\Internal-BodyCam` (อ่านอย่างเดียว ไม่ถูกแก้ไข)
 > Diagram ทั้งหมดเป็น Mermaid — เปิดดูได้ใน GitHub / GitLab / VS Code (Markdown Preview Mermaid Support)
@@ -51,7 +51,7 @@
 | คำ | ความหมาย |
 |---|---|
 | **Device Online / Offline / Unknown** | สถานะการต่อ platform ของกล้อง · Unknown = ไม่มีข้อมูลใหม่นานเกินกำหนด (คำนวณ ไม่เก็บ) |
-| **GPS Active** | มีพิกัดที่ valid อายุ ≤ 2 นาที (กล้องในอาคารมักไม่มี — ไม่ใช่สัญญาณว่าปิด) |
+| **GPS Active** | มีพิกัดที่ valid อายุ ≤ `status.unknown-after-seconds` + 2 × `gps.poll-interval-seconds` (150 วินาทีตามค่าเริ่มต้น — `fixActiveSeconds`) (กล้องในอาคารมักไม่มี — ไม่ใช่สัญญาณว่าปิด) |
 | **Camera Active** | Online ต่อเนื่องครบ 15 นาที และไม่ได้อยู่ในรัศมีฐาน = "เริ่มใช้งาน" |
 | **Smart Booking** | ระบบใบงานภายนอก (ต้นทางใบงานเดียว) · POST ใบงานเข้า inbound endpoint ของเรา (DL46) · ในโค้ดใช้ชื่อ `booking` / `BOOKING` |
 | **Inbound endpoint** | `POST /api/integration/booking/jobs` ใน process `api` ที่ Smart Booking เรียก · ตรวจ auth (HMAC / API key **[Assumption]**) → validate → บันทึก `IntegrationInbox` → ตอบ 202 (`accepted`) / 200 (`duplicate`) · map และ upsert ใน worker `integration` (DL46) |
@@ -70,7 +70,7 @@
 | **AwaitingMatch** | session ที่ยังจับคู่ Booking ไม่ได้ (ไม่มีหรือมีหลาย candidate) — รอ Booking แล้ว rematch อัตโนมัติ · ไม่มีการผูกด้วยมือ / คิวตรวจสอบ (DL33) · วิดีโอดูย้อนหลังได้ที่หน้า วิดีโอย้อนหลัง รายกล้อง (DL59) |
 | **ใบงาน (เมนู)** | `/work-orders` = ตารางใบงานจาก Booking (แท็บสถานะ · คอลัมน์กล้อง + ปุ่ม ดูสด เมื่อออนไลน์ · ปุ่ม ดูย้อนหลัง เฉพาะช่วงใบงาน) + `/work-orders/:id` (DL53, DL59) |
 | **วิดีโอย้อนหลัง (Evidence)** | เมนู `/evidence` (เดิมชื่อ หลักฐาน — DL53) = ค้นรายกล้อง: เลือกกล้อง + วัน → ไฟล์ทุกช่วง (ป้ายเลขใบงาน หรือ ไม่ผูกใบงาน) → playback / ดาวน์โหลด MP4 (DL59) · วิดีโอต้นฉบับอยู่บน Dahua DSS Platform · ไฟล์ export อยู่บน PVC 24 ชม. (DL34) |
-| **DSS middleware** | `psd-bwc-dss-services` (FastAPI) ที่เรียก Dahua DSS Platform อีกชั้น — ถือ token ของ DSS, HLS ผ่าน `/proxy`, talk เป็น RTSP **[Confirmed]** |
+| **DSS middleware** | `psd-bwc-dss-services` (FastAPI) ที่เรียก Dahua DSS Platform อีกชั้น — ถือ token ของ DSS, HLS ผ่าน `/proxy`, talk เป็น RTSP **[Confirmed]** · ระบบเราต่อด้วย `DSS_DRIVER=dss` + `DSS_BASE_URL` + `DSS_API_KEY` · dev / test ใช้ simulator ในตัว `DSS_DRIVER=mock` (100 กล้อง — DL68, DL75) |
 
 ---
 
@@ -147,7 +147,7 @@ flowchart LR
   WI -. "read API ถ้ามี" .-> BK
 ```
 
-- **Real-time path** (DSS `/location` → GPS + สถานะ → `DeviceState` ภายใน + `gps:batch` → Socket.IO) และ **session engine** ไม่เรียก Booking · ไม่ push online/offline — หน้าจอดึงสถานะจาก DSS ตอนเปิดผ่าน `api` (DL35) ซึ่ง cache ผลไว้ใน Redis 10s (DL45)
+- **Real-time path** (DSS `/location` → GPS + สถานะ → `DeviceState` ภายใน + `gps:batch` → Socket.IO) และ **session engine** ไม่เรียก Booking · ไม่ push online/offline — หน้าจอดึงสถานะจาก DSS device list ตอนเปิดผ่าน `api` (DL35) ซึ่ง cache ผลรายกล้องไว้ใน Redis 10s (DL45, DL69)
 - **Redis** = Socket.IO adapter / emitter · lock · rate limit · BullMQ · circuit breaker · cache สถานะกล้องบนหน้าจอ — ไม่ใช่ cache ข้อมูลทั่วไป
 - **Booking path** (DL46): Smart Booking POST → `api` ตรวจ auth + validate → `INSERT IntegrationInbox` (`Channel = 1 Push`, `ON CONFLICT DO NOTHING`) → ตอบ 202 / 200 duplicate (ไม่แตะ `BookingJobs` / `WorkOrders`) → worker integration: inbox processor map (`BookingInboundMapper`) + projection + upsert WO 1:1 (DL33) → queue `matching` · read API (`fetchJob` / `fetchWindow` — ปุ่ม refresh + reconcile รายคืน) เป็น optional มี circuit breaker · `BOOKING_PROVIDER_DRIVER=none` (ค่าเริ่มต้น) ปิดทั้งสองอย่าง
 - **Mobile path** (DL47): แอปหัวหน้าทีมเรียก `/mobile/me`, `/mobile/jobs`, `/streams/live` ผ่าน `api` ภายใต้ scope `team` · push FCM "ใบงานใหม่ของทีม" · room `team:{id}`
@@ -184,7 +184,7 @@ Invariant สำคัญที่ DB บังคับ:
 | Phase | ผลลัพธ์ | Priority |
 |---|---|---|
 | P0 Foundation | scaffold, port infra, auth + Entra, RBAC/scope (`all` / `team`), migrations (รวมตัด `Departments`), CI, shell + nav 12 เมนู + design system · พนักงาน / ผู้ใช้ระบบ / ผู้ใช้จาก Entra (DL53) | Must |
-| P1 Devices & Tracking | device sync อัตโนมัติจาก DSS (worker), status/GPS ingest, live map, GPS history (Must — DL48) | Must |
+| P1 Devices & Tracking | device sync อัตโนมัติจาก DSS (worker), status/GPS ingest, live map, GPS history (Must — DL48), ตาราง `Alerts` + alert 13 (DL66) · simulator `DSS_DRIVER=mock` (DL68) · acceptance ผ่านบน simulator แล้ว — รอทดสอบกับ DSS จริงผ่าน VPN | Must |
 | P2 Sessions & Work Orders | session engine (`AwaitingMatch` / `IdleOrCharging`), หน้า ใบงาน + รายละเอียด (ใบงานจาก `booking-simulator`) | Must |
 | P3 Booking Integration | P3a inbound endpoint `POST /api/integration/booking/jobs` + inbox + mapper `v1` + simulator → projection + ทีม / หัวหน้าทีมจากใบงาน + upsert WO 1:1 · P3b matching อัตโนมัติ + rematch · P3c Smart Booking go-live: ตกลง contract/auth, mapper `smart-booking` ถ้าจำเป็น, read API adapter (optional), pilot (**ติด Booking spec gate**) | Must |
 | P4 Media | ภาพสดหลายจอ + talk (Must — DL48), ดูสด / ดูย้อนหลังจากหน้า ใบงาน (dialog ดูสดทุกจุดมี talk — DL62), วิดีโอย้อนหลัง `/evidence` + MP4 export (Local disk PVC) | Must |

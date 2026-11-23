@@ -40,6 +40,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await setSetting('auth.max-failed-logins', '3');
   await setSetting('auth.lockout-minutes', '15');
+  await setSetting('gps.poll-interval-seconds', '15');
+  await setSetting('status.unknown-after-seconds', '120');
   await sql`update "Settings" set "UpdatedBy" = null where "UpdatedBy" in (select "Id" from "Users" where "Username" in ${sql(USERNAMES)})`;
   await sql`delete from "RefreshTokens" where "UserId" in (select "Id" from "Users" where "Username" in ${sql(USERNAMES)})`;
   await sql`delete from "Users" where "Username" in ${sql(USERNAMES)}`;
@@ -104,6 +106,22 @@ describe('PATCH /api/settings/:key', () => {
     expect(r.body.message).toContain('ไม่น้อยกว่า 3');
     const [row] = await sql`select "SettingValue" from "Settings" where "SettingKey" = 'auth.max-failed-logins'`;
     expect(row.SettingValue).toBe('3');
+  });
+
+  it('pair rule: a poll interval above half of status.unknown-after-seconds ⇒ 400; value unchanged', async () => {
+    const token = await tokenOf('t6s_admin');
+    const r = await http.patch('/api/settings/gps.poll-interval-seconds').set('Authorization', token).send({ value: '61' });
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe('SETTING_OUT_OF_RANGE');
+    expect(r.body.message).toContain('status.unknown-after-seconds');
+    const [row] = await sql`select "SettingValue" from "Settings" where "SettingKey" = 'gps.poll-interval-seconds'`;
+    expect(row.SettingValue).toBe('15');
+
+    const low = await http.patch('/api/settings/status.unknown-after-seconds').set('Authorization', token).send({ value: '30' });
+    expect(low.status).toBe(200);
+    const tooLow = await http.patch('/api/settings/gps.poll-interval-seconds').set('Authorization', token).send({ value: '16' });
+    expect(tooLow.status).toBe(400);
+    await setSetting('status.unknown-after-seconds', '120');
   });
 
   it('unknown key ⇒ 404', async () => {

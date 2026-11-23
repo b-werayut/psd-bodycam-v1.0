@@ -15,7 +15,7 @@
 | Client state | Zustand เฉพาะ auth (`stores/authStore.ts`) · Context สำหรับ Realtime/Theme/Language | ตาม reference |
 | HTTP | axios + single-flight refresh (`lib/apiClient.ts`) | port ตรง |
 | Realtime | socket.io-client 4 (`lib/socket.ts`, `providers/RealtimeProvider.tsx`) | port + event ใหม่ |
-| Map | Leaflet 1.9 + react-leaflet 4 | เพิ่ม `leaflet.markercluster` (กล้องประมาณ 100 ตัว — DL56) · tile server ต้องเป็นของเราหรือผู้ให้บริการที่มี SLA ใน production (public OSM ไม่รองรับโหลด) |
+| Map | Leaflet 1.9 + react-leaflet 4 | เพิ่ม `leaflet.markercluster` (กล้องประมาณ 100 ตัว — DL56) · tile ตั้งด้วย env `VITE_MAP_TILE_URL` / `VITE_MAP_TILE_ATTRIBUTION` (`components/map/mapConfig.ts`) · ไม่ตั้ง ⇒ tile สาธารณะของ OpenStreetMap ซึ่งใช้ได้เฉพาะ dev — production ต้องตั้งเป็น tile server ของเราหรือผู้ให้บริการที่มี SLA (public OSM ไม่รองรับโหลด) |
 | Video | hls.js (dynamic import) | port `StreamPlayer` |
 | Talk | AudioWorklet + raw WebSocket | port `features/talk` |
 | Auth SSO | `@azure/msal-browser` (lazy) | port `msalClient.ts` |
@@ -42,8 +42,8 @@ client/src/
     command-center/         # AsyncState, DataPagination, DataTableFrame, DataToolbar, PageHeader,
                             # RowActionsMenu, StatusBadge, ToolButton, MetricSummary, EntitySummary (port)
     layout/                 # AppLayout, AppHeader, AppSidebar, BranchedNav, Breadcrumb, ThemeToggle, LanguageSwitcher
-    map/                    # MapCanvas, DeviceMarker, MarkerCluster, RoutePolyline
-    status/                 # DeviceStateBadge, WorkOrderStatusBadge, SessionStateBadge (ใหม่ — รวมการ map สถานะ → tone ไว้ที่เดียว)
+    map/                    # MapCanvas, MarkerClusterLayer, mapConfig (tile จาก env)
+    status/                 # DeviceStateBadge + deviceStateTone (P1), WorkOrderStatusBadge, SessionStateBadge (ใหม่ — รวมการ map สถานะ → tone ไว้ที่เดียว)
     charts/                 # EChart (port)
     booking/                # BookingJobCard, BookingStaleBanner (ใหม่ — ใช้ข้ามหลาย feature)
     evidence/               # EvidencePlaybackDialog, RecordingSegmentsPanel, useEvidenceDownload, evidenceExports.api.ts
@@ -51,8 +51,8 @@ client/src/
   features/
     auth/                   # LoginPage, msalClient, loginDestination, sessionRevoked (port)
     dashboard/
-    tracking/               # LiveMapPage, useLivePositions, liveMerge (port + refactor)
-    tracking-history/       # HistoryPage (port, ตัด roadMatch)
+    tracking/               # LiveMapPage, useLivePositions, liveMerge, positionAge, CameraListPanel, CameraCard (port + refactor)
+    tracking-history/       # HistoryPage, historyRange, historyTimeline, RouteLayers (port, ตัด roadMatch)
     live-wall/              # LiveWallPage — ภาพสดหลายจอ (port)
     streaming/              # StreamPlayer, LiveStreamDialog, streamStops (port — LiveStreamDialog ใช้กับปุ่ม ดูสด ทุกจุด: หน้า ใบงาน, รายละเอียดใบงาน, การ์ดกล้องบนแผนที่ติดตาม · มีปุ่ม talk ในตัวเมื่อผู้ใช้มี `streaming:talk` · ปิด dialog = หยุด talk + หยุดสตรีม — DL62)
     talk/                   # (port)
@@ -140,11 +140,11 @@ flowchart TB
 | หน้าจอ | เนื้อหาหลัก | Data | Realtime |
 |---|---|---|---|
 | **แดชบอร์ด** | MetricSummary: กล้อง online / unknown / offline · session เปิดอยู่ · WO วันนี้ (เปิด / ปิด) · session รอจับคู่ · match rate วันนี้ · สถานะรับข้อมูล Smart Booking (POST ล่าสุด + backlog — DL46) · alert ล่าสุด | `/dashboard/overview` | `session:*`, `workorder:changed`, `integration:status` |
-| **แผนที่ติดตาม** | แผนที่ + cluster · marker 3 สถานะ (online/offline/unknown — ค่าจาก snapshot ตอนเปิดหน้า, DL35) + halo เมื่อมี session · panel รายการกล้อง (ค้นหา, filter สถานะ/ทีม/มีงาน) · คลิก = การ์ดกล้อง: ทีม, WO ปัจจุบัน, Booking, ปุ่ม ดูสด (`LiveStreamDialog` + talk — DL62) / ประวัติเส้นทาง · วงรัศมีสถานที่ Booking (ถ้ามีพิกัด) | `/tracking/positions` | `gps:batch` (ตำแหน่ง), `session:*` |
+| **แผนที่ติดตาม** | แผนที่ Leaflet + `leaflet.markercluster` · marker 3 สถานะ (online/offline/unknown — ค่าจาก snapshot ตอนเปิดหน้า, DL35) · marker จางเมื่อ fix เก่ากว่า `fixActiveSeconds` ของ snapshot · panel รายการกล้อง (ค้นหา + filter สถานะ) · คลิก = การ์ดกล้อง + ลิงก์ ประวัติเส้นทาง (เมื่อมี `tracking:history`) · `gps:batch` รวมแล้วใช้ทีละ 1 วินาที · snapshot poll ทุก 60 วินาทีเฉพาะตอน socket หลุด · reconnect ⇒ refetch — ที่มีใน P1 (`features/tracking/LiveMapPage.tsx`) · phase ถัดไปเพิ่ม: halo เมื่อมี session, filter ทีม / มีงาน, ทีม / WO ปัจจุบัน / Booking บนการ์ด และวงรัศมีสถานที่ Booking (P2 / P3a) · ปุ่ม ดูสด (`LiveStreamDialog` + talk — DL62 · P4) | `/tracking/positions` | `gps:batch` (ตำแหน่ง), `session:*` (P2) |
 | **ใบงาน** (DL53) | ตารางใบงานจาก Booking · แท็บสถานะ (ทั้งหมด / รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิก) · คอลัมน์: ใบงาน (เลข WO + DO / SH) · รายการ (ชื่องาน · "ปฏิบัติงานจริง" `workWindow` หรือ "รอเริ่ม" + เวลาแผน · สถานที่) · ผู้ปฏิบัติงาน (ทีม / หัวหน้าตาม Booking) · **กล้องของใบงาน** (`cameras[]` + สถานะ + ปุ่ม **ดูสด** เมื่อออนไลน์ → `LiveStreamDialog` · ต้องมี `streaming:view-live` · ปุ่ม talk ใน dialog ต้องมี `streaming:talk` — DL62) · สถานะ (+ ป้าย NeedsReview) · ปุ่ม **ดูย้อนหลัง** (`playback:view` · เฉพาะใบที่ check-in แล้ว) เปิด `EvidencePlaybackDialog` ที่แสดงเฉพาะไฟล์ในช่วง `workWindow` (DL59) · filter ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH · คลิกแถว = `/work-orders/:id` · `VIEWER` เห็นตารางอย่างเดียว (ไม่มีปุ่ม) | `/work-orders`, `/streams/live`, `/work-orders/:id/sessions`, `/streams/recordings` | `workorder:changed`, `session:*` |
 | **รายละเอียดใบงาน** | อ่านอย่างเดียว — Header: เลข, สถานะ (ตาม Booking), ป้าย NeedsReview + เหตุผล (ข้อมูลเท่านั้น), ปุ่มตาม `availableActions` (หมายเหตุ, ดูวิดีโอ — เปิด `EvidencePlaybackDialog` ของใบงาน เฉพาะช่วง `workWindow` · DL59) · **Booking Reference panel** (รวมเลข DO / SH — DL46) · Timeline (`events`) · Sessions (กล้อง, ช่วงเวลา, เหตุผลจบ) · แผนที่เส้นทางของช่วง WO · Recordings ในช่วงใบงาน + ปุ่มดูย้อนหลัง/Export MP4 · Match attempts (เหตุผลที่ระบบผูก session) · หมายเหตุ · ไม่มี link / unlink / void (DL33) | `/work-orders/:id` + sub-resources | `workorder:changed`, `session:*` |
 | **Booking Reference Information** | (1) panel ใน WO detail: เลข/ชื่องาน, **เลข DO / SH** (DL46), สถานะ Booking (raw + canonical), **เวลา check-in / check-out** (เป็นตัวกำหนดสถานะใบงาน), กล้องที่ Booking ระบุ (`deviceRefs`), แผนเวลา, สถานที่, ทีม/หัวหน้าตาม Booking, `lastSyncedAt` (ได้รับข้อมูลล่าสุดเมื่อ) + ป้าย stale, ปุ่ม refresh เฉพาะเมื่อมี `refreshBooking` ใน `availableActions` (มี read API — DL46) · ไม่มีปุ่ม "ดูข้อมูลดิบ" และไม่มีหน้า `/booking-jobs` แยก (DL52, DL53) · mapping issue แจ้ง `ADMIN` ด้วย alert รายวัน (ไม่มีหน้า integration — DL53) | `/work-orders/:id` | `integration:status` |
-| **ประวัติเส้นทาง** | port HistoryPage: เลือกกล้อง + ช่วงวัน, polyline + จุดหยุด + gap, timeline คลิกโฟกัส · เพิ่ม: แถบ session/WO บน timeline · ตัด road-match | `/tracking/devices/:id/history` | — |
+| **ประวัติเส้นทาง** | port HistoryPage: เลือกกล้อง + วัน (1 วันตามเวลา Asia/Bangkok 00:00–24:00) หรือช่วง ≤ 24 ชม. ที่มากับลิงก์ · URL `?deviceId&from&to` · polyline + จุดหยุด + gap, timeline คลิกโฟกัส · **ไม่ refetch เอง** (ทุกคำขอถูก audit `VIEW_GPS_HISTORY`) — โหลดเมื่อผู้ใช้เปลี่ยนกล้อง / วันเท่านั้น · phase ถัดไปเพิ่ม: แถบ session/WO บน timeline (P2) · ตัด road-match | `/devices`, `/tracking/devices/:id/history` | — |
 | **วิดีโอย้อนหลัง (Evidence)** — หน้า หลักฐาน เดิมเปลี่ยนชื่อ (DL53) · ค้นรายกล้อง (DL59) | (1) toolbar: เลือกกล้อง (ทุกกล้อง · ค้นรหัส / ชื่อ) + วัน (ย้อนหลังได้ 3 เดือน · ค้นครั้งละ ≤ 24 ชม.) → (2) panel ไฟล์บันทึกทุกช่วงของกล้อง: ช่วงเวลา + ระยะเวลา + ป้ายใบงาน (เลข WO คลิกไป `/work-orders/:id`) หรือ "ไม่ผูกใบงาน" → (3) player + ปรับช่วง (≤ 24 ชม., `evidenceRange`) → ดูย้อนหลัง หรือดาวน์โหลด MP4 (ใช้ export job เดิมเมื่อ device + channel + start/end ตรงกันและยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่) · player / panel / export ใช้ component เดียวกับ `EvidencePlaybackDialog` (port `features/evidence` ของ reference) · alert `RECORDING_OUTSIDE_WORK` ลิงก์มาหน้านี้พร้อมกล้อง + วัน | `/devices`, `/streams/recordings`, `/streams/playback`, `/evidence-exports*` | `stream:status` |
 | **dialog ดูวิดีโอของใบงาน** (`EvidencePlaybackDialog` — จากหน้า ใบงาน / รายละเอียดใบงาน · DL59) | เลือกกล้อง (กล้องจาก sessions ของใบงาน + กล้องใน `DeviceRefs` ที่ไม่มี session · `evidenceCameras`) + บรรทัด "ใช้ในใบงานนี้" (ช่วง session ของกล้อง) · panel เฉพาะไฟล์ที่ทับ `workWindow` (ส่วนที่อยู่นอกช่วงตัดออก) · ปรับช่วงได้เฉพาะใน `workWindow` (≤ 24 ชม.) → ดูย้อนหลัง / ดาวน์โหลด MP4 · เปิดได้เฉพาะใบที่ check-in แล้ว | `/work-orders/:id/sessions`, `/streams/recordings?workOrderId=`, `/streams/playback`, `/evidence-exports*` | `stream:status`, `workorder:changed` |
 | **ภาพสดหลายจอ** (live wall — DL53 แทนเมนู Live ของ DL36) | port ทั้งหน้า (1/4/6/9/16, drag-drop, slot ใน URL, talk) · รายการกล้องจัดกลุ่มตามทีม · สถานะกล้องดึงตอนเปิดหน้า (DL35) · เป็นทางเดียวที่ดูวิดีโอของกล้องที่ไม่มีใบงาน — ภาพสดเมื่อออนไลน์ ไม่มีย้อนหลังรายกล้อง (DL53) | `/streams/*`, `/devices` | `stream:status` |
@@ -172,7 +172,7 @@ flowchart TB
 
 | ค่า | Tone (`StatusBadge`) | ข้อความ (th) |
 |---|---|---|
-| Device online / offline / unknown | success / neutral / `unknown` token | ออนไลน์ / ออฟไลน์ / ไม่ทราบสถานะ |
+| Device online / offline / unknown | success / neutral / warning (`StatusTone` ไม่มีค่า `unknown` — DL74 · `components/status/deviceStateTone.ts`) | ออนไลน์ / ออฟไลน์ / ไม่ทราบสถานะ |
 | WO Planned / Open / Closed / Cancelled | neutral / info / success / neutral | รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิก |
 | Session open / closed / awaiting / no team / charging | info / neutral / warning / warning / neutral | กำลังใช้งาน / สิ้นสุด / รอข้อมูลใบงาน / กล้องยังไม่ผูกทีม / ชาร์จที่ฐาน |
 
@@ -193,8 +193,8 @@ flowchart TB
 ## 6.7 Realtime ฝั่ง client
 
 - `RealtimeProvider` เดียว (port) · event ใหม่ `session:opened/closed`, `workorder:changed`, `integration:status`
-- แผนที่: queue `gps:batch` flush ทุก 1s (pattern `liveMerge.ts`) · REST snapshot เมื่อ reconnect · poll 60s เฉพาะตอน socket หลุด
-- **ไม่มี `device:status`** (DL35) — ไม่ subscribe สถานะ online/offline · ภาพสดหลายจอ / คอลัมน์กล้องในหน้า ใบงาน / ก่อนเปิด live ดึงสถานะจาก API ตอนเปิดหน้า (`GET /devices`, `GET /work-orders` — api ถาม DSS ผ่าน cache Redis 10s, DL45) · แสดงเวลาอัปเดตจาก `platformStatusFetchedAt`
+- แผนที่: queue `gps:batch` flush ทุก 1s (pattern `liveMerge.ts`) · REST snapshot เมื่อ reconnect · poll 60s เฉพาะตอน socket หลุด · ประวัติเส้นทางไม่ refetch เอง (ทุกคำขอถูก audit)
+- **ไม่มี `device:status`** (DL35) — ไม่ subscribe สถานะ online/offline · ภาพสดหลายจอ / คอลัมน์กล้องในหน้า ใบงาน / แผนที่ติดตาม / ก่อนเปิด live ดึงสถานะจาก API ตอนเปิดหน้า (`GET /devices`, `GET /work-orders`, `GET /tracking/positions` — api ถาม DSS device list ผ่าน cache Redis 10s, DL45, DL69) · แสดงเวลาอัปเดตจาก `platformStatusFetchedAt`
 - รายการใบงาน: event ⇒ `invalidateQueries` (debounce 800ms) — ไม่ patch cache เอง ลดความเสี่ยงข้อมูลเพี้ยน
 - `integration:status` (`{ source, isStale, lastReceivedAt }` — DL46) ⇒ `BookingStaleBanner` ทุกหน้าที่แสดงข้อมูล Booking · แสดงเมื่อ `isStale` (inbox backlog เกิน `booking.stale-after-minutes`) พร้อม "ได้รับข้อมูลจาก Smart Booking ล่าสุดเมื่อ {`lastReceivedAt`}"
 

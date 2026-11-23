@@ -1,8 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { getUserId } from '../../common/context/request-context';
 import { AppException } from '../../common/errors/app-exception';
-import { checkSettingValue, settingBound } from '../../common/settings/setting-spec';
+import {
+  SETTING_DEFAULTS,
+  checkSettingPairs,
+  checkSettingValue,
+  pairedKeysOf,
+  settingBound,
+  type SettingKey,
+} from '../../common/settings/setting-spec';
 import { SettingsService } from '../../common/settings/settings.service';
 import { DRIZZLE } from '../../db/db.constants';
 import type { DrizzleDB } from '../../db/db.types';
@@ -43,6 +50,7 @@ export class SettingsAdminService {
 
     const checked = checkSettingValue(key, row.ValueType, raw);
     if (!checked.ok) throw new AppException(400, 'SETTING_OUT_OF_RANGE', checked.message);
+    await this.assertPairs(key, checked.normalized);
 
     const [updated] = await this.db
       .update(Settings)
@@ -51,6 +59,24 @@ export class SettingsAdminService {
       .returning();
     this.settings.invalidate(key);
     return toView(updated);
+  }
+
+  /** A value that breaks a pair rule against the other key's stored value ⇒ 400 (Part 3 §3.11). */
+  private async assertPairs(key: string, normalized: string): Promise<void> {
+    const others = pairedKeysOf(key);
+    if (others.length === 0) return;
+    const rows = await this.db
+      .select({ key: Settings.SettingKey, value: Settings.SettingValue })
+      .from(Settings)
+      .where(inArray(Settings.SettingKey, others));
+    const stored = new Map(rows.map((r) => [r.key, Number.parseInt(r.value ?? '', 10)]));
+    const values: Partial<Record<SettingKey, number>> = { [key as SettingKey]: Number(normalized) };
+    for (const other of others) {
+      const n = stored.get(other);
+      values[other] = n !== undefined && Number.isFinite(n) ? n : Number(SETTING_DEFAULTS[other]);
+    }
+    const pairs = checkSettingPairs(values);
+    if (!pairs.ok) throw new AppException(400, 'SETTING_OUT_OF_RANGE', pairs.message);
   }
 }
 

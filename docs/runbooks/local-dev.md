@@ -125,7 +125,31 @@ cd client; npm run dev
 3. ต้องมีบัญชีในระบบก่อน (ระบบไม่สร้างบัญชีให้อัตโนมัติ): สร้างผู้ใช้ที่หน้า ผู้ใช้ระบบ โดยใส่ **อีเมลให้ตรงกับบัญชี Microsoft (UPN)** หรือใช้หน้า ผู้ใช้จาก Entra — เข้าครั้งแรกระบบจะผูกบัญชี Microsoft ให้ ครั้งต่อไปจับคู่ด้วยบัญชีที่ผูกแล้ว
 4. ไม่ตรงกับบัญชีใด = `SSO_ACCOUNT_NOT_FOUND` · บัญชีถูกระงับ = `ACCOUNT_DISABLED` · บัญชีที่ถูกล็อกเพราะรหัสผิดยังเข้าด้วย Microsoft ได้และถูกปลดล็อก
 
-## 9. ทดสอบ
+## 9. กล้อง: simulator หรือ DSS จริงผ่าน VPN (P1)
+
+worker role `tracking` (`WORKER_ROLES` ไม่ตั้ง = ทุก role) รัน 3 งาน: DeviceSync (ตอนเริ่ม + ทุกชั่วโมง) → ตาราง `Devices`, GpsPoll (ทุก `gps.poll-interval-seconds` = 15 วินาที) → สถานะ + พิกัด, PartitionMaintenance (ตอนเริ่ม + ทุกวัน) → partition เดือนถัดไปของ `GpsLocations` / `AuditLogs` · งานทั้งหมดใช้ lock ใน Redis — Redis ไม่ขึ้นงานจะถูกข้าม
+
+**Simulator (ค่าเริ่มต้น — ไม่ต้องต่อ VPN)**: `DSS_DRIVER=mock` ใน `server/.env` ⇒ กล้องจำลอง `SIM-0001`…`SIM-0100` (`DSS_MOCK_DEVICES`) เดินเป็นวงรอบจุดของตัวเองทั่วกรุงเทพ · ทุกตัวที่ 10 ออฟไลน์ · ทุกตัวที่ 7 (ที่ไม่ใช่ตัวที่ 10) ออนไลน์แต่ไม่มีพิกัด (เหมือนอยู่ในอาคาร)
+
+```powershell
+cd server; npm run start:worker:dev
+```
+
+log ที่ควรเห็น: `DeviceSync: {"created":100,…}` แล้ว `GpsPoll: ถาม 100 กล้อง | ได้สถานะ 100 | ได้พิกัด 77 …` ทุก ~15 วินาที → เปิด http://localhost:5173/tracking (บัญชี `operator1`) จะเห็นกล้อง 100 ตัว หมุดขยับเองโดยไม่ต้อง refresh และกดการ์ดกล้อง → ประวัติเส้นทาง ได้
+
+**DSS จริงผ่าน VPN**: ต่อ VPN ของ PSD แล้วตั้งใน `server/.env` (อย่าส่งค่าเหล่านี้ทางแชตหรือ commit)
+
+- `DSS_DRIVER=dss`
+- `DSS_BASE_URL` = host:port ของ `psd-bwc-dss-services` (ไม่ต้องมี `/api/v1`)
+- `DSS_API_KEY` = ค่าเดียวกับ `API_SECRET_KEY` ใน `.env` ของ `psd-bwc-dss-services`
+
+แล้ว restart api + worker · ระบบเซ็น JWT อายุ 60 วินาทีใหม่ทุกคำขอ ⇒ นาฬิกาเครื่องเรากับเครื่อง DSS ต้องคลาดกันไม่เกิน 30 วินาที (ไม่งั้นได้ 401 ทุกคำขอ) · กล้องที่ชนิดไม่ใช่ bodycam (ชื่อชนิด / รุ่น / ชื่อไม่มีคำว่า body cam หรือ MPT) จะถูกข้ามและมี log `DeviceSync ข้าม …`
+
+ไม่อยากให้ worker บนเครื่องยิง DSS: `GPS_POLL_ENABLED=false` · กล้องจำลองที่ค้างใน DB เมื่อเปลี่ยนเป็น DSS จริงจะถูกตั้ง `VendorMissingSince` + alert 13 (ระบบไม่ลบกล้อง) — ล้าง DB ใหม่ได้ตามข้อ 11 ช่วง dev
+
+แผนที่ใช้ tile ของ OpenStreetMap สาธารณะเมื่อไม่ตั้ง `VITE_MAP_TILE_URL` ใน `client/.env` — ใช้ได้เฉพาะ dev
+
+## 10. ทดสอบ
 
 ```powershell
 cd server; npm run ci
@@ -133,7 +157,7 @@ cd server; npm run ci
 
 (= lint + typecheck + unit + integration · integration ต้องมี PostgreSQL + Redis และ `bwc_test`) · ฝั่ง client: `npm run lint`, `npm run typecheck`, `npm test`
 
-## 10. ปัญหาที่เจอบ่อย
+## 11. ปัญหาที่เจอบ่อย
 
 | อาการ | สาเหตุ / วิธีแก้ |
 |---|---|
@@ -145,3 +169,6 @@ cd server; npm run ci
 | หน้าเว็บไม่เด้งออกทันทีเมื่อถูกระงับ | socket ต่อไม่ติด — ตรวจว่า api รันอยู่และ Vite proxy `/socket.io` ไปถึง port 3000 |
 | อยากล้าง DB เริ่มใหม่ | ช่วง dev ข้อมูลทิ้งได้ (DL50): `DROP DATABASE bwc` / `bwc_test` → `CREATE DATABASE bwc OWNER bwc` → ทำข้อ 5 ใหม่ |
 | หน้าเว็บยังเป็นโค้ดเก่าหลังแก้ไฟล์ (เช่นเรียกฟังก์ชันใหม่แล้ว `is not a function`) | file watcher ของ Vite บน Windows พลาดการแก้ไขบางครั้ง — หยุดแล้วรัน `npm run dev` ใหม่ใน `client/` แล้ว refresh หน้า |
+| worker log `DSS ตอบ 401` ทุกกล้อง | `DSS_API_KEY` ไม่ตรงกับ `API_SECRET_KEY` ของ `psd-bwc-dss-services` หรือนาฬิกาสองเครื่องคลาดกันเกิน 30 วินาที (ข้อ 9) |
+| worker log `เรียก DSS ที่ … ไม่สำเร็จ (ETIMEDOUT …)` | ยังไม่ได้ต่อ VPN หรือ `DSS_BASE_URL` ผิด — ใช้ `DSS_DRIVER=mock` ไปก่อนได้ |
+| แผนที่ติดตาม ไม่มีกล้องเลย | worker ไม่ได้รัน (DeviceSync สร้างกล้องตอน worker เริ่ม) หรือ Redis ไม่ขึ้น (งานถูกข้ามเพราะไม่มี lock) |

@@ -43,6 +43,8 @@ describe('NAV_ITEMS', () => {
   it('only items with a built page have a route; the rest stay placeholders', () => {
     expect(NAV_ITEMS.filter((i) => i.to).map((i) => i.to)).toEqual([
       '/',
+      '/tracking',
+      '/tracking/history',
       '/employees',
       '/users',
       '/entra-users',
@@ -144,5 +146,20 @@ describe('isNavItemActive', () => {
 
   it('items without a route are never active', () => {
     expect(isNavItemActive({}, '/')).toBe(false);
+  });
+});
+
+describe('tracking menu (P1)', () => {
+  it('แผนที่ติดตาม routes to /tracking and is not active on /tracking/history', () => {
+    const tracking = NAV_ITEMS.find((i) => i.labelKey === 'navigation.tracking')!;
+    expect(tracking.to).toBe('/tracking');
+    expect(isNavItemActive(tracking, '/tracking')).toBe(true);
+    expect(isNavItemActive(tracking, '/tracking/history')).toBe(false);
+  });
+});
+
+describe('route history menu (P1)', () => {
+  it('ประวัติเส้นทาง routes to /tracking/history', () => {
+    expect(NAV_ITEMS.find((i) => i.labelKey === 'navigation.trackingHistory')?.to).toBe('/tracking/history');
   });
 });

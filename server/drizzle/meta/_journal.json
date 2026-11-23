@@ -36,6 +36,20 @@
       "when": 1795352172270,
       "tag": "0004_refresh_replaced_at",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795424009206,
+      "tag": "0005_p1_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795424023316,
+      "tag": "0006_p1_tracking_custom",
+      "breakpoints": true
     }
   ]
 }

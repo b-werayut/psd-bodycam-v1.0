@@ -73,18 +73,20 @@ flowchart LR
 
 **Deliverables**
 - job `DeviceSync` ใน worker: sync กล้องจาก DSS device list ตอน start + รายชั่วโมง (`device-sync.plan.ts` ตัด dashcam · ไม่ลบเครื่องที่หาย ⇒ alert `DEVICE_VENDOR_MISSING`) · ไม่มีหน้าจัดการ / sync ด้วยมือ (DL53) · ตาราง `Teams` + `TeamMembers` (ข้อมูลมาจากใบงานใน P3a — DL53) · ตาราง `Depots` (หลายจุด · ไม่มีหน้าจัดการ ⇒ production ว่าง · dev seed พิกัด mock — Q22, DL53)
-- `device-status` module: port GpsPoll + `ingestLocations` (`/location` ให้ทั้ง GPS และ online/offline — DL32) (ไม่ล้าง state เมื่อ restart) · `DeviceState` + `DeviceStatusHistory`
-- `GpsLocations` partitioned + `PartitionMaintenance` job
+- DSS client ตัวเดียว (`server/src/common/dss/*` · driver `dss` | `mock` · env `DSS_*` — DL75) · **simulator (DL56) = `DSS_DRIVER=mock`** (ค่าเริ่มต้น · กล้อง `SIM-0001`… จำนวน `DSS_MOCK_DEVICES` = 100 — DL68) · dev ต่อ DSS จริงผ่าน VPN ด้วย `DSS_DRIVER=dss` + `DSS_BASE_URL` + `DSS_API_KEY` (DL63)
+- `device-status` module: port GpsPoll + `ingestLocations` (`/location` ให้ทั้ง GPS และ online/offline — DL32) (ไม่ล้าง state เมื่อ restart) · `DeviceState` (แถวสร้างโดย `DeviceSync` — DL67) + `DeviceStatusHistory` · GpsPoll ทุกกล้องทุกรอบ ไม่ซ้อนรอบ ไม่มี cap (DL70)
+- `GpsLocations` partitioned + `PartitionMaintenance` job (สร้างล่วงหน้าทั้ง `GpsLocations` และ `AuditLogs` · การลบตาม retention อยู่ P6 — DL72)
+- ตาราง `Alerts` + ตัวเขียน alert (alert 13 ส่งถึง `user:{id}` ของ `ADMIN` — DL66 · `Notifications` / หน้า แจ้งเตือน อยู่ P2) · settings ของ P1 (`0006_p1_tracking_custom` — Part 3 §3.11)
 - Realtime gateway + rooms ใหม่ `org` / `user:{id}` / `tracking` / `alerts` (ตัด company · ไม่มี `dept:*` — DL53)
-- `GET /devices` + สถานะกล้องถาม DSS ตอน request (ไม่มี push `device:status` DL35 · cache Redis `device-status:{deviceId}` DL45)
-- Client: แผนที่ติดตาม (cluster · ตำแหน่งสดผ่าน `gps:batch`), ประวัติเส้นทาง (Must — DL48) · ไม่มีหน้า Bodycam / ทีม / ฐาน (DL53)
+- `GET /devices` + สถานะกล้องถาม DSS ตอน request (ไม่มี push `device:status` DL35 · DSS device list ครั้งเดียว + cache Redis `cache:{database}:device-status:{deviceId}` — DL45, DL69 · `currentTeam: null` จนถึง P3a — DL73) · `GET /tracking/positions` · `GET /tracking/devices/:id/history`
+- Client: แผนที่ติดตาม (cluster · ตำแหน่งสดผ่าน `gps:batch`), ประวัติเส้นทาง (Must — DL48) · สีสถานะกล้องตาม DL74 · ไม่มีหน้า Bodycam / ทีม / ฐาน (DL53)
 
-**Acceptance criteria**
+**Acceptance criteria** — ผ่านครบบน simulator (`DSS_DRIVER=mock`) แล้ว 2026-11-23 · **ยังค้าง**: ทดสอบกับ DSS จริงผ่าน VPN (จำนวน `Devices` เท่ากับกล้องใน DSS · แผนที่เห็นกล้องที่มี fix · เวลาต่อรอบ poll จริงสำหรับ R3) เพราะยังไม่ได้ค่า `DSS_BASE_URL` / `DSS_API_KEY`
 - simulator 100 อุปกรณ์ (DL56): ตำแหน่งบนแผนที่อัปเดตผ่าน `gps:batch` ทุกรอบ GpsPoll · `GET /devices` คืนสถานะที่ได้จาก DSS · เรียกซ้ำภายใน `status.display-cache-seconds` ไม่เรียก DSS ซ้ำ (DL45) · Redis ล่มยังได้สถานะจาก DSS ตรง · ไม่มีอุปกรณ์ถูกข้ามในรอบ poll/sweep
 - กล้องใหม่ใน DSS ปรากฏใน `Devices` ภายใน 1 รอบ `DeviceSync` · กล้องที่หายจาก DSS ได้ `VendorMissingSince` + alert 13 และไม่ถูกลบ (DL53)
 - DSS หลุดแล้วกลับมา / worker restart **ไม่เปลี่ยน `StateSince`** ของอุปกรณ์ที่สถานะไม่เปลี่ยน
 - GPS ซ้ำ/เก่า/drift ถูกจัดการตาม pipeline เดิม (port test ของ reference)
-- history 24 ชม. ต่ออุปกรณ์ตอบ < 2s ที่ 10M แถว
+- history 24 ชม. ต่ออุปกรณ์ตอบ < 2s ที่ 10M แถว — วัดได้ 34–84 ms บนเครื่อง dev (ใช้ `PK_GpsLocations` ของ partition เดือนนั้นเท่านั้น — Part 4 §4.6)
 
 ### P2 — Sessions & WO read model (ใบงานจาก `booking-simulator`)
 
@@ -92,7 +94,7 @@ flowchart LR
 - Session engine: pure `decide()` + sweep (ทุกอุปกรณ์, row lock, DB clock) + split rules ครบตาราง Part 3 §3.4.3 · ไม่มีการสร้างใบงานในเส้นทาง session (DL33)
 - กล้องชาร์จที่ฐาน (`Depots` + fix ล่าสุด) ⇒ ระบบตั้ง session เป็น `Classified` + `IdleOrCharging` เอง (logic + test ด้วย dev seed · production `Depots` ว่าง ⇒ ยังไม่ทำงาน — DL53)
 - WO read model: list/detail API + `availableActions` + `WorkOrderEvents` timeline · pass ระดับ WO ใน `SessionSweep` (badge `NeedsReview` ไม่มี check-out 36 ชม. · ปิด `SafetyTimeout` 7 วัน) · ใบงานใน P2 มาจาก `booking-simulator` ที่ POST เข้า inbound endpoint ของ P3a
-- Recording index job (ใช้ DSS recording search) · alerts `CAMERA_ACTIVE_NO_TEAM`, `RECORDING_OUTSIDE_WORK` (alert เรื่องใบงานตัดออกแล้ว — DL58)
+- Recording index job (ใช้ DSS recording search) · alerts `CAMERA_ACTIVE_NO_TEAM`, `RECORDING_OUTSIDE_WORK` (alert เรื่องใบงานตัดออกแล้ว — DL58) · ตาราง `Notifications` + หน้า แจ้งเตือน (รับทราบ / ปิดเรื่อง — DL57) + push `alert:new` เข้า room `alerts` (ตาราง `Alerts` มีตั้งแต่ P1 — DL66)
 - Client: หน้า ใบงาน `/work-orders` (ตาราง + แท็บสถานะ + คอลัมน์กล้อง · ปุ่ม ดูสด / ดูย้อนหลัง เปิดใน P4 — DL53) + `/work-orders/:id` (อ่านอย่างเดียว · ยังไม่มี Booking panel) · `workWindow` + `cameras[]` ใน WO list/detail API · ไม่มีหน้า Tracking sessions (DL53)
 
 **Acceptance criteria**
@@ -161,7 +163,7 @@ flowchart LR
 ### P6 — Hardening & Go-live
 
 **Deliverables**
-- Retention ไม่มี archive (`DETACH` → `DROP PARTITION`) · cleanup jobs (รวม `EvidenceCleanup` ไฟล์ export บน PVC)
+- Retention ไม่มี archive (`DETACH` → `DROP PARTITION` ของ `GpsLocations` / `AuditLogs` · DELETE batch ของ `DeviceStatusHistory` 3 เดือน — DL72) · cleanup jobs (รวม `EvidenceCleanup` ไฟล์ export บน PVC)
 - Observability: Prometheus metrics + dashboard + alert rules (sweep duration, poll lag, `booking_inbound_requests_total{result}`, `booking_inbound_last_received_timestamp`, `booking_inbox_lag_seconds` / `booking_inbox_pending` / `booking_inbox_dead`, queue depth)
 - Security review (OWASP ASVS L2 checklist, secret scan, dependency audit) รวม inbound endpoint (HMAC + replay window ±300 s, rate limit, body limit, ไม่ log secret / signature / body เต็ม) · penetration test เบื้องต้น · PDPA review
 - Load test ตามเป้า DL56: 100 อุปกรณ์ + 100 ผู้ใช้พร้อมกัน + ภาพสดพร้อมกัน 16 จอ + burst POST จาก `booking-simulator` · backup/restore drill

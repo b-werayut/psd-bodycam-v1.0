@@ -3,13 +3,15 @@ import { type OnGatewayConnection, type OnGatewayInit, WebSocketGateway, WebSock
 import { and, eq } from 'drizzle-orm';
 import type { Namespace, Server, Socket } from 'socket.io';
 import { verifyAccessToken } from '../../common/auth/access-token';
+import { PermissionCheckService } from '../../common/auth/permission-check.service';
+import type { RoleCode } from '../../common/auth/permission-catalog';
 import type { JwtPayload } from '../../common/auth/auth-user';
 import { corsOrigins } from '../../common/config/cors';
 import { RealtimeEmitterService } from '../../common/realtime-bus/realtime-emitter.service';
 import { REALTIME_NAMESPACE, type BroadcastBus } from '../../common/realtime-bus/realtime-bus.types';
 import { DRIZZLE } from '../../db/db.constants';
 import type { DrizzleDB } from '../../db/db.types';
-import { Users } from '../../db/schema';
+import { Roles, Users } from '../../db/schema';
 import { USER_STATUS } from '../auth/lockout';
 import type { SessionRevocation } from '../users/session-revocation.notifier';
 import { roomsForClient, userRoom } from './realtime-rooms';
@@ -51,7 +53,8 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
       client.disconnect(true);
       return;
     }
-    await client.join(roomsForClient(user));
+    const access = client.data.access as { roleCode: string; permissions: string[] } | undefined;
+    await client.join(roomsForClient({ sub: user.sub, roleCode: access?.roleCode ?? '', permissions: access?.permissions ?? [] }));
   }
 
   /**
@@ -88,11 +91,15 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     if (!payload) throw new Error('invalid token');
     // A suspended / deleted account must not reconnect with an access token that has not expired yet.
     const [user] = await this.db
-      .select({ Id: Users.Id })
+      .select({ Id: Users.Id, RoleId: Users.RoleId, RoleCode: Roles.Code })
       .from(Users)
+      .innerJoin(Roles, eq(Roles.Id, Users.RoleId))
       .where(and(eq(Users.Id, BigInt(payload.sub)), eq(Users.IsDeleted, false), eq(Users.Status, USER_STATUS.ACTIVE)))
       .limit(1);
     if (!user) throw new Error('account not active');
     socket.data.user = payload;
+    // rooms follow the role's current grants, not the ones baked into the token
+    const permissions = await new PermissionCheckService(this.db).roleGrants(user.RoleId, user.RoleCode as RoleCode);
+    socket.data.access = { roleCode: user.RoleCode, permissions };
   }
 }

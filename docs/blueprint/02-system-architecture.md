@@ -97,9 +97,9 @@ flowchart LR
 - **Process roles** จาก codebase เดียว: `main.api.ts` และ `main.worker.ts` + env `WORKER_ROLES` (`tracking`, `integration`, `media` — ใส่หลายค่าคั่นด้วย comma ได้) · dev/pilot รัน worker ตัวเดียว `WORKER_ROLES=tracking,integration,media`
 - `worker-tracking` ต้องมี **1 instance ที่ active** (Redis lock กันซ้ำอยู่แล้ว แต่ไม่ได้ประโยชน์จากการ scale)
 - `worker-integration` / `worker-media` scale แนวนอนได้ (BullMQ consumers)
-- Redis ต้องมี persistence (AOF) และใช้ร่วมระหว่าง API กับ worker (key prefix ต่อ environment — port `lock-key.ts` ของ reference)
+- Redis ต้องมี persistence (AOF) และใช้ร่วมระหว่าง API กับ worker (key prefix ต่อ environment — port `lock-key.ts` ของ reference: `lock:{database}` / `cache:{database}` จากชื่อ database ใน `DATABASE_URL`)
   - บทบาท: Socket.IO adapter (`api`) / emitter (worker) · lock · rate limit · BullMQ · circuit breaker · ผล `Idempotency-Key` 24 ชม. · **cache สถานะกล้องบนหน้าจอ** (DL45)
-  - ไม่ใช้ Redis เป็น cache ข้อมูลทั่วไป — ข้อมูลจากระบบภายนอกเก็บเป็น projection ใน PostgreSQL (`BookingJobs`, `RecordingSegments`, `DeviceState`) · cache ที่เหลือเป็น in-memory ต่อ process (data scope 60s, token DSS, token read API ของ Booking ถ้ามี)
+  - ไม่ใช้ Redis เป็น cache ข้อมูลทั่วไป — ข้อมูลจากระบบภายนอกเก็บเป็น projection ใน PostgreSQL (`BookingJobs`, `RecordingSegments`, `DeviceState`) · cache ที่เหลือเป็น in-memory ต่อ process (data scope 60s, token read API ของ Booking ถ้ามี) · ไม่มี token DSS ให้ cache — ทุกคำขอไป DSS middleware เซ็น JWT ใหม่ (§2.8)
 - `worker-media` image ต้องมี ffmpeg · migrate เป็น job แยกก่อน rollout
 - **กันงานแปลงไฟล์แย่งเครื่อง (DL39)** — สำคัญเป็นพิเศษเพราะ `api` กับ worker อยู่บน PSD Server เครื่องเดียวกัน (DL44): การแยก process ยังกัน event loop, crash และ deploy ไม่ให้ลากกัน แต่ CPU / RAM / network / disk ยังใช้ร่วมกัน จึงต้องคุมเพิ่ม
   - Kubernetes `resources` แยกต่อ container: `worker-media` ตั้ง `limits` (เริ่มที่ CPU 1 core / memory 1 GiB แล้วปรับตามโหลดจริง) · `api` ตั้ง `requests` กัน CPU / memory ไว้ให้เสมอ
@@ -128,6 +128,8 @@ flowchart LR
   - นอก on-prem: ผู้ใช้ (browser / mobile), Microsoft Entra ID, FCM, Smart Booking (ตำแหน่ง **[Assumption]**) และกล้องที่ต่อเข้ามาทาง 4G
   - firewall ขาออกจาก cluster ต้องเปิด: Entra ID (JWKS / OIDC), FCM HTTP v1 · read API ของ Booking เฉพาะเมื่อใช้ (optional — DL46) · ขาเข้า: HTTPS ที่ ingress **รวมจาก egress IP ของ Smart Booking** (DL46)
 - DSS middleware (`psd-bwc-dss-services`, FastAPI) รันเป็น systemd บน **PSD Server** เครื่องเดียวกับ K8s (นอก cluster) ได้ instance เดียว (`WORKERS=1`, state อยู่ใน memory) — API และ worker เรียกผ่าน HTTP ภายในเครื่อง (`xxx.xxx.x.xx:3004`, ไม่ออก network) แล้ว middleware เรียก Dahua DSS Platform อีกเครื่องต่อ (§2.2) · ถ้าแยก middleware ไปเครื่องอื่นภายหลัง talk ต้องเข้ารหัส (TLS / VPN) · diagram infra ดู `docs/diagrams/infrastructure.drawio`
+  - **env ที่ต่อ DSS middleware** (DL75 · `server/src/common/dss/dss-config.ts` อ่านตอน boot · ค่าผิด ⇒ process หยุดพร้อมชื่อ env): `DSS_DRIVER` = `mock` (ค่าเริ่มต้น — simulator ในตัว DL68) | `dss` (ของจริง) · `DSS_BASE_URL` = host:port ของ `psd-bwc-dss-services` (ไม่ต้องมี `/api/v1` — client ต่อ `/api/v1/location`, `/api/v1/devices` เอง) · `DSS_API_KEY` = `API_SECRET_KEY` ของ middleware · `DSS_TIMEOUT_MS` (default 10000 · 1000–60000) · `DSS_MOCK_DEVICES` (default 100 · 1–1000) · `GPS_POLL_ENABLED` (default true · `false` / `0` / `no` = ปิด) · `GPS_POLL_CONCURRENCY` (default 8 · 1–32) · `DSS_DRIVER=dss` ต้องมีทั้ง URL และ key · `prod:check` ไม่ผ่านถ้าไม่ใช่ `DSS_DRIVER=dss` ที่มี URL + key
+  - **simulator (DL68)** = `DSS_DRIVER=mock` (`server/src/common/dss/dss-mock.client.ts`): กล้อง `SIM-0001`… จำนวน `DSS_MOCK_DEVICES` · vendorType `MPT` / รุ่น `DH-MPT230` · แต่ละตัววนรัศมีราว 110 m รอบจุดของตัวเองแถวกรุงเทพ · ลำดับที่หาร 10 ลงตัว offline (ไม่มีตำแหน่ง) · ลำดับที่หาร 7 ลงตัวในที่เหลือ online แต่ไม่มี GPS fix (เหมือนอยู่ในอาคาร) · ใช้ทั้ง device list และ `/location` · dev ต่อ DSS จริงผ่าน VPN ได้ด้วย `DSS_DRIVER=dss` (DL63)
 
 ---
 
@@ -184,16 +186,16 @@ flowchart TB
 | `users` | ผู้ใช้, role, role-permission matrix, ระงับบัญชี (`cutAllSessions`) · ผู้ใช้จาก Entra (`GET /users/entra-directory`, `POST /users/sync-entra` ผ่าน Microsoft Graph — DL53) · บัญชี `TEAM_LEADER` ต้องผูก employee (`Employees.UserId`) — ตรวจใน service (DL47) | `modules/users` (ตัด company · รวม `entra-user-sync.*`, `graph-users.client.ts`) |
 | `org` | employees, link employee ↔ user, `BookingEmployeeRef` · ไม่มีแผนก (DL53) | `employees` |
 | `teams` | ทีม + หัวหน้าทีม (ประวัติใน `TeamMembers`) — สร้าง/อัปเดตโดย inbox processor จาก `teamRef` / leader ref ของใบงาน **[Assumption]** · ไม่มีหน้าจัดการทีม (DL53) · `BookingTeamRef` | ใหม่ |
-| `devices` | ทะเบียน bodycam — job `DeviceSync` ใน worker sync จาก DSS device list ตามรอบ (`device-sync.plan.ts` · ไม่มีหน้าแก้ไข / sync ด้วยมือ / ปลดระวาง — DL53) · `Depots` (ไม่มีหน้าจัดการ ⇒ ตารางว่าง — DL53) · การผูกกล้อง → ทีม **มาจากข้อมูล Booking เท่านั้น** (ไม่มีหน้าจอผูกเอง — Q20) · สถานะกล้องที่แสดงบนหน้าจอ `api` ถาม DSS middleware ตอน request (DL35) ผ่าน cache Redis (DL45) | `devices`, `device-assignments` (refactor เป็น read-only projection) |
-| `device-status` | **Device Event Processing**: รับ observation จาก GpsPoll (`/location` ให้ทั้ง GPS และ online/offline — DL32) → `DeviceState` + `DeviceStatusHistory` ให้ session engine ใช้ภายใน · ไม่ push สถานะขึ้นหน้าจอ (ไม่มี `device:status` — DL35) · ไม่มี business logic | แยกจาก `GpsPoll.applyVendorStatuses` (ไม่ port `brms-mq.service.ts` — DL30) |
-| `tracking` | GPS ingestion pipeline (`ingestLocations`), positions snapshot, route history | `modules/tracking` (ตัด road-match) |
+| `devices` | ทะเบียน bodycam — job `DeviceSync` ใน worker sync จาก DSS device list ตามรอบ (`device-sync.plan.ts` · ไม่มีหน้าแก้ไข / sync ด้วยมือ / ปลดระวาง — DL53) · `Depots` (ไม่มีหน้าจัดการ ⇒ ตารางว่าง — DL53) · การผูกกล้อง → ทีม **มาจากข้อมูล Booking เท่านั้น** (ไม่มีหน้าจอผูกเอง — Q20) · สถานะกล้องที่แสดงบนหน้าจอ `api` ถาม DSS middleware ตอน request (DL35) ผ่าน cache Redis (DL45, DL69 — `device-status-display.service.ts`) · `GET /devices` | `devices`, `device-assignments` (refactor เป็น read-only projection) |
+| `device-status` | **Device Event Processing**: รับ observation จาก GpsPoll (`/location` ให้ทั้ง GPS และ online/offline — DL32) → `DeviceState` (แถวสร้างโดย `DeviceSync` — DL67) + `DeviceStatusHistory` ให้ session engine ใช้ภายใน · ไม่ push สถานะขึ้นหน้าจอ (ไม่มี `device:status` — DL35) · ไม่มี business logic | แยกจาก `GpsPoll.applyVendorStatuses` (ไม่ port `brms-mq.service.ts` — DL30) |
+| `tracking` | GpsPoll + GPS ingestion pipeline (`gps-ingest.service.ts` — Part 3 §3.1), positions snapshot (`GET /tracking/positions`), route history (`GET /tracking/devices/:id/history` — `route-builder.ts`), `PartitionMaintenance` | `modules/tracking` (ตัด road-match / OSRM) |
 | `sessions` | **Session engine** (sweep, pure `decide()`, open/close/split) · เป็น writer เดียวของ lifecycle session · ไม่สร้างใบงาน — match ไม่ได้ ⇒ session ค้าง `AwaitingMatch` / `NoTeam` · กล้องชาร์จที่ฐาน ⇒ ระบบตั้ง `Classified` + `IdleOrCharging` · recording index | ใหม่ (แทน `camera-session.service.ts`) |
 | `work-orders` | WO **1:1 กับ `BookingJobs`** สร้าง/อัปเดตจากข้อมูลที่ Smart Booking ส่งเข้ามาเท่านั้น (inbox processor เรียก writer ของ module นี้ — DL33, DL46) · สถานะตาม Booking (check-in / check-out / ยกเลิก) · **matching อัตโนมัติ** attach session เข้า WO ของ Booking job (อ่าน `BookingJobs`) · read model ใบงาน (หน้า ใบงาน / วิดีโอย้อนหลัง / รายละเอียด) · read model ของ mobile (`/mobile/jobs` scope `team` — DL47) · ไม่มี link / unlink / merge / void / คิวตรวจสอบ (DL33) | ใหม่ |
 | `booking-integration` | **inbound endpoint** `POST /api/integration/booking/jobs` (รันใน `api`: auth `BookingInboundAuthGuard` + validate + insert `IntegrationInbox` แล้ว enqueue `booking-inbox` — DL46) · **inbox processor** ใน worker `integration` (`BookingInboundMapper` → upsert `BookingJobs` + `WorkOrders` 1:1 ใน transaction เดียว) · `BookingProvider` port (read API optional: `none` / `mock` / `http`) สำหรับ refresh รายใบ / full reconcile · CSV import (ระยะแรกยังไม่มีหน้า upload — DL53) · circuit breaker (เฉพาะ read API) · mapping · upsert ทีม / หัวหน้าทีมจาก ref ของใบงาน (DL53) · ไม่มี endpoint / หน้า monitoring (DL53 — แจ้งด้วย alert ถึง `ADMIN`) | ใหม่ (ใช้ pattern provider/driver ของ reference) |
 | `streaming` / `evidence` / `talk` | live, playback, recording search, MP4 export (ไฟล์บน Local disk PVC — DL34 · ช่วงเดิมที่ยังใช้ได้ ⇒ reuse job เดิม — DL36), two-way talk, quota, role/device access | port ทั้งหมด |
-| `notifications` | alert engine (dedupe), in-app inbox, FCM push via BullMQ — push ถึงหัวหน้าทีมเมื่อมีใบงานใหม่ของทีม · alert ไม่ push ขึ้นมือถือ (DL47) | port + alert types ใหม่ |
+| `notifications` | alert engine (dedupe), in-app inbox, FCM push via BullMQ — push ถึงหัวหน้าทีมเมื่อมีใบงานใหม่ของทีม · alert ไม่ push ขึ้นมือถือ (DL47) · P1 มีแค่ตัวเขียน alert (`server/src/modules/alerts/alert-writer.service.ts`: insert ตาม `DedupeKey` + resolve เอง + push `alert:new` เข้า `user:{id}` ของ `ADMIN` — DL66) · inbox / หน้า แจ้งเตือน / room `alerts` มาใน P2 | port + alert types ใหม่ |
 | `dashboard` | overview cards | refactor |
-| `realtime` | Socket.IO gateway, rooms (รวม `team:{id}` สำหรับ `TEAM_LEADER` — DL47), auth, emitter จาก worker | port |
+| `realtime` | Socket.IO gateway, rooms (รวม `team:{id}` สำหรับ `TEAM_LEADER` — DL47), auth, emitter จาก worker · join `tracking` / `alerts` ตามสิทธิ์ของ role ที่อ่านจาก DB ตอน handshake (Part 5 §5.5) | port |
 | `audit-logs`, `settings`, `health` | ตาม reference + health ของ Redis/integration | port + ขยาย |
 
 ### กติกา dependency (บังคับด้วย lint rule `no-restricted-imports` หรือ dependency-cruiser)
@@ -223,8 +225,8 @@ flowchart LR
   BUS --> GW["Socket.IO"] --> WEB["Map (ตำแหน่งสด)"]
 ```
 
-- สถานะ online/offline **ไม่ถูก push ขึ้นหน้าจอ** (ไม่มี `device:status` — DL35) · `DeviceState` ใช้ภายในโดย session engine · หน้าจอที่แสดงสถานะกล้อง (ภาพสดหลายจอ, คอลัมน์กล้องในหน้า ใบงาน, ก่อนเปิด live) ให้ `api` ถาม DSS middleware ตอนเปิดหน้า
-- **cache สถานะกล้อง (DL45)**: `api` เก็บผลจาก DSS ใน Redis key `device-status:{deviceId}` (prefix ต่อ environment) อายุ `status.display-cache-seconds` (10s) ใช้ร่วมทุก api pod · `GET /devices` อ่านทีละหลาย key (`MGET`) แล้วถาม DSS เฉพาะกล้องที่ไม่มีใน cache · หลายคนเปิดหน้าพร้อมกันจึงไม่ยิง DSS ซ้ำ · session engine ไม่ใช้ cache นี้ (ใช้ `DeviceState` จาก GpsPoll)
+- สถานะ online/offline **ไม่ถูก push ขึ้นหน้าจอ** (ไม่มี `device:status` — DL35) · `DeviceState` ใช้ภายในโดย session engine · หน้าจอที่แสดงสถานะกล้อง (ภาพสดหลายจอ, คอลัมน์กล้องในหน้า ใบงาน, แผนที่ติดตาม, ก่อนเปิด live) ให้ `api` ถาม DSS middleware ตอนเปิดหน้า
+- **cache สถานะกล้อง (DL45, DL69)**: `api` อ่าน Redis key `cache:{database}:device-status:{deviceId}` ทีละหลาย key (`MGET`) · มีกล้องที่ไม่อยู่ใน cache ⇒ เรียก DSS device list (`GET /api/v1/devices`) **ครั้งเดียวได้ทุกกล้อง** แล้วเติมทุก key อายุ `status.display-cache-seconds` (10s) ใช้ร่วมทุก api pod · prefix `cache:{database}` (ชื่อ database จาก `DATABASE_URL`) แยก dev `bwc` กับ test `bwc_test` ที่ใช้ Redis ตัวเดียวกัน · Redis ล่ม ⇒ ถาม DSS ตรง (fail-open) · DSS ล่ม ⇒ คำนวณจาก `DeviceState` แทนโดย `platformStatusFetchedAt: null` · กล้องที่ DSS ไม่ส่งมาใน list ⇒ `unknown` · หลายคนเปิดหน้าพร้อมกันจึงไม่ยิง DSS ซ้ำ · session engine ไม่ใช้ cache นี้ และ `DeviceState` ยังเขียนจาก `/location` อย่างเดียว (DL32)
 
 ### (B) Session → Work Order ของ Booking job
 
@@ -281,7 +283,7 @@ Evidence (DL36, DL53, DL59): (ก) หน้า วิดีโอย้อน�
 | **api ของเราล่ม** ตอน Booking POST | Booking ได้ timeout / 5xx | — | Smart Booking retry แบบ backoff ≥ 24 ชม. **[Assumption]** · รับซ้ำได้ปลอดภัย (inbox dedupe + version guard) |
 | Booking read API ช้า / ล่ม (optional) | refresh รายใบ / full reconcile ใช้ไม่ได้ | ทุกอย่างอื่น **รวมการรับ POST** | circuit breaker (Redis) · timeout 5s / 8s · concurrency จำกัด · อยู่คนละ worker role |
 | worker-integration ค้าง / ล่ม | POST ยังรับได้ (เก็บใน inbox) แต่ยังไม่ถูก process ⇒ ใบงานใหม่ยังไม่เห็น | api รับ POST, tracking, session, live/playback | inbox เป็น buffer · retry sweep · alert 10 `BOOKING_SYNC_STALE` + banner "ข้อมูล Booking ไม่เป็นปัจจุบัน" เมื่อ backlog เก่ากว่า `booking.stale-after-minutes` · matching ได้ `ProjectionStale` |
-| DSS middleware / Dahua DSS Platform | ไม่มี status/GPS ใหม่, live/playback ใช้ไม่ได้, หน้าจอดึงสถานะกล้องไม่ได้ (DL35) เมื่อ cache หมดอายุ (≤ 10s — DL45) | หน้าจอ, WO เดิม, รับใบงานจาก Booking | สถานะอุปกรณ์กลายเป็น UNKNOWN (คำนวณจากอายุข้อมูล) · session **ไม่ถูกปิดทันที** (hold ≤ `session.unknown-max-minutes`) |
+| DSS middleware / Dahua DSS Platform | ไม่มี status/GPS ใหม่, live/playback ใช้ไม่ได้, หน้าจอได้สถานะจาก DSS ไม่ได้ (DL35) เมื่อ cache หมดอายุ (≤ 10s — DL45) ⇒ `api` คำนวณจาก `DeviceState` แทน (`platformStatusFetchedAt: null` — DL69) | หน้าจอ, WO เดิม, รับใบงานจาก Booking | สถานะอุปกรณ์กลายเป็น UNKNOWN (คำนวณจากอายุข้อมูล) · session **ไม่ถูกปิดทันที** (hold ≤ `session.unknown-max-minutes`) |
 | Redis | ไม่มี realtime จาก worker, ไม่มี lock, queue หยุด, ไม่มี cache สถานะกล้อง | REST API, DB, รับ POST จาก Booking (เก็บใน inbox — enqueue ไม่ได้ก็ตอบ 202 แล้ว sweep เก็บทีหลัง) | health check แจ้ง · worker-tracking หยุด sweep เมื่อ lock ไม่ได้ (fail-safe) · `api` ข้าม cache แล้วถาม DSS ตรง (fail-open — DL45) |
 | worker-tracking | ไม่มี session ใหม่ / ไม่มี GPS ใหม่ | UI, รับใบงานจาก Booking | level-triggered sweep ⇒ เมื่อกลับมา คำนวณใหม่จาก state ปัจจุบันได้เอง |
 | PostgreSQL | ระบบหยุด · POST จาก Booking ได้ 503 | — | managed HA + backup (นอกขอบเขต design นี้) · Booking retry **[Assumption]** |
@@ -292,10 +294,10 @@ Evidence (DL36, DL53, DL59): (ก) หน้า วิดีโอย้อน�
 
 | Role | Job | กลไก | ความถี่ | Lock / Concurrency |
 |---|---|---|---|---|
-| tracking | `GpsPoll` (DSS `/location` → GPS + online/offline — DL32) | timer | 15s (setting) | lock `gps:poll` · concurrency 8 |
+| tracking | `GpsPoll` (DSS `/location` → GPS + online/offline — DL32 · ทุกกล้องที่ไม่ถูกลบและ `Status ≠ 4` ทุกรอบ ไม่มี cap — DL70) | timer | รอบถัดไปเริ่ม `gps.poll-interval-seconds` (15s) หลังรอบก่อนจบ — ไม่ซ้อนรอบ · รอบช้า ⇒ log warn ไม่ข้ามกล้อง | lock `gps:poll` TTL 300s · concurrency `GPS_POLL_CONCURRENCY` (8 · 1–32) · ปิดได้ด้วย `GPS_POLL_ENABLED` |
 | tracking | `SessionSweep` (open/close/split session · pass ระดับ WO: badge ไม่มี check-out 36 ชม. / ปิด `SafetyTimeout` 7 วัน — ไม่สร้างใบงาน) | timer | 30s | lock `session:sweep` · ทุกอุปกรณ์ ORDER BY Id แบ่งหน้า |
 | tracking | `AlertSweep` (inbox backlog — alert 10 · Booking ไม่ส่ง POST — alert 17 · ไม่มี alert กล้อง offline ระหว่างงานแล้ว — DL58) | timer | 60s | lock `alert:sweep` |
-| tracking | `DeviceSync` (DSS device list → upsert `Devices` ด้วย `device-sync.plan.ts` · เครื่องที่ DSS ไม่ส่งมา ⇒ `VendorMissingSince` + alert 13 `DEVICE_VENDOR_MISSING` · ไม่ลบ — DL53 แทนปุ่ม sync ด้วยมือ) | timer | ตอน worker start + รายชั่วโมง | lock `device:sync` · concurrency 1 |
+| tracking | `DeviceSync` (DSS device list → upsert `Devices` ด้วย `device-sync.plan.ts` · สร้างเฉพาะ bodycam (`Kind` 1, `DeviceCode` = DSS `deviceCode` — DL71) + แถว `DeviceState` ใน transaction เดียวกัน (DL67) · ค่าจาก DSS เติมเฉพาะช่องที่ว่าง · เครื่องที่ DSS ไม่ส่งมา ⇒ `VendorMissingSince` + alert 13 `DEVICE_VENDOR_MISSING` เฉพาะเมื่อ list ครบ (`totalCount` ≤ แถวที่ได้) · กลับมา ⇒ ล้างค่า + resolve alert · ไม่ลบ — DL53 แทนปุ่ม sync ด้วยมือ) | timer | ตอน worker start + รายชั่วโมง | lock `device:sync` TTL 600s · concurrency 1 |
 | integration | `booking-inbox` (map ด้วย `BookingInboundMapper` → upsert `BookingJobs` + `WorkOrders` 1:1) | BullMQ · `api` enqueue หลังรับ POST (DL46) | ทันที | concurrency 4 · ต่อ job ใช้ version guard |
 | integration | inbox retry sweep (`Failed` + `Pending` ที่เก่ากว่า 1 นาที → enqueue `booking-inbox` ซ้ำ · ครบ 10 ครั้ง ⇒ `Dead`) | BullMQ repeatable | 5 นาที | concurrency 1 |
 | integration | `booking-sync` full reconcile — **เฉพาะเมื่อมี read API** (`BOOKING_PROVIDER_DRIVER` ≠ `none` — DL46) | BullMQ repeatable | รายคืน 02:00 + ทันทีที่ breaker ปิด | concurrency 1 · ข้ามเมื่อ breaker เปิด |
@@ -304,7 +306,8 @@ Evidence (DL36, DL53, DL59): (ก) หน้า วิดีโอย้อน�
 | media | `evidence-export` | BullMQ | ทันที | concurrency `EVIDENCE_EXPORT_CONCURRENCY` (default 1, ≤ 8 — DL39) · ffmpeg · เขียนไฟล์ลง Local disk PVC (DL34) |
 | media | `recording-index` | BullMQ repeatable | session เปิด: ทุก 30 นาที · ปิดแล้ว: 30 นาทีหลังจบ | concurrency 2 |
 | media | `StreamIdle` / `TalkIdle` / `EvidenceCleanup` | timer | 60s | port |
-| tracking | `PartitionMaintenance` / `Retention` (GPS 3 เดือน, ใบงาน 3 เดือน, audit 12 เดือน, แถว `EvidenceExports` 12 เดือน · ไม่มี archive) | BullMQ repeatable | รายวัน | lock |
+| tracking | `PartitionMaintenance` (P1 · สร้าง partition เดือนปัจจุบัน + 2 เดือนถัดไปของ `GpsLocations` และ `AuditLogs` · `_default` มีแถวของเดือนนั้นแล้ว ⇒ ไม่สร้าง + log error — Part 4 §4.9) | timer | ตอน worker start + ทุก 24 ชม. | lock `partition:maintenance` TTL 300s |
+| tracking | `Retention` (P6 · GPS 3 เดือน, `DeviceStatusHistory` 3 เดือน, ใบงาน 3 เดือน, audit 12 เดือน, แถว `EvidenceExports` 12 เดือน · ไม่มี archive) | BullMQ repeatable | รายวัน | lock |
 
 หลักคิด: งานความถี่สูงที่ level-triggered (poll/sweep) ใช้ timer + Redis lock (แบบ reference — ง่าย, self-healing) · งานที่ต้อง retry/durable ใช้ BullMQ
 
@@ -341,7 +344,7 @@ Evidence (DL36, DL53, DL59): (ก) หน้า วิดีโอย้อน�
 - **Service-to-service**:
   - Smart Booking → เรา (DL46): `POST /api/integration/booking/jobs` ตรวจด้วย HMAC-SHA256 (default) หรือ API key (`BOOKING_INBOUND_AUTH`) + IP allowlist (optional) **[Assumption — ตกลงกับ Booking]** · รายละเอียด Part 7 §7.4
   - เรา → Smart Booking: **optional** — เฉพาะเมื่อ Booking มี read API (`BOOKING_PROVIDER_DRIVER=http`) · OAuth2 client credentials หรือ API key ตามที่ Booking กำหนด **[Assumption]** · token cache + refresh ก่อนหมดอายุ
-  - เรา → DSS middleware: `DssAuth` เดิม (token cache 10 นาที, re-login เมื่อ 401) · token ของ Dahua DSS Platform อยู่ใน middleware เท่านั้น **[Confirmed]**
+  - เรา → DSS middleware: header `Authorization: Bearer <JWT>` — JWT HS256 ที่เซ็นใหม่ทุกคำขอด้วย `DSS_API_KEY` (= `API_SECRET_KEY` ของ middleware) · `iss` `bwc-nest`, `aud` `psd-bwc-dss-services`, อายุ 60 วินาที · ไม่มี login / refresh / cache token · ไม่ retry (401 = key ผิดหรือนาฬิกาคลาดเกิน 30 วินาที) · `server/src/common/dss/dss-auth.ts` (DL75) · token ของ Dahua DSS Platform อยู่ใน middleware เท่านั้น **[Confirmed]**
 
 ---
 
@@ -353,10 +356,10 @@ Evidence (DL36, DL53, DL59): (ก) หน้า วิดีโอย้อน�
 | RBAC + data scope | permission ต่อ endpoint + scope ที่ query layer · action ที่ sensitive (live, talk, export) ตรวจสิทธิ์สดจาก DB (`PermissionCheckService.hasPermissionNow`) |
 | API security | `ValidationPipe({whitelist, forbidNonWhitelisted})` (ยกเว้น inbound ของ Booking ที่ยอมรับ field ที่ไม่รู้จักแล้วเก็บใน raw — DL46) · rate limit ต่อกลุ่ม · CORS whitelist (ห้าม `*`) · helmet · ขนาด body จำกัด · ไม่ส่ง stack trace ใน production |
 | Inbound endpoint ของ Smart Booking (DL46) | `POST /api/integration/booking/jobs` ไม่ใช้ JWT: `@Public()` + `BookingInboundAuthGuard` — HMAC-SHA256 ของ `{timestamp}.{rawBody}` (±300 s กัน replay) หรือ `X-Api-Key` · เทียบแบบ constant-time · 401 `INBOUND_AUTH_FAILED` ไม่บอกว่าผิดข้อไหน · rate limit group `booking-inbound` 600 req/min (429 + `Retry-After`) · body ≤ 256 KB (413) · `application/json` เท่านั้น (415) · IP allowlist `BOOKING_INBOUND_ALLOWED_CIDRS` (optional · ต้องตั้ง `TRUST_PROXY` ถูก) · ไม่ log secret / signature / body เต็ม (`IntegrationCallLogs` เก็บ excerpt ที่ redact ≤ 4 KB) · `api` เขียนแค่ inbox ไม่ map / ไม่แตะใบงาน |
-| Device event validation | observation ต้อง map กับ `Devices.VendorDeviceId` ที่ลงทะเบียนแล้ว (ไม่รู้จัก = นับ + ทิ้ง) · เวลาอนาคตเกิน 2 นาทีปฏิเสธ · drift filter |
+| Device event validation | observation ต้อง map กับ `Devices.VendorDeviceId` ที่ลงทะเบียนแล้ว (ไม่รู้จัก = นับ + ทิ้ง) · เวลาอนาคตเกิน 2 นาทีปฏิเสธ · จุดที่ไม่ใหม่กว่า `DeviceState.LastFixAt` ทิ้ง · drift filter + stale-start revalidation (Part 3 §3.1 GPS ingest) |
 | Secure streaming | URL vendor seal AES-256-GCM ไม่ถึง browser · allowlist host กัน SSRF · session token + idle timeout · toggle ต่อ role / ต่ออุปกรณ์ · audit ทุกการเปิดดู |
 | Audit logging | `@Audit` ทุก write + การเปิดดู live/playback/export · `WorkOrderEvents` เป็น timeline ระดับธุรกิจ · partition `AuditLogs` |
-| Secret management | env จาก Kubernetes Secret / vault · ไม่มี secret ใน repo · `prod:check` (port `prod-readiness.ts`) ตรวจ env ก่อน deploy · rotate secret ขาเข้าของ Booking ได้ (`BOOKING_INBOUND_SECRETS` ใช้พร้อมกัน 2 ตัวช่วงเปลี่ยน — DL46) |
+| Secret management | env จาก Kubernetes Secret / vault · ไม่มี secret ใน repo · `prod:check` (port `prod-readiness.ts`) ตรวจ env ก่อน deploy (รวม `DSS_DRIVER=dss` + `DSS_BASE_URL` + `DSS_API_KEY` — DL75) · rotate secret ขาเข้าของ Booking ได้ (`BOOKING_INBOUND_SECRETS` ใช้พร้อมกัน 2 ตัวช่วงเปลี่ยน — DL46) |
 | Idempotency | inbox unique `(Source, ExternalEventId)` — POST ซ้ำจาก Booking ⇒ 200 `duplicate` · upsert ใบงานจาก Booking job ด้วย `UQ_WO_BookingJob` + `ON CONFLICT` · API ที่เปลี่ยนสถานะรับ `Idempotency-Key` header (optional) |
 | Race condition | row lock `DeviceState` ต่ออุปกรณ์ · compare-and-set (`WHERE Status = expected`) · optimistic `RowVersion` (`If-Match`) สำหรับ action ของคน · exclusion constraint |
 | Duplicate event | observation ซ้ำไม่เปลี่ยน `StateSince` · GPS `ON CONFLICT DO NOTHING` · inbox dedupe · alert `DedupeKey` |

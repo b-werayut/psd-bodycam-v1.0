@@ -23,4 +23,5 @@ export const settings = {
   'settings.hint.max': 'Must be at most {max}',
   'settings.saveBlocked': 'Cannot save: {reason}',
   'settings.category.auth': 'Sign-in',
+  'settings.category.tracking': 'Camera tracking',
 } as const;

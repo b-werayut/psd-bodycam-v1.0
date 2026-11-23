@@ -390,11 +390,11 @@ Constraints: `CK_TeamMembers_Window` (`ValidTo IS NULL OR ValidTo > ValidFrom`) 
 
 ### C. Devices
 
-**Devices** — master ของ bodycam · **สร้าง/อัปเดตโดย job `DeviceSync` ใน worker เท่านั้น** (DSS device list + `device-sync.plan.ts` · ไม่มีหน้าแก้ไข / sync ด้วยมือ / ปลดระวาง — DL53)
+**Devices** — master ของ bodycam · **สร้าง/อัปเดตโดย job `DeviceSync` ใน worker เท่านั้น** (DSS device list + `server/src/modules/devices/device-sync.plan.ts` · ไม่มีหน้าแก้ไข / sync ด้วยมือ / ปลดระวาง — DL53) · สร้างเฉพาะชนิดที่เป็น bodycam (ชนิด / รุ่น / ชื่อเข้ากับ body cam หรือ `MPT`) ด้วย `Kind` = 1, `Status` = 1 · ค่าจาก DSS เติมเฉพาะช่องที่ยังว่าง · ไม่ลบ (DL71)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
-| DeviceCode | varchar(30) | NN | รหัสภายใน · `UQ_Devices_Code` partial |
+| DeviceCode | varchar(30) | NN | = DSS `deviceCode` (เท่ากับ `VendorDeviceId` — DL71) · รหัสยาวเกิน 30 ตัว หรือซ้ำกับกล้องอื่น ⇒ `DeviceSync` ข้ามเครื่องนั้น · `UQ_Devices_Code` partial |
 | VendorDeviceId | varchar(64) | NN | = DSS `deviceCode` · `UQ_Devices_VendorId` **ไม่ filter IsDeleted** (เหมือน reference — vendor id ต้องไม่ซ้ำตลอดกาล) |
 | Name | varchar(200) | | |
 | Model / SerialNo / Firmware | varchar(100) | | |
@@ -402,10 +402,10 @@ Constraints: `CK_TeamMembers_Window` (`ValidTo IS NULL OR ValidTo > ValidFrom`) 
 | Kind | smallint | NN | 1 Primary · 2 Spare |
 | Status | smallint | NN | default 1 |
 | StreamingEnabled | boolean | NN | default true (toggle ต่ออุปกรณ์จาก reference · ระยะแรกไม่มีหน้าแก้ไข — คงค่า default · DL53) |
-| VendorSeenAt / VendorMissingSince | timestamptz | | จาก `DeviceSync` · DSS ไม่ส่งเครื่องนี้มา ⇒ ตั้ง `VendorMissingSince` (ไม่ลบ) + alert `DEVICE_VENDOR_MISSING` |
+| VendorSeenAt / VendorMissingSince | timestamptz | | จาก `DeviceSync` · DSS ไม่ส่งเครื่องนี้มา ⇒ ตั้ง `VendorMissingSince` (ไม่ลบ) + alert `DEVICE_VENDOR_MISSING` · ตั้งได้เฉพาะเมื่อ device list ครบ (`totalCount` ≤ จำนวนแถวที่ได้) — list ที่แบ่งหน้า / ไม่ครบไม่ตั้งให้ใคร · กล้องกลับมาใน list ⇒ ล้างค่า + resolve alert |
 | AUDIT, SOFT | | | IX `(Status)` |
 
-**DeviceState** — hot row 1:1 (UPDATE ทุก observation)
+**DeviceState** — hot row 1:1 · **1 แถวต่อกล้อง สร้างโดย `DeviceSync` ใน transaction เดียวกับการ insert `Devices`** · observation ใช้ `UPDATE` อย่างเดียว (ไม่ upsert) — transaction สั้น 1 ต่อกล้อง เรียงตาม `DeviceId` · ไม่เขียน null · `StateSince` เปลี่ยนเฉพาะเมื่อสถานะเปลี่ยน · เวลาสถานะใช้ DB `now()` (DL67)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | DeviceId | bigint | PK | FK → Devices |
@@ -428,7 +428,7 @@ Constraints: `CK_TeamMembers_Window` (`ValidTo IS NULL OR ValidTo > ValidFrom`) 
 IX `IX_DeviceState_PlatformState (PlatformState)`
 
 **DeviceStatusHistory** — append-only, เขียนเฉพาะตอน transition
-`Id`, `DeviceId NN`, `FromState smallint`, `ToState smallint NN`, `ObservedAt timestamptz NN`, `Source smallint NN`, `CreatedAt` · IX `(DeviceId, ObservedAt DESC)` · retention 12 เดือน
+`Id`, `DeviceId NN`, `FromState smallint`, `ToState smallint NN`, `ObservedAt timestamptz NN`, `Source smallint NN`, `CreatedAt` · IX `(DeviceId, ObservedAt DESC)` · retention 3 เดือน (§4.5 · job ลบอยู่ P6 — DL72)
 
 **DeviceAssignments** — ประวัติผูกกล้อง → ทีม (ไม่มี DELETE) · **projection ของข้อมูลจาก Booking** ถ้า Booking มีข้อมูลกล้องประจำทีม — ถ้าไม่มี ตารางนี้ว่างและการจับคู่ใช้ `BookingJobs.DeviceRefs` อย่างเดียว
 | Column | Type | Null | หมายเหตุ |
@@ -595,8 +595,8 @@ PK `(Source, Resource)` · `LastReceivedAt` (POST ขาเข้าล่าส
 
 ### H. Notifications & System
 
-- **Alerts** — `Id`, `AlertType NN`, `Severity NN`, `Status NN`, `DeviceId`, `TeamId`, `WorkOrderId`, `TrackingSessionId`, `BookingJobId`, `Title`, `Message`, `Data jsonb`, `DedupeKey varchar(150)`, `OccurredAt NN`, `AcknowledgedAt/By`, `ResolvedAt/By` · **`UQ_Alerts_OpenDedupe (DedupeKey) WHERE Status IN (1,2)`** (กัน alert ซ้ำ — reference ใช้ logic ในโค้ด) · IX `(Status, Severity, OccurredAt DESC)`
-- **Notifications** — port จาก reference (`UserId`, `AlertId`, `Channel`, `Title`, `Body`, `Data jsonb`, `Status`, `SentAt`, `ReadAt`) · `IX_Notif_Unread (UserId) WHERE ReadAt IS NULL`
+- **Alerts** — `Id`, `AlertType NN`, `Severity NN`, `Status NN`, `DeviceId`, `TeamId`, `WorkOrderId`, `TrackingSessionId`, `BookingJobId`, `Title`, `Message`, `Data jsonb`, `DedupeKey varchar(150)`, `OccurredAt NN`, `AcknowledgedAt/By`, `ResolvedAt/By` · **`UQ_Alerts_OpenDedupe (DedupeKey) WHERE Status IN (1,2)`** (กัน alert ซ้ำ — reference ใช้ logic ในโค้ด) · IX `IX_Alerts_Status (Status, Severity, OccurredAt DESC)` · **สร้างใน P1** (`server/drizzle/0005_p1_devices.sql` — DL66) เพื่อเขียน alert 13: FK เฉพาะ `DeviceId`, `TeamId`, `AcknowledgedBy`, `ResolvedBy` · `WorkOrderId` / `TrackingSessionId` / `BookingJobId` เป็น bigint **ยังไม่มี FK** จนกว่า phase ที่สร้างตารางนั้นจะเติม
+- **Notifications** — port จาก reference (`UserId`, `AlertId`, `Channel`, `Title`, `Body`, `Data jsonb`, `Status`, `SentAt`, `ReadAt`) · `IX_Notif_Unread (UserId) WHERE ReadAt IS NULL` · สร้างพร้อมหน้า แจ้งเตือน ใน P2 (DL66)
 - **AuditLogs** — partitioned รายเดือนตาม `OccurredAt` · คอลัมน์ตาม reference (`UserId`, `ActorUsername`, `ActorRole`, `Action`, `ResourceType`, `ResourceId`, `Changes jsonb`, `HttpMethod`, `RequestPath`, `Result`, `Ip`, `UserAgent`, `OccurredAt`) + `CorrelationId` · PK `(OccurredAt, Id)`
 - **Settings** — port ตรง (`SettingKey UQ`, `SettingValue text`, `ValueType`, `Category`, `IsSystem`) · bounds อยู่ในโค้ด (`setting-spec.ts`)
 
@@ -616,12 +616,12 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 
 | ข้อมูล | เก็บใน DB | วิธีลบ | หมายเหตุ |
 |---|---|---|---|
-| GpsLocations | 3 เดือน (เดือนปัจจุบัน + 3 partition ก่อนหน้า) | `DROP PARTITION` | worker สร้าง partition ล่วงหน้า 2 เดือน |
-| DeviceStatusHistory | 3 เดือน | DELETE batch รายวัน | |
+| GpsLocations | 3 เดือน (เดือนปัจจุบัน + 3 partition ก่อนหน้า) | `DROP PARTITION` | job `PartitionMaintenance` (P1) สร้างเดือนปัจจุบัน + 2 เดือนถัดไปล่วงหน้า · job ลบอยู่ P6 |
+| DeviceStatusHistory | 3 เดือน (DL72) | DELETE batch รายวัน | job ลบอยู่ P6 |
 | WorkOrders + WorkOrderEvents + TrackingSessions + MatchAttempts | 3 เดือนนับจาก `ClosedAt` (ใบที่ยัง Open ไม่ลบ) | job `WorkOrderRetention` รายวัน ลบเป็นชุดตามลำดับ FK: MatchAttempts → sessions → events → WO | session ที่ไม่มี WO ลบเมื่อ `EndedAt` เกิน 3 เดือน |
 | BookingJobs | 3 เดือนหลังงานจบ (และไม่มี WO ที่ยังเก็บอยู่อ้างถึง) | DELETE batch | |
 | RecordingSegments | 3 เดือน (ตรงกับ DSS) | DELETE batch | วิดีโอจริงอยู่ที่ DSS — infra จัดการ retention |
-| AuditLogs | 12 เดือน | `DROP PARTITION` | |
+| AuditLogs | 12 เดือน | `DROP PARTITION` | partition ล่วงหน้าสร้างโดย `PartitionMaintenance` เหมือน `GpsLocations` (P1) · job ลบอยู่ P6 |
 | StreamingSessions / TalkSessions / EvidenceExports (แถว) | 12 เดือน (ตาม audit) | DELETE batch | ใครดู/ดึงอะไรเมื่อไร · ไฟล์ MP4 บน Local disk PVC ลบหลัง 24 ชม. (`EvidenceCleanup` — DL34) |
 | Notifications / Alerts | 90 วัน | DELETE batch | |
 | IntegrationInbox | 30 วัน (Dead เก็บจนกว่าจะ resolve — ประมวลผลใหม่จาก `Payload` ได้ DL54) | DELETE batch | |
@@ -639,7 +639,7 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 1. **ทุก query ของ list page มี index นำด้วยคอลัมน์ filter หลัก + เวลา DESC** (`(TeamId, OpenedAt DESC)` ฯลฯ) — pagination แบบ offset ได้ในเฟสแรก, เปลี่ยนเป็น keyset เมื่อเกิน 100k แถว
 2. **Partial index สำหรับงานค้างของ worker** (`IX_TS_Unresolved` — session รอ re-match, inbox pending) — เล็กและเร็ว
 3. **Exclusion constraint ต้องใช้ `btree_gist`** · Fallback ถ้าไม่ได้: คง partial unique "active ≤ 1" (`UQ_DevAsg_DeviceActive`, `UQ_TS_OpenPerDevice`) + ตรวจ overlap ใน service ภายใต้ `SELECT … FOR UPDATE` ของ `DeviceState` (lock order เดียวกันทั้งระบบ)
-4. **GpsLocations**: PK `(DeviceId, RecordedAt)` ตอบ query history ต่ออุปกรณ์ · BRIN `(RecordedAt)` สำหรับ scan ข้ามอุปกรณ์ · ไม่สร้าง index อื่น
+4. **GpsLocations**: PK `(DeviceId, RecordedAt)` ตอบ query history ต่ออุปกรณ์ · BRIN `(RecordedAt)` สำหรับ scan ข้ามอุปกรณ์ · ไม่สร้าง index อื่น · วัดบนเครื่อง dev (P1): ประวัติ 24 ชม. ของกล้อง 1 ตัวบนข้อมูล 10,000,000 แถว ตอบ 34–84 ms (เป้า < 2 วินาที) — query ใช้ `PK_GpsLocations` ของ partition เดือนนั้นเท่านั้น
 5. **ไม่สร้าง FK จาก `GpsLocations`** (insert volume) — ความถูกต้องของ `DeviceId` มาจาก ingestion pipeline
 
 ---
@@ -648,9 +648,9 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 
 1. **Baseline** `0000_baseline` จาก `drizzle-kit generate` — ตารางของ P0 ใน `schema.ts` (Roles, Users, Employees, Permissions, RolePermissions, UserDevices, RefreshTokens, PushTokens, Settings + `Departments` เดิม) · **`0002_drop_departments`** (DL53): ลบ FK / index / คอลัมน์ `Users.DepartmentId`, `Employees.DepartmentId` แล้ว `DROP TABLE "Departments"` (ไม่ใช้ `CASCADE` — มี object อื่นอ้างถึงให้ migration fail แทนการลบเงียบ) · **ช่วง dev (ก่อน go-live production ครั้งแรก) ข้อมูลใน DB ทิ้งได้** — แก้ / รวม / generate migration ใหม่ทั้งชุด และ drop-recreate DB ได้ (DL50) · **หลัง go-live: append-only** ไม่แก้ไฟล์ที่ apply แล้ว เพิ่มไฟล์ใหม่ต่อท้ายเท่านั้น
 2. **`0001_extensions_partitions` (custom SQL — P0)**: `CREATE EXTENSION btree_gist` · `AuditLogs` แบบ `PARTITION BY RANGE ("OccurredAt")` (PK `(OccurredAt, Id)`, `Id` ใช้ sequence `AuditLogs_Id_seq`) + partition `AuditLogs_default` + block `DO $$` สร้าง `AuditLogs_YYYYMM` ของเดือนปัจจุบันและ 2 เดือนถัดไป (ขอบเดือน UTC) + index `IX_AuditLogs_Occurred (OccurredAt DESC)`, `IX_AuditLogs_User (UserId, OccurredAt DESC)` บนตารางแม่
-3. **Custom SQL ของ phase ถัดไป** (ช่วง dev จะเพิ่มลง `0001` เดิมแล้ว reset DB หรือแยกไฟล์ใหม่ก็ได้ — DL50): `GpsLocations` partitioned + BRIN — P1 (pattern เดียวกับ `AuditLogs`) · exclusion constraints ใส่ใน migration ของ phase ที่สร้างตารางนั้น เพราะ drizzle-kit generate `EXCLUDE` ไม่ได้: `EX_TeamMembers_LeaderNoOverlap` (P1) · `EX_TS_NoOverlap` (P2) · `EX_DevAsg_NoOverlap` (phase ที่สร้าง `DeviceAssignments`) — ตัวอย่างใน §4.9
+3. **Migration ของ P1 (มีแล้ว)**: `0005_p1_devices` (drizzle-kit generate — `Devices`, `DeviceState`, `DeviceStatusHistory`, `Teams`, `TeamMembers`, `Depots`, `Alerts`) + `0006_p1_tracking_custom` (custom SQL — `GpsLocations` partitioned + BRIN แบบเดียวกับ `AuditLogs`, `EX_TeamMembers_LeaderNoOverlap` และ settings ของ P1 Category `tracking`) · **Custom SQL ของ phase ถัดไป** (ช่วง dev แก้ไฟล์เดิมแล้ว reset DB หรือแยกไฟล์ใหม่ก็ได้ — DL50): exclusion constraints ใส่ใน migration ของ phase ที่สร้างตารางนั้น เพราะ drizzle-kit generate `EXCLUDE` ไม่ได้: `EX_TS_NoOverlap` (P2) · `EX_DevAsg_NoOverlap` (phase ที่สร้าง `DeviceAssignments`) — ตัวอย่างใน §4.9
 4. **Reference data ผ่าน custom data migration** (`npm run db:generate -- --custom`, ทุก statement `ON CONFLICT DO NOTHING`): roles, permissions, role-permissions, settings defaults — ของ P0 คือ **`0003_reference_data`** (4 role, catalog 24 ตัว + สิทธิ์ตั้งต้นของแต่ละ role, `auth.max-failed-logins` / `auth.lockout-minutes`) สร้างจาก `server/src/common/auth/permission-catalog.ts` และมี `reference-data.int-test.ts` กันไม่ให้ SQL กับ catalog เพี้ยนกัน · **seed ใช้เฉพาะ dev** (`npm run db:seed` — ผู้ใช้ทดสอบ 1 บัญชีต่อ role และพนักงาน 2 คน · ปฏิเสธเมื่อ `NODE_ENV=production`) (แก้กับดัก "ห้ามรัน seed ใน production" ของ reference)
-5. **Partitioned tables** ประกาศ `pgTable` ใน `server/src/db/schema.partitioned.ts` ซึ่ง **ไม่อยู่ใน `schema` path ของ `drizzle.config.ts`** ⇒ drizzle-kit ไม่ generate DDL ให้ แต่ query แบบ typed ได้ · ตอนนี้มี `AuditLogs` · `GpsLocations` เพิ่มใน P1
+5. **Partitioned tables** ประกาศ `pgTable` ใน `server/src/db/schema.partitioned.ts` ซึ่ง **ไม่อยู่ใน `schema` path ของ `drizzle.config.ts`** ⇒ drizzle-kit ไม่ generate DDL ให้ แต่ query แบบ typed ได้ · มี `AuditLogs` (P0) และ `GpsLocations` (P1)
 6. **Drift gate**: port `guardMigrationsOrExit()` (`server/src/db/migration-status.ts`, `assert-migrations.ts`) + advisory lock ตอน migrate · production รัน migrate เป็น step แยกก่อน deploy (reference ยังไม่มีใน Dockerfile — ต้องทำ)
 7. **ไม่ย้ายข้อมูลจากระบบเดิม** **[Confirmed — Q13]** — เป็นระบบใหม่ทั้งหมด ระบบเดิมใช้เป็น reference เท่านั้น · master data ตั้งใหม่ในระบบนี้: พนักงาน, ผู้ใช้ (รวมสร้างจาก Entra) ตั้งผ่านหน้าจอ · อุปกรณ์ sync จาก DSS อัตโนมัติ · ทีม / หัวหน้าทีมเกิดจากใบงาน Booking · ฐานยังไม่มีหน้าจัดการ (DL53)
    - **ใช้ database ใหม่ ไม่ migrate ทับ DB ของระบบเดิม** (DL60 — ระบบนี้ deploy ทับระบบเดิม `psd-bwc-web-backend`): ทั้งสองใช้ตาราง `drizzle.__drizzle_migrations` ตัวเดียวกัน (ระบบเดิม apply ไว้แล้ว 0000–0031) และชื่อตารางชนกันครบทุกตารางของ P0 (`Users`, `Roles`, `Employees`, `Settings`, `RefreshTokens` ฯลฯ) ⇒ `0000_baseline` จะล้มกลางทาง · สร้าง database ใหม่บน PostgreSQL เดิม · DB ของระบบเดิมเก็บเป็น backup ไว้ระยะหนึ่ง (ใช้ rollback) แล้ว drop
@@ -823,23 +823,10 @@ CREATE INDEX "IX_AuditLogs_Occurred" ON "AuditLogs" ("OccurredAt" DESC);
 CREATE INDEX "IX_AuditLogs_User" ON "AuditLogs" ("UserId", "OccurredAt" DESC);
 ```
 
-**P1 / P2 (แผน — ยังไม่มีใน code)** — custom SQL ของแต่ละ phase · ช่วง dev ต่อท้าย `0001` หรือแยกไฟล์ใหม่ (`npm run db:generate -- --custom --name=<ชื่อ>`) ก็ได้ (DL50)
+**P1 (มีแล้ว)** — `server/drizzle/0006_p1_tracking_custom.sql` (ตัดตอน · ตาราง P1 ที่เหลืออยู่ใน `0005_p1_devices` ที่ drizzle-kit generate)
 
 ```sql
--- P1: exclusion constraint ของ TeamMembers (ตารางสร้างใน migration ที่ generate ของ P1)
-ALTER TABLE "TeamMembers" ADD CONSTRAINT "EX_TeamMembers_LeaderNoOverlap"
-  EXCLUDE USING gist ("TeamId" WITH =, tstzrange("ValidFrom", "ValidTo", '[)') WITH &&)
-  WHERE ("Role" = 1);
---> statement-breakpoint
--- P2: exclusion constraint ของ TrackingSessions
-ALTER TABLE "TrackingSessions" ADD CONSTRAINT "EX_TS_NoOverlap"
-  EXCLUDE USING gist ("DeviceId" WITH =, tstzrange("StartedAt", "EndedAt", '[)') WITH &&);
---> statement-breakpoint
--- phase ที่สร้าง DeviceAssignments
-ALTER TABLE "DeviceAssignments" ADD CONSTRAINT "EX_DevAsg_NoOverlap"
-  EXCLUDE USING gist ("DeviceId" WITH =, tstzrange("ValidFrom", "ValidTo", '[)') WITH &&);
---> statement-breakpoint
--- P1: GpsLocations partitioned (pattern เดียวกับ AuditLogs)
+-- GpsLocations partitioned (pattern เดียวกับ AuditLogs)
 CREATE TABLE "GpsLocations" (
   "DeviceId"       bigint           NOT NULL,
   "RecordedAt"     timestamptz      NOT NULL,
@@ -861,6 +848,33 @@ CREATE TABLE IF NOT EXISTS "GpsLocations_default" PARTITION OF "GpsLocations" DE
 -- (ขอบเดือน UTC) เป็น statement แยกของตัวเอง
 CREATE INDEX "IX_GpsLocations_RecordedAt_brin"
   ON "GpsLocations" USING brin ("RecordedAt"); -- สร้างบนตารางแม่ ⇒ ทุก partition ได้ index อัตโนมัติ
+--> statement-breakpoint
+-- exclusion constraint ของ TeamMembers (ตารางสร้างใน 0005_p1_devices)
+ALTER TABLE "TeamMembers" ADD CONSTRAINT "EX_TeamMembers_LeaderNoOverlap"
+  EXCLUDE USING gist ("TeamId" WITH =, tstzrange("ValidFrom", "ValidTo", '[)') WITH &&)
+  WHERE ("Role" = 1);
+--> statement-breakpoint
+-- settings ของ P1 (Part 3 §3.11 · bounds อยู่ใน src/common/settings/setting-spec.ts)
+INSERT INTO "Settings" ("SettingKey", "SettingValue", "ValueType", "Category", "Description") VALUES
+  ('gps.poll-interval-seconds', '15', 2, 'tracking', '…'),
+  ('status.unknown-after-seconds', '120', 2, 'tracking', '…'),
+  ('status.display-cache-seconds', '10', 2, 'tracking', '…'),
+  ('depot.fix-max-age-minutes', '30', 2, 'tracking', '…'),
+  ('tracking.stop-min-minutes', '5', 2, 'tracking', '…'),
+  ('tracking.stop-radius-meters', '50', 2, 'tracking', '…')
+ON CONFLICT ("SettingKey") DO NOTHING;
 ```
 
-> หมายเหตุ: `tstzrange(a, NULL)` = ช่วงไม่มีขอบบน จึงไม่ต้อง `COALESCE(EndedAt, 'infinity')` · partition ถัดไปสร้างโดย job `PartitionMaintenance` ใน worker (สร้างล่วงหน้า 2 เดือน, idempotent ด้วย `CREATE TABLE IF NOT EXISTS`) · index บนตารางแม่ถูกสร้างให้ partition ใหม่เอง job จึงไม่ต้องสร้าง index · partition `_default` รับแถวที่ไม่มี partition เดือนนั้นรองรับ: แถวใน `_default` **ไม่ถูกลบด้วย `DROP PARTITION`** และถ้า `_default` มีแถวในช่วงเดือนที่จะสร้าง `CREATE TABLE … PARTITION OF` จะ error ⇒ `PartitionMaintenance` ต้องสร้างล่วงหน้าให้ทันเพื่อให้ `_default` ว่างอยู่เสมอ
+**P2 / phase ถัดไป (แผน — ยังไม่มีใน code)** — custom SQL ของแต่ละ phase · ช่วง dev แก้ไฟล์เดิมหรือแยกไฟล์ใหม่ (`npm run db:generate -- --custom --name=<ชื่อ>`) ก็ได้ (DL50)
+
+```sql
+-- P2: exclusion constraint ของ TrackingSessions
+ALTER TABLE "TrackingSessions" ADD CONSTRAINT "EX_TS_NoOverlap"
+  EXCLUDE USING gist ("DeviceId" WITH =, tstzrange("StartedAt", "EndedAt", '[)') WITH &&);
+--> statement-breakpoint
+-- phase ที่สร้าง DeviceAssignments
+ALTER TABLE "DeviceAssignments" ADD CONSTRAINT "EX_DevAsg_NoOverlap"
+  EXCLUDE USING gist ("DeviceId" WITH =, tstzrange("ValidFrom", "ValidTo", '[)') WITH &&);
+```
+
+> หมายเหตุ: `tstzrange(a, NULL)` = ช่วงไม่มีขอบบน จึงไม่ต้อง `COALESCE(EndedAt, 'infinity')` · partition ถัดไปสร้างโดย job `PartitionMaintenance` (worker role `tracking` · `server/src/modules/tracking/partition-maintenance.job.ts` · lock `partition:maintenance` TTL 300 วินาที · ตอน worker start แล้วทุก 24 ชม.) ทั้ง `GpsLocations` และ `AuditLogs`: เดือนปัจจุบัน + 2 เดือนถัดไป (ขอบเดือน UTC) idempotent ด้วย `CREATE TABLE IF NOT EXISTS … PARTITION OF` · index บนตารางแม่ถูกสร้างให้ partition ใหม่เอง job จึงไม่ต้องสร้าง index · partition `_default` รับแถวที่ไม่มี partition เดือนนั้นรองรับ: แถวใน `_default` **ไม่ถูกลบด้วย `DROP PARTITION`** และถ้า `_default` มีแถวในช่วงเดือนที่จะสร้าง `CREATE TABLE … PARTITION OF` จะ error ⇒ job ตรวจก่อน: `_default` มีแถวของเดือนนั้นแล้ว ⇒ ไม่สร้างเดือนนั้นและ log error (ต้องย้ายแถวออกก่อน) · รันทุกวันเพื่อให้ `_default` ว่างอยู่เสมอ · การ `DROP PARTITION` เก่าตาม retention อยู่ P6 (DL72)

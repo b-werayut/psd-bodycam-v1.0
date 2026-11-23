@@ -13,6 +13,15 @@ const sql = postgres(process.env.DATABASE_URL as string, { max: 1, onnotice: () 
 
 const MIGRATION = join(__dirname, '..', '..', 'drizzle', '0003_reference_data.sql');
 
+const P1_SETTINGS = new Map([
+  ['depot.fix-max-age-minutes', '30'],
+  ['gps.poll-interval-seconds', '15'],
+  ['status.display-cache-seconds', '10'],
+  ['status.unknown-after-seconds', '120'],
+  ['tracking.stop-min-minutes', '5'],
+  ['tracking.stop-radius-meters', '50'],
+]);
+
 const dbRolePermissions = async (role: string) =>
   (
     await sql`
@@ -67,6 +76,20 @@ describe('reference data migration 0003', () => {
     for (const row of rows) {
       expect(row.ValueType).toBe(2);
       expect(row.Category).toBe('auth');
+    }
+  });
+
+  it('ships the P1 tracking settings (migration 0006)', async () => {
+    const rows = await sql`
+      select "SettingKey", "SettingValue", "ValueType", "Category", "Description" from "Settings"
+      where "SettingKey" in ${sql([...P1_SETTINGS.keys()])} order by "SettingKey"`;
+    expect(Object.fromEntries(rows.map((r) => [r.SettingKey, r.SettingValue]))).toEqual(
+      Object.fromEntries(P1_SETTINGS),
+    );
+    for (const row of rows) {
+      expect(row.ValueType).toBe(2);
+      expect(row.Category).toBe('tracking');
+      expect(row.Description).toMatch(/[ก-๙]/);
     }
   });
 

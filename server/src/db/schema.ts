@@ -2,9 +2,14 @@ import {
   type AnyPgColumn,
   boolean,
   char,
+  check,
+  doublePrecision,
   index,
+  integer,
+  jsonb,
   pgTable,
   primaryKey,
+  real,
   smallint,
   text,
   uniqueIndex,
@@ -15,6 +20,7 @@ import {
   auditActor,
   bindUsersIdColumn,
   createdAt,
+  fk,
   notDeleted,
   pkId,
   ref,
@@ -24,8 +30,9 @@ import {
   userRef,
 } from './columns';
 
-// Canonical names: docs/blueprint/04-database-design.md section 4.4 A.
-// AuditLogs is partitioned and lives in schema.partitioned.ts (outside drizzle-kit's schema path).
+// Canonical names: docs/blueprint/04-database-design.md section 4.4.
+// AuditLogs and GpsLocations are partitioned and live in schema.partitioned.ts (outside drizzle-kit's
+// schema path). Exclusion constraints (EX_*) need btree_gist and are custom SQL in drizzle/0006.
 
 export const Roles = pgTable('Roles', {
   Id: pkId(),
@@ -198,3 +205,184 @@ export const Settings = pgTable('Settings', {
   UpdatedAt: updatedAt(),
   UpdatedBy: userRef('UpdatedBy'),
 });
+
+// ---- P1: Teams (Part 4 §4.4 B). Created from Booking data only (DL53), no team screen.
+
+export const Teams = pgTable(
+  'Teams',
+  {
+    Id: pkId(),
+    Code: varchar('Code', { length: 30 }).notNull(),
+    Name: varchar('Name', { length: 200 }).notNull(),
+    // [Assumption] team / vehicle / shift ref in Booking
+    BookingTeamRef: varchar('BookingTeamRef', { length: 64 }),
+    IsActive: boolean('IsActive').notNull().default(true),
+    CreatedAt: createdAt(),
+    UpdatedAt: updatedAt(),
+    ...auditActor(),
+    ...softDelete(),
+  },
+  (t) => [
+    uniqueIndex('UQ_Teams_Code').on(t.Code).where(notDeleted(t)),
+    uniqueIndex('UQ_Teams_BookingRef')
+      .on(t.BookingTeamRef)
+      .where(sql`${t.BookingTeamRef} is not null and ${t.IsDeleted} = false`),
+  ],
+);
+
+/** History, never deleted: a row is closed with ValidTo. Role 1 Leader · 2 Member. */
+export const TeamMembers = pgTable(
+  'TeamMembers',
+  {
+    Id: pkId(),
+    TeamId: ref('TeamId', () => Teams.Id).notNull(),
+    EmployeeId: ref('EmployeeId', () => Employees.Id).notNull(),
+    Role: smallint('Role').notNull(),
+    ValidFrom: tstz('ValidFrom').notNull(),
+    ValidTo: tstz('ValidTo'),
+    // null = system (inbox processor)
+    AssignedBy: userRef('AssignedBy'),
+    Note: varchar('Note', { length: 500 }),
+    CreatedAt: createdAt(),
+  },
+  (t) => [
+    check('CK_TeamMembers_Window', sql`${t.ValidTo} is null or ${t.ValidTo} > ${t.ValidFrom}`),
+    uniqueIndex('UQ_TeamMembers_ActiveLeader').on(t.TeamId).where(sql`${t.Role} = 1 and ${t.ValidTo} is null`),
+    uniqueIndex('UQ_TeamMembers_ActiveEmployee').on(t.EmployeeId).where(sql`${t.ValidTo} is null`),
+    index('IX_TeamMembers_Team').on(t.TeamId, t.ValidFrom.desc()),
+  ],
+);
+
+// ---- P1: Devices (Part 4 §4.4 C). Written only by the worker job DeviceSync (DL53).
+
+/** Kind 1 Primary · 2 Spare. Status 1 Active · 2 Inactive · 3 Maintenance · 4 Retired. */
+export const Devices = pgTable(
+  'Devices',
+  {
+    Id: pkId(),
+    DeviceCode: varchar('DeviceCode', { length: 30 }).notNull(),
+    // = DSS deviceCode; unique forever (soft-deleted rows included)
+    VendorDeviceId: varchar('VendorDeviceId', { length: 64 }).notNull(),
+    Name: varchar('Name', { length: 200 }),
+    Model: varchar('Model', { length: 100 }),
+    SerialNo: varchar('SerialNo', { length: 100 }),
+    Firmware: varchar('Firmware', { length: 100 }),
+    SimNumber: varchar('SimNumber', { length: 30 }),
+    Kind: smallint('Kind').notNull(),
+    Status: smallint('Status').notNull().default(1),
+    StreamingEnabled: boolean('StreamingEnabled').notNull().default(true),
+    VendorSeenAt: tstz('VendorSeenAt'),
+    VendorMissingSince: tstz('VendorMissingSince'),
+    CreatedAt: createdAt(),
+    UpdatedAt: updatedAt(),
+    ...auditActor(),
+    ...softDelete(),
+  },
+  (t) => [
+    uniqueIndex('UQ_Devices_Code').on(t.DeviceCode).where(notDeleted(t)),
+    uniqueIndex('UQ_Devices_VendorId').on(t.VendorDeviceId),
+    index('IX_Devices_Status').on(t.Status),
+  ],
+);
+
+/**
+ * Hot row, 1:1 with Devices: DeviceSync inserts it with the device, observations only UPDATE it.
+ * PlatformState 1 Online · 2 Offline · null = never seen (UNKNOWN is computed, never stored).
+ * Sources: 2 DssLocation · 5 Manual (1, 3, 4 reserved — never reuse).
+ */
+export const DeviceState = pgTable(
+  'DeviceState',
+  {
+    DeviceId: ref('DeviceId', () => Devices.Id).primaryKey(),
+    PlatformState: smallint('PlatformState'),
+    StateSince: tstz('StateSince'),
+    LastObservedAt: tstz('LastObservedAt'),
+    LastOnlineObservedAt: tstz('LastOnlineObservedAt'),
+    LastSource: smallint('LastSource'),
+    StateSource: smallint('StateSource'),
+    StateSourceObservedAt: tstz('StateSourceObservedAt'),
+    LastFixAt: tstz('LastFixAt'),
+    LastLat: doublePrecision('LastLat'),
+    LastLng: doublePrecision('LastLng'),
+    LastSpeedKph: real('LastSpeedKph'),
+    LastHeading: smallint('LastHeading'),
+    LastFixValid: boolean('LastFixValid'),
+    LastBatteryPercent: smallint('LastBatteryPercent'),
+    // null = no fix
+    IsAtDepot: boolean('IsAtDepot'),
+    UpdatedAt: updatedAt(),
+  },
+  (t) => [index('IX_DeviceState_PlatformState').on(t.PlatformState)],
+);
+
+/** Append-only, one row per state transition. */
+export const DeviceStatusHistory = pgTable(
+  'DeviceStatusHistory',
+  {
+    Id: pkId(),
+    DeviceId: ref('DeviceId', () => Devices.Id).notNull(),
+    FromState: smallint('FromState'),
+    ToState: smallint('ToState').notNull(),
+    ObservedAt: tstz('ObservedAt').notNull(),
+    Source: smallint('Source').notNull(),
+    CreatedAt: createdAt(),
+  },
+  (t) => [index('IX_DeviceStatusHistory_Device').on(t.DeviceId, t.ObservedAt.desc())],
+);
+
+/** Charging bases (Q15). No screen in the first phase (DL53): empty in production, dev seed has mocks. */
+export const Depots = pgTable(
+  'Depots',
+  {
+    Id: pkId(),
+    Code: varchar('Code', { length: 30 }).notNull(),
+    Name: varchar('Name', { length: 200 }).notNull(),
+    Lat: doublePrecision('Lat').notNull(),
+    Lng: doublePrecision('Lng').notNull(),
+    RadiusM: integer('RadiusM').notNull().default(150),
+    IsActive: boolean('IsActive').notNull().default(true),
+    CreatedAt: createdAt(),
+    UpdatedAt: updatedAt(),
+    ...auditActor(),
+    ...softDelete(),
+  },
+  (t) => [
+    uniqueIndex('UQ_Depots_Code').on(t.Code).where(notDeleted(t)),
+    check('CK_Depots_Radius', sql`${t.RadiusM} between 20 and 2000`),
+  ],
+);
+
+// ---- P1: Alerts (Part 4 §4.4 H). Notifications come with the alert phase (P2).
+
+/**
+ * AlertType: Part 5 §5.6. Severity 1 Info · 2 Warning · 3 Critical. Status 1 New · 2 Acknowledged ·
+ * 3 Resolved · 4 Dismissed. WorkOrderId / TrackingSessionId / BookingJobId get their FKs in the
+ * phase that creates those tables.
+ */
+export const Alerts = pgTable(
+  'Alerts',
+  {
+    Id: pkId(),
+    AlertType: smallint('AlertType').notNull(),
+    Severity: smallint('Severity').notNull(),
+    Status: smallint('Status').notNull().default(1),
+    DeviceId: ref('DeviceId', () => Devices.Id),
+    TeamId: ref('TeamId', () => Teams.Id),
+    WorkOrderId: fk('WorkOrderId'),
+    TrackingSessionId: fk('TrackingSessionId'),
+    BookingJobId: fk('BookingJobId'),
+    Title: varchar('Title', { length: 200 }),
+    Message: text('Message'),
+    Data: jsonb('Data'),
+    DedupeKey: varchar('DedupeKey', { length: 150 }),
+    OccurredAt: tstz('OccurredAt').notNull().defaultNow(),
+    AcknowledgedAt: tstz('AcknowledgedAt'),
+    AcknowledgedBy: userRef('AcknowledgedBy'),
+    ResolvedAt: tstz('ResolvedAt'),
+    ResolvedBy: userRef('ResolvedBy'),
+  },
+  (t) => [
+    uniqueIndex('UQ_Alerts_OpenDedupe').on(t.DedupeKey).where(sql`${t.Status} in (1, 2)`),
+    index('IX_Alerts_Status').on(t.Status, t.Severity, t.OccurredAt.desc()),
+  ],
+);

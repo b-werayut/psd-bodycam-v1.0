@@ -74,12 +74,14 @@ beforeAll(async () => {
 
   worker = await NestFactory.createApplicationContext(WorkerEmitterModule, { logger: false });
 
+  await sql`insert into "Roles" ("Code", "Name") values ('T10_NOPERM', 'ไม่มีสิทธิ์') on conflict ("Code") do nothing`;
   ids = await createTestUsers(
     sql,
     [
       { username: `${PREFIX}admin`, role: 'ADMIN' },
       { username: `${PREFIX}viewer`, role: 'VIEWER' },
       { username: `${PREFIX}victim`, role: 'OPERATOR' },
+      { username: `${PREFIX}noperm`, role: 'T10_NOPERM' },
     ],
     await hashPassword(PASSWORD),
   );
@@ -91,6 +93,8 @@ afterEach(() => {
 
 afterAll(async () => {
   await dropTestUsers(sql, [`${PREFIX}%`]);
+  await sql`delete from "RolePermissions" where "RoleId" = (select "Id" from "Roles" where "Code" = 'T10_NOPERM')`;
+  await sql`delete from "Roles" where "Code" = 'T10_NOPERM'`;
   await worker.close();
   await app.close();
   await sql.end();
@@ -141,6 +145,41 @@ describe('rooms and the worker bus', () => {
     const received = next(socket, 'test:from-worker');
     bus?.to(`user:${ids.get(`${PREFIX}viewer`)}`).emit('test:from-worker', { hello: 'api' });
     expect(await received).toEqual({ hello: 'api' });
+  });
+});
+
+describe('P1 rooms: tracking', () => {
+  it('gps:batch from the worker reaches a VIEWER (tracking:view) but not a user without it', async () => {
+    const viewer = connect(await accessTokenOf(`${PREFIX}viewer`));
+    expect(await outcome(viewer)).toBe('connected');
+    const outsider = connect(await accessTokenOf(`${PREFIX}noperm`));
+    expect(await outcome(outsider)).toBe('connected');
+
+    const leaked: unknown[] = [];
+    outsider.on('gps:batch', (payload) => leaked.push(payload));
+    const received = next(viewer, 'gps:batch');
+    const payload = { points: [{ deviceId: '1', lat: 13.75, lng: 100.5 }] };
+    worker.get(RealtimeEmitterService).bus?.to('tracking').emit('gps:batch', payload);
+
+    expect(await received).toEqual(payload);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(leaked).toEqual([]);
+  });
+
+  it('rooms follow the role grants in the DB at connect, not the ones in the token', async () => {
+    await sql`
+      insert into "RolePermissions" ("RoleId", "PermissionId")
+      select r."Id", p."Id" from "Roles" r, "Permissions" p where r."Code" = 'T10_NOPERM' and p."Code" = 'tracking:view'`;
+    const token = await accessTokenOf(`${PREFIX}noperm`); // token now lists tracking:view
+    await sql`delete from "RolePermissions" where "RoleId" = (select "Id" from "Roles" where "Code" = 'T10_NOPERM')`;
+
+    const socket = connect(token);
+    expect(await outcome(socket)).toBe('connected');
+    const leaked: unknown[] = [];
+    socket.on('gps:batch', (payload) => leaked.push(payload));
+    worker.get(RealtimeEmitterService).bus?.to('tracking').emit('gps:batch', { points: [] });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(leaked).toEqual([]);
   });
 });
 

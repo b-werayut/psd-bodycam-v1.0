@@ -6,6 +6,12 @@ export const SETTING_VALUE_TYPE = { STRING: 1, INT: 2, BOOL: 3 } as const;
 export const SETTING_DEFAULTS = {
   'auth.max-failed-logins': 3,
   'auth.lockout-minutes': 15,
+  'gps.poll-interval-seconds': 15,
+  'status.unknown-after-seconds': 120,
+  'status.display-cache-seconds': 10,
+  'depot.fix-max-age-minutes': 30,
+  'tracking.stop-min-minutes': 5,
+  'tracking.stop-radius-meters': 50,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
@@ -15,7 +21,44 @@ export type SettingBound = { min: number; max: number };
 export const SETTING_BOUNDS: Record<SettingKey, SettingBound> = {
   'auth.max-failed-logins': { min: 3, max: 20 },
   'auth.lockout-minutes': { min: 1, max: 1440 },
+  'gps.poll-interval-seconds': { min: 5, max: 300 },
+  'status.unknown-after-seconds': { min: 30, max: 3600 },
+  'status.display-cache-seconds': { min: 0, max: 60 },
+  'depot.fix-max-age-minutes': { min: 5, max: 240 },
+  'tracking.stop-min-minutes': { min: 1, max: 120 },
+  'tracking.stop-radius-meters': { min: 10, max: 500 },
 };
+
+/** `atLeast` must be ≥ `factor` × `of` (Part 3 §3.11: unknown-after ≥ 2 × poll). */
+export type SettingPairRule = { atLeast: SettingKey; factor: number; of: SettingKey };
+
+export const SETTING_PAIR_RULES: readonly SettingPairRule[] = [
+  { atLeast: 'status.unknown-after-seconds', factor: 2, of: 'gps.poll-interval-seconds' },
+];
+
+/** Keys whose change must be checked against another setting. */
+export function pairedKeysOf(key: string): SettingKey[] {
+  return SETTING_PAIR_RULES.flatMap((r) => (r.atLeast === key ? [r.of] : r.of === key ? [r.atLeast] : []));
+}
+
+/** Checks every pair rule whose two keys are both in `values`. */
+export function checkSettingPairs(
+  values: Partial<Record<SettingKey, number>>,
+): { ok: true } | { ok: false; message: string } {
+  for (const rule of SETTING_PAIR_RULES) {
+    const low = values[rule.atLeast];
+    const base = values[rule.of];
+    if (low === undefined || base === undefined) continue;
+    const min = rule.factor * base;
+    if (low < min) {
+      return {
+        ok: false,
+        message: `${rule.atLeast} (${low}) ต้องไม่น้อยกว่า ${rule.factor} เท่าของ ${rule.of} (${base}) คือ ${min}`,
+      };
+    }
+  }
+  return { ok: true };
+}
 
 export function settingBound(key: string): SettingBound | undefined {
   return (SETTING_BOUNDS as Record<string, SettingBound | undefined>)[key];

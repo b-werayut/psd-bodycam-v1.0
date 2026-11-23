@@ -4,6 +4,7 @@ import { VALUE_TYPE, type SettingItem } from './settings.api';
 /** Unknown categories render their raw code; later phases add session, matching, workorder, booking. */
 export const CATEGORY_LABEL_KEY: Record<string, TranslationKey> = {
   auth: 'settings.category.auth',
+  tracking: 'settings.category.tracking',
 };
 
 /** Client-side check only — the server stays the authority (SETTING_OUT_OF_RANGE). */

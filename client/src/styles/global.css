@@ -304,3 +304,64 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- Map markers (P1 แผนที่ติดตาม / ประวัติเส้นทาง). Colours come from the status tokens. */
+.tracking-marker {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  border: 2px solid oklch(var(--surface));
+  background: oklch(var(--unknown, var(--muted-foreground)));
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.35);
+  color: oklch(var(--surface));
+}
+
+.tracking-marker[data-state='online'] {
+  background: oklch(var(--success));
+}
+
+.tracking-marker[data-state='unknown'] {
+  background: oklch(var(--warning-foreground));
+}
+
+.tracking-marker[data-stale] {
+  opacity: 0.45;
+}
+
+.tracking-marker[data-selected] {
+  outline: 3px solid oklch(var(--ring));
+  outline-offset: 2px;
+}
+
+.route-line {
+  stroke: oklch(var(--primary));
+}
+
+.route-gap-line {
+  stroke: oklch(var(--muted-foreground));
+  stroke-dasharray: 6 8;
+}
+
+.route-pin {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  border: 2px solid oklch(var(--surface));
+  background: oklch(var(--primary));
+  color: oklch(var(--primary-foreground));
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.35);
+}
+
+.route-pin[data-kind='start'] {
+  background: oklch(var(--success));
+}
+
+.route-pin[data-kind='end'] {
+  background: oklch(var(--destructive));
+}

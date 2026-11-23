@@ -129,3 +129,27 @@ export async function bearerFor(
   if (r.status !== 200) throw new Error(`login ${username} failed: ${r.status} ${JSON.stringify(r.body)}`);
   return `Bearer ${r.body.accessToken}`;
 }
+
+/**
+ * Removes every camera and what hangs off it (P1+). Device tests share one test DB and DeviceSync
+ * marks any local camera missing from its vendor list, so each device test starts from no cameras.
+ */
+export async function resetDevices(sql: TestSql): Promise<void> {
+  await sql`delete from "Alerts" where "DeviceId" is not null or "DedupeKey" like '13:device:%'`;
+  await sql`delete from "GpsLocations"`;
+  await sql`delete from "DeviceStatusHistory"`;
+  await sql`delete from "DeviceState"`;
+  await sql`delete from "Devices"`;
+}
+
+/** A RealtimeGateway stand-in that records every emit as [room, event, payload]. */
+export function recordingGateway(): { gateway: { bus: unknown }; emits: [string, string, unknown][] } {
+  const emits: [string, string, unknown][] = [];
+  const target = (room: string) => ({
+    emit: (event: string, payload: unknown) => {
+      emits.push([room, event, payload]);
+    },
+    to: (next: string) => target(next),
+  });
+  return { gateway: { bus: { to: target } }, emits };
+}

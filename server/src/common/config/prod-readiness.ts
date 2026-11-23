@@ -164,6 +164,34 @@ function checkAzureAd(env: NodeJS.ProcessEnv): ReadinessCheck[] {
   return [{ id: 'AZURE_AD_*', level: 'pass', message: `tenant ${tenant}` }];
 }
 
+function checkDss(env: NodeJS.ProcessEnv): ReadinessCheck[] {
+  const driver = (env.DSS_DRIVER ?? '').trim().toLowerCase();
+  const checks: ReadinessCheck[] = [
+    driver === 'dss'
+      ? { id: 'DSS_DRIVER', level: 'pass', message: 'dss' }
+      : {
+          id: 'DSS_DRIVER',
+          level: 'fail',
+          message: `'${driver || '(ไม่ได้ตั้ง = mock)'}' — production ต้องเป็น dss ไม่งั้นทั้งระบบใช้กล้องจำลอง`,
+        },
+  ];
+  checks.push(
+    has(env.DSS_BASE_URL)
+      ? { id: 'DSS_BASE_URL', level: 'pass', message: 'ตั้งแล้ว' }
+      : { id: 'DSS_BASE_URL', level: 'fail', message: 'ไม่ได้ตั้ง — ดึงตำแหน่ง / สถานะ / รายการกล้องไม่ได้' },
+  );
+  const key = (env.DSS_API_KEY ?? '').trim();
+  if (!key) checks.push({ id: 'DSS_API_KEY', level: 'fail', message: 'ไม่ได้ตั้ง — psd-bwc-dss-services ตอบ 401 ทุกคำขอ' });
+  else if (key.length < MIN_SECRET_LENGTH) {
+    checks.push({
+      id: 'DSS_API_KEY',
+      level: 'warn',
+      message: `สั้นกว่า ${MIN_SECRET_LENGTH} ตัวอักษร — key นี้ใช้ sign JWT ทุกคำขอไป DSS`,
+    });
+  } else checks.push({ id: 'DSS_API_KEY', level: 'pass', message: `${key.length} ตัวอักษร` });
+  return checks;
+}
+
 export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {
   const checks: ReadinessCheck[] = [];
 
@@ -223,6 +251,7 @@ export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {
   );
 
   checks.push(...checkAzureAd(env));
+  checks.push(...checkDss(env));
   if (has(env.SEED_DEMO_PASSWORD)) {
     checks.push({
       id: 'SEED_DEMO_PASSWORD',

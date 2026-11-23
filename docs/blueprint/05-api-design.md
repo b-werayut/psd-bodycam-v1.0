@@ -23,7 +23,7 @@
 
 | Code | ใช้เมื่อ |
 |---|---|
-| 400 | validation / ค่าไม่ถูกต้องตามกติกาธุรกิจ (เช่น ขอ playback ช่วงเกิน 24 ชม.) · `VALIDATION_FAILED` เมื่อ body ที่ Smart Booking POST มาขาด field บังคับ (DL46) · **`PERMISSION_RESERVED_FOR_ADMIN`** = ให้ permission สงวนของ `ADMIN` กับ role อื่น (DL51 · §5.7) |
+| 400 | validation / ค่าไม่ถูกต้องตามกติกาธุรกิจ (เช่น ขอ playback ช่วงเกิน 24 ชม.) · **`INVALID_RANGE`** = ช่วง `from` / `to` ของประวัติเส้นทางใช้ไม่ได้ (§5.2 Tracking) · **`SETTING_OUT_OF_RANGE`** = ค่า setting นอกช่วง หรือผิดเงื่อนไขระหว่าง key (เช่น `status.unknown-after-seconds` < 2 × `gps.poll-interval-seconds`) · `VALIDATION_FAILED` เมื่อ body ที่ Smart Booking POST มาขาด field บังคับ (DL46) · **`PERMISSION_RESERVED_FOR_ADMIN`** = ให้ permission สงวนของ `ADMIN` กับ role อื่น (DL51 · §5.7) |
 | 401 / 403 | ไม่ได้ login / ไม่มี permission · **`INBOUND_AUTH_FAILED` (401)** = ลายเซ็น HMAC / api-key / IP ของ Smart Booking ไม่ผ่านที่ `POST /integration/booking/jobs` (DL46) · **`ADMIN_ACCOUNT_PROTECTED` (403)** = ผู้ใช้ที่ไม่ใช่ `ADMIN` กำหนด role `ADMIN` (สร้าง / แก้ผู้ใช้ / สร้างจาก Entra — DL51) · บัญชี `ADMIN` เองถูกซ่อนจากผู้ใช้ที่ไม่ใช่ `ADMIN` ⇒ 404 (DL55) |
 | **404** | ไม่พบ **หรืออยู่นอก data scope** (ไม่ยืนยันว่ามี record — กติกาเดิม) |
 | 409 | สถานะหรือข้อมูลขัดกัน · ใบงานไม่มี action เปลี่ยนสถานะ เพราะสถานะตาม Booking เท่านั้น (DL33) · **`INTEGRATION_READ_API_DISABLED`** = เรียก refresh รายใบ / full reconcile ขณะไม่มี read API (`BOOKING_PROVIDER_DRIVER=none` — DL46) |
@@ -70,21 +70,21 @@
 
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
-| GET | `/devices` | `devices:read` | filter `status`, `kind`, `teamId`, `online`, `q` · รวม state ปัจจุบัน + ทีมปัจจุบัน · ใช้โดย ภาพสดหลายจอ, ประวัติเส้นทาง (เลือกกล้อง), แอปหัวหน้าทีม |
+| GET | `/devices` | `devices:read` | query `page`, `pageSize` (≤ 100), `q` (ค้น `DeviceCode` / `VendorDeviceId` / ชื่อ), `status` (1–4), `kind` (1–2), `online` (`online` \| `offline` \| `unknown`) · filter `teamId` มากับ `DeviceAssignments` (P3a) · envelope `{ data, page, pageSize, total }` เรียงตาม `DeviceCode` · แถว = `{ id, deviceCode, vendorDeviceId, name, model, serialNo, kind, status, streamingEnabled, vendorMissingSince, platformState, platformStatusFetchedAt, lastFixAt, lastLat, lastLng, currentTeam }` — `currentTeam` เป็น `null` จนกว่า P3a จะมี `DeviceAssignments` (DL73) · ใช้โดย ภาพสดหลายจอ, วิดีโอย้อนหลัง / ประวัติเส้นทาง (เลือกกล้อง), แอปหัวหน้าทีม |
 
 อุปกรณ์มาจาก DSS อัตโนมัติ (job `DeviceSync` ใน worker — DL53) · ไม่มี endpoint แก้ไข / sync ด้วยมือ / ปลดระวาง / ตั้งสิทธิ์ดูภาพต่อเครื่อง / ฐาน (`/depots`) / ประวัติสถานะ / ประวัติผูกทีม
 
-**สถานะกล้องบนหน้าจอ (DL35):** สถานะ platform (online / offline) ใน `GET /devices` และคอลัมน์กล้องของ `GET /work-orders` — `api` ดึงจาก DSS ผ่าน DSS middleware ตอน request · ภาพสดหลายจอ, หน้า ใบงาน และก่อนเปิด live เรียกตอนเปิดหน้า · ไม่มี push `device:status` ทาง Socket.IO (`DeviceState` ยังอัปเดตโดย GpsPoll และใช้ภายใน session engine)
-- **cache (DL45)**: ผลจาก DSS เก็บใน Redis key `device-status:{deviceId}` อายุ `status.display-cache-seconds` (10s) ใช้ร่วมทุก api pod · ถาม DSS เฉพาะกล้องที่ไม่มีใน cache · Redis ล่ม ⇒ ถาม DSS ตรง (fail-open)
-- ทุกอุปกรณ์ใน response มี `platformStatusFetchedAt` = เวลาที่ได้สถานะจาก DSS (ค่าจาก cache เก่าได้ ≤ 10s) ให้หน้าจอแสดงว่าอัปเดตเมื่อไร
-- `platformState` ใน view model = `"online" | "offline" | "unknown"` (unknown คำนวณที่ server จาก `LastObservedAt`)
+**สถานะกล้องบนหน้าจอ (DL35):** สถานะ platform (online / offline) ใน `GET /devices`, `GET /tracking/positions` และคอลัมน์กล้องของ `GET /work-orders` — `api` ดึงจาก DSS ผ่าน DSS middleware ตอน request · ภาพสดหลายจอ, หน้า ใบงาน, แผนที่ติดตาม และก่อนเปิด live เรียกตอนเปิดหน้า · ไม่มี push `device:status` ทาง Socket.IO (`DeviceState` ยังอัปเดตโดย GpsPoll จาก `/location` เท่านั้น และใช้ภายใน session engine — DL32)
+- **cache (DL45, DL69)**: เรียก DSS device list (`GET /api/v1/devices`) ครั้งเดียวได้ทุกกล้อง แล้วเก็บผลรายกล้องใน Redis key `cache:{database}:device-status:{deviceId}` อายุ `status.display-cache-seconds` (10s) ใช้ร่วมทุก api pod (prefix ชื่อ database แยก dev `bwc` กับ test `bwc_test` บน Redis ตัวเดียวกัน) · เรียก DSS เฉพาะเมื่อมีกล้องที่ไม่อยู่ใน cache · Redis ล่ม ⇒ ถาม DSS ตรง (fail-open) · DSS ล่ม ⇒ คำนวณจาก `DeviceState` แทน (`platformStatusFetchedAt: null`) · กล้องที่ DSS ไม่ส่งมาใน list ⇒ `unknown`
+- ทุกอุปกรณ์ใน response มี `platformStatusFetchedAt` = เวลาที่ได้สถานะจาก DSS (ค่าจาก cache เก่าได้ ≤ 10s · `null` = DSS ตอบไม่ได้ ใช้สถานะล่าสุดในระบบ) ให้หน้าจอแสดงว่าอัปเดตเมื่อไร
+- `platformState` ใน view model = `"online" | "offline" | "unknown"` (ตอน fallback ไป `DeviceState` — unknown คำนวณที่ server จาก `LastObservedAt`)
 
 ### Tracking
 
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
-| GET | `/tracking/positions` | `tracking:view` ✱ | snapshot ทุกอุปกรณ์ใน scope |
-| GET | `/tracking/devices/:id/history?from&to` | `tracking:history` ✱ | polyline segments + stops (ไม่มี road-match) · ช่วง ≤ 24 ชม. |
+| GET | `/tracking/positions` | `tracking:view` ✱ | snapshot ทุกกล้องที่ไม่ถูกลบและไม่ Retired → `{ data: [{ deviceId, deviceCode, name, lat, lng, speedKph, heading, lastFixAt, fixValid, platformState, platformStatusFetchedAt }], total, fixActiveSeconds }` · `fixActiveSeconds` = `status.unknown-after-seconds` + 2 × `gps.poll-interval-seconds` (150 ตามค่าเริ่มต้น) ให้ client ใช้ทำ marker จาง |
+| GET | `/tracking/devices/:id/history?from&to` | `tracking:history` ✱ | audit `VIEW_GPS_HISTORY` / `Devices` ทุกครั้ง · → `{ device: { id, code, name }, from, to, rules: { stopRadiusM, stopMinMinutes, gapSeconds }, pointCount, suspectCount, staleStartCount, spikeCount, smoothedCount, truncated, start, end, segments, gaps, timeline }` · ใช้เฉพาะจุด valid · อ่านสูงสุด 50,000 จุด (เกิน ⇒ `truncated: true`) · ไม่มี road matching (ไม่มี OSRM) · `rules` มาจาก `tracking.stop-radius-meters`, `tracking.stop-min-minutes` และ `gapSeconds` = `fixActiveSeconds` · 400 `INVALID_RANGE` เมื่ออ่านวันที่ไม่ได้, `to` ≤ `from`, ช่วงเกิน 24 ชม. หรือ `from` เลยอนาคตเกิน 5 นาที · กล้องไม่มี ⇒ 404 |
 
 Session อ่านอย่างเดียว — ผูกกับใบงานโดย matching อัตโนมัติเท่านั้น · ไม่มี endpoint รายการ session (ไม่มีหน้า Tracking sessions — DL53) · session ของใบงานดูผ่าน `/work-orders/:id/sessions` · session ที่ยังไม่มีใบงาน (`AwaitingMatch` / `NoTeam`) รอข้อมูล Booking — วิดีโอของ session เหล่านี้ดูได้ที่หน้า วิดีโอย้อนหลัง รายกล้อง (DL59) · ไม่มี attach / classify ด้วยมือ (DL33)
 
@@ -410,17 +410,18 @@ Booking app ลิงก์มาที่ `https://{host}/work-orders/by-bookin
 
 - Auth: `handshake.auth.token` = access token (ตรวจใน `server.use` middleware — port) · หมดอายุ ⇒ client reconnect ด้วย token ใหม่
 - Rooms (ตัด company · ไม่มีแผนก — DL53): `org` (ทุกคนที่ login) · `user:{id}` · `tracking` (ผู้ใช้ web ที่มี `tracking:view`) · `alerts` (ผู้ใช้ web ที่มี `alerts:view`) · **`team:{id}`** (DL47 — `TEAM_LEADER` ของทีมนั้น join · คำนวณทีมตอน connect) · ไม่มี room `dept:*`
+  - สิทธิ์ของ `tracking` / `alerts` อ่านจาก grants ของ role ใน DB ตอน handshake (ไม่ใช่จาก token) · role `ADMIN` join ทั้งสอง room เสมอ (bypass) · `server/src/modules/realtime/realtime-rooms.ts`
 - `TEAM_LEADER` join เฉพาะ `org`, `user:{id}`, `team:{id}` — ไม่ join `tracking` / `alerts` จึงไม่ได้ `gps:batch` / `session:*` / `alert:new` (DL47)
 - Worker emit ผ่าน `@socket.io/redis-emitter` (key `socket.io`, namespace `/realtime` ต้องตรงกันทั้งสองฝั่ง — กับดักเดิม)
 - **emit หลัง commit เท่านั้น**
 
 | Event | Room | Payload | ใช้ที่ |
 |---|---|---|---|
-| `gps:batch` ✱ | `tracking` | `{ points: [{ deviceId, lat, lng, speedKph, heading, recordedAt, isValidFix }] }` | แผนที่ (throttle flush 1s ที่ client) |
+| `gps:batch` ✱ | `tracking` | `{ points: [{ deviceId, lat, lng, speedKph, heading, recordedAt, isValidFix: true }] }` — เฉพาะจุด valid · ส่งหลังเขียน `GpsLocations` + `DeviceState` เสร็จ | แผนที่ (throttle flush 1s ที่ client) |
 | `session:opened` | `tracking` | `{ sessionId, deviceId, teamId, workOrderId, startedAt }` | dashboard, แผนที่ (halo), หน้า ใบงาน |
 | `session:closed` | `tracking` | `{ sessionId, deviceId, workOrderId, endedAt, endReason }` | |
 | `workorder:changed` | `tracking` + `team:{teamId}` ของใบงาน (DL47) | `{ workOrderId, status, needsReview, rowVersion, change: 'created'\|'statusChanged'\|'sessionAttached'\|... }` | หน้า ใบงาน / วิดีโอย้อนหลัง / รายละเอียด (invalidate query) · แอปหัวหน้าทีม (งานของฉัน / รายละเอียดใบงาน) |
-| `alert:new` ✱ | `alerts` / `user:{id}` | `{ alertId, alertType, severity, title, message, workOrderId?, deviceId? }` | toast, bell |
+| `alert:new` ✱ | `alerts` / `user:{id}` | `{ alertId, alertType, severity, title, message, workOrderId?, deviceId? }` · P1 มีแค่ alert 13 ซึ่งส่งเข้า `user:{id}` ของ `ADMIN` ที่ active ทุกคน (ยังไม่ใช้ room `alerts` — DL66) | toast, bell |
 | `stream:status` ✱ | `user:{id}` | `{ sessionToken, status, endReason }` | player |
 | `integration:status` | `org` (ทุกคน — payload ไม่มีข้อมูลอ่อนไหว) | `{ source: 'BOOKING', isStale, lastReceivedAt }` (DL46) · ไม่มีหน้ารายละเอียด integration (DL53) — ปัญหาการเชื่อมต่อแจ้ง `ADMIN` ด้วย alert (§5.6) | banner "Booking data stale" ทุกหน้าที่แสดงข้อมูล Booking |
 | `session:revoked` ✱ | `user:{id}` | `{ scope: 'account' \| 'device', reason }` | logout ทันที |
@@ -451,7 +452,7 @@ Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLive
 | 10 | `BOOKING_SYNC_STALE` | Warning / Critical | Admin | inbox backlog: แถว `IntegrationInbox` ที่ยัง `Pending` / `Failed` ที่เก่าที่สุดเก่ากว่า `booking.stale-after-minutes` (15) / > 60 นาที (ความหมายใหม่ — DL46 · code เดิม) |
 | 11 | `INTEGRATION_DEAD_LETTER` | Warning | Admin | inbox `Dead` · การแจ้งเตือนมีปุ่ม "ประมวลผลใหม่" (`POST /integration/inbox/:id/retry`) · ประมวลผลผ่านแล้ว resolve เอง (DL54) |
 | 12 | `BOOKING_MAPPING_ISSUES` | Info | Admin | รายวัน — สรุป ref ที่ map ไม่ได้ (leader / กล้อง / สถานะ) ใน `Data` ของ alert (ไม่มีหน้า integration — DL53) |
-| 13 | `DEVICE_VENDOR_MISSING` | Warning | Admin | job `DeviceSync` (worker — DL53) ไม่พบเครื่องใน DSS device list (`VendorMissingSince`) |
+| 13 | `DEVICE_VENDOR_MISSING` | Warning | Admin | job `DeviceSync` (worker — DL53) ไม่พบเครื่องใน DSS device list ที่ครบทั้งรายการ (`VendorMissingSince`) · `DedupeKey` `13:device:{deviceId}` · กล้องกลับมาใน list ⇒ resolve เอง (`Status` 3) · เขียนได้ตั้งแต่ P1 (DL66) |
 | 14 | *(สงวน — เลิกใช้ DL58)* | | | เดิม `WORK_ORDER_NO_CHECKOUT` (ไม่มี check-out เกิน 36 ชม. — เหลือ badge `NeedsReview` NoCheckout) |
 | 15 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `WORK_ORDER_AUTO_VOIDED` (auto-void ใบที่ไม่มี recording) |
 | 16 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `REVIEW_QUEUE_OVERDUE` (SLA คิวตรวจสอบ) |
@@ -461,7 +462,7 @@ Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLive
 
 alert ส่งให้ผู้ใช้ web เท่านั้น (กระดิ่ง + toast) — ไม่ push เข้าแอปหัวหน้าทีม (DL47)
 
-ทุก alert มี `DedupeKey` (เช่น `5:wo:1042`) กันซ้ำขณะยัง New/Acknowledged · ไม่มีการ "re-nag"
+ทุก alert มี `DedupeKey` รูปแบบ `{alertType}:{ชนิด}:{id}` (เช่น `13:device:57`) กันซ้ำขณะยัง New/Acknowledged · ไม่มีการ "re-nag"
 
 ---
 

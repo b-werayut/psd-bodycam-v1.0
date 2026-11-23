@@ -23,4 +23,5 @@ export const settings = {
   'settings.hint.max': 'ต้องไม่เกิน {max}',
   'settings.saveBlocked': 'บันทึกไม่ได้: {reason}',
   'settings.category.auth': 'การเข้าสู่ระบบ',
+  'settings.category.tracking': 'การติดตามกล้อง',
 } as const;

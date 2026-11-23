@@ -79,6 +79,14 @@ export const appRoutes: RouteObject[] = [
           return { Component: HomeRoute };
         },
       },
+      guardedLazy('tracking', async () => {
+        const { LiveMapPage } = await import('@/features/tracking/LiveMapPage');
+        return LiveMapPage;
+      }),
+      guardedLazy('tracking/history', async () => {
+        const { HistoryPage } = await import('@/features/tracking-history/HistoryPage');
+        return HistoryPage;
+      }),
       guardedLazy('employees', async () => {
         const { EmployeesPage } = await import('@/features/employees/EmployeesPage');
         return EmployeesPage;

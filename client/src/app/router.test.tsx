@@ -137,6 +137,19 @@ describe('router', () => {
     ).toBeInTheDocument();
   });
 
+  it('/tracking needs tracking:view', async () => {
+    signIn(['dashboard:view']);
+    renderAt('/tracking');
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: t('navigation.tracking') })).not.toBeInTheDocument();
+  });
+
+  it('/tracking/history needs tracking:history', async () => {
+    signIn(['tracking:view']);
+    renderAt('/tracking/history');
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+  });
+
   it('denies the Entra users page without users:manage', async () => {
     signIn(['users:read']);
     renderAt('/entra-users');
