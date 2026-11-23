@@ -20,6 +20,9 @@ const pin = (kind: 'start' | 'end' | 'stop', text = '') =>
 export function RouteLayers({ route, focus }: { route: RouteHistory; focus: [number, number] | null }) {
   const map = useMap();
   const { t } = useLanguage();
+  // SVG for the route even though the map prefers canvas: the canvas renderer ignores `className`, so the
+  // token-coloured `.route-line` / dashed `.route-gap-line` styles would never apply (review #1)
+  const renderer = useMemo(() => L.svg({ padding: 0.5 }), []);
 
   const bounds = useMemo(() => {
     const points: [number, number][] = route.segments.flat();
@@ -41,7 +44,7 @@ export function RouteLayers({ route, focus }: { route: RouteHistory; focus: [num
   return (
     <>
       {route.segments.map((segment, i) => (
-        <Polyline key={`seg-${i}`} positions={segment} pathOptions={{ className: 'route-line', weight: 4 }} />
+        <Polyline key={`seg-${i}`} positions={segment} renderer={renderer} className="route-line" weight={4} />
       ))}
       {route.gaps.map((gap) => (
         <Polyline
@@ -50,7 +53,10 @@ export function RouteLayers({ route, focus }: { route: RouteHistory; focus: [num
             [gap.from.lat, gap.from.lng],
             [gap.to.lat, gap.to.lng],
           ]}
-          pathOptions={{ className: 'route-gap-line', weight: 3 }}
+          renderer={renderer}
+          className="route-gap-line"
+          weight={3}
+          dashArray="6 8"
         />
       ))}
       {stops.map((stop) => (

@@ -103,8 +103,7 @@ describe('useLivePositions', () => {
     expect(renders.count - before).toBe(1);
   });
 
-  it('polls the snapshot every 60 s only while the socket is down; a reconnect refetches', async () => {
-    realtime.connected = false;
+  it('refetches the snapshot every 60 s even while connected, and at once on a reconnect (review #7)', async () => {
     const { result, rerender } = renderHook(() => useLivePositions(), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.devices).toHaveLength(1));
     expect(trackingApi.positions).toHaveBeenCalledTimes(1);
@@ -114,16 +113,28 @@ describe('useLivePositions', () => {
     });
     expect(trackingApi.positions).toHaveBeenCalledTimes(2);
 
+    realtime.connected = false;
+    rerender();
     realtime.connected = true;
     rerender();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
     });
     expect(trackingApi.positions).toHaveBeenCalledTimes(3);
+  });
 
+  it('a snapshot refetch does not pull a live marker back (review #11)', async () => {
+    const { result } = renderHook(() => useLivePositions(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.devices).toHaveLength(1));
+    act(() => gps('2026-11-23T03:00:30.000Z', 13.9));
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(120_000);
+      await vi.advanceTimersByTimeAsync(1000);
     });
-    expect(trackingApi.positions).toHaveBeenCalledTimes(3);
+    expect(result.current.devices[0].lat).toBe(13.9);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(trackingApi.positions).toHaveBeenCalledTimes(2);
+    expect(result.current.devices[0].lat).toBe(13.9);
   });
 });

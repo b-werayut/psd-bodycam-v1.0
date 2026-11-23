@@ -1,0 +1,73 @@
+import { render } from '@testing-library/react';
+import L from 'leaflet';
+import { MapContainer } from 'react-leaflet';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { LanguageProvider } from '@/i18n/LanguageProvider';
+import type { RouteHistory } from '../history.api';
+import { RouteLayers } from './RouteLayers';
+
+const route: RouteHistory = {
+  device: { id: '1', code: 'SIM-0001', name: null },
+  from: '2026-11-22T17:00:00.000Z',
+  to: '2026-11-23T17:00:00.000Z',
+  rules: { stopRadiusM: 50, stopMinMinutes: 5, gapSeconds: 150 },
+  pointCount: 4,
+  suspectCount: 0,
+  staleStartCount: 0,
+  spikeCount: 0,
+  smoothedCount: 0,
+  truncated: false,
+  start: { lat: 13.75, lng: 100.5, at: '2026-11-23T01:00:00.000Z' },
+  end: { lat: 13.8, lng: 100.6, at: '2026-11-23T03:00:00.000Z' },
+  segments: [
+    [
+      [13.75, 100.5],
+      [13.76, 100.5],
+    ],
+    [
+      [13.79, 100.6],
+      [13.8, 100.6],
+    ],
+  ],
+  gaps: [
+    {
+      kind: 'gap',
+      startAt: '2026-11-23T01:30:00.000Z',
+      endAt: '2026-11-23T02:30:00.000Z',
+      seconds: 3600,
+      from: { lat: 13.76, lng: 100.5 },
+      to: { lat: 13.79, lng: 100.6 },
+    },
+  ],
+  timeline: [],
+};
+
+describe('RouteLayers (review #1)', () => {
+  // jsdom has no SVGSVGElement.createSVGRect, so Leaflet thinks SVG is unsupported; browsers have it
+  const browser = L.Browser as { svg: boolean };
+  const hadSvg = browser.svg;
+  beforeAll(() => {
+    browser.svg = true;
+  });
+  afterAll(() => {
+    browser.svg = hadSvg;
+  });
+
+  it('draws travelled segments solid and no-signal gaps dashed, even on a canvas-preferring map', () => {
+    const { container } = render(
+      <LanguageProvider>
+        {/* same option as MapCanvas */}
+        <MapContainer center={[13.77, 100.55]} zoom={12} preferCanvas style={{ height: 400, width: 400 }}>
+          <RouteLayers route={route} focus={null} />
+        </MapContainer>
+      </LanguageProvider>,
+    );
+    const lines = container.querySelectorAll('path.route-line');
+    const gaps = container.querySelectorAll('path.route-gap-line');
+    expect(lines).toHaveLength(2);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].getAttribute('stroke-dasharray')).toBe('6 8');
+    expect(lines[0].getAttribute('stroke-dasharray')).toBeNull();
+  });
+});

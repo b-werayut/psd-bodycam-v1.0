@@ -68,3 +68,18 @@ export function mergeGpsPoints(devices: readonly LiveDevice[], points: readonly 
   });
   return changed ? next : (devices as LiveDevice[]);
 }
+
+/**
+ * A refetched snapshot replaces the list (cameras added / removed, status), but a marker that a later
+ * `gps:batch` already moved keeps its newer position — the snapshot is at most one poll cycle old.
+ */
+export function mergeSnapshot(prev: readonly LiveDevice[], snapshot: readonly LiveDevice[]): LiveDevice[] {
+  const before = new Map(prev.map((d) => [d.id, d]));
+  return snapshot.map((next) => {
+    const old = before.get(next.id);
+    const oldAt = old ? timeOf(old.lastFixAt) : null;
+    const nextAt = timeOf(next.lastFixAt);
+    if (!old || oldAt === null || (nextAt !== null && nextAt >= oldAt)) return next;
+    return { ...next, lat: old.lat, lng: old.lng, speedKph: old.speedKph, lastFixAt: old.lastFixAt, live: old.live };
+  });
+}

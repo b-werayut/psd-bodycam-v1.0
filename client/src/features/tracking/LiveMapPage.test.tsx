@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
@@ -110,6 +110,22 @@ describe('LiveMapPage', () => {
     const card = screen.getByRole('region', { name: 'SIM-0003' });
     expect(within(card).queryByRole('link', { name: 'ประวัติเส้นทาง' })).not.toBeInTheDocument();
     expect(within(card).getByText(/10 นาทีที่แล้ว/)).toBeInTheDocument();
+  });
+
+  it('a marker dims once its fix gets old, even when no new data arrives (review #7)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      live.devices = [device('1', { lastFixAt: ago(30) })];
+      renderPage();
+      const marker = () => screen.getByRole('button', { name: 'marker SIM-0001' });
+      expect(marker().dataset.html).not.toContain('data-stale');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(180_000);
+      });
+      expect(marker().dataset.html).toContain('data-stale');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('an empty system says so', () => {

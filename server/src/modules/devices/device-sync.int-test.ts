@@ -127,6 +127,52 @@ describe('DeviceSyncService.syncOnce', () => {
     expect(emits).toEqual([]);
   });
 
+  it('an empty list said to be complete while cameras exist marks nobody missing (review #4)', async () => {
+    const dss = new ScriptedDss(full);
+    const { service, emits } = build(dss);
+    await service.syncOnce();
+    dss.inventory = { devices: [], complete: true, fetchedAt: new Date() };
+    expect(await service.syncOnce()).toMatchObject({ missing: 0, complete: false });
+    const [{ n }] = await ctx.sql`select count(*)::int as n from "Devices" where "VendorMissingSince" is not null`;
+    expect(n).toBe(0);
+    expect(emits).toEqual([]);
+  });
+
+  it('an alert lost between commit and raise is raised on the next run (review #3)', async () => {
+    const dss = new ScriptedDss(full);
+    const { service, emits } = build(dss);
+    await service.syncOnce();
+    dss.inventory = { ...full, devices: full.devices.filter((d) => d.vendorDeviceId !== 'SIM-0005') };
+    await service.syncOnce();
+    // simulate a crash after the commit: missing is set, the alert never written
+    await ctx.sql`delete from "Alerts"`;
+    emits.length = 0;
+
+    await service.syncOnce();
+    const alerts = await ctx.sql`select "Status" from "Alerts" where "AlertType" = 13`;
+    expect(alerts.map((a) => a.Status)).toEqual([1]);
+    expect(emits.filter(([, event]) => event === 'alert:new')).toHaveLength(1);
+
+    // an ADMIN dismissed it: not raised again while the camera stays missing
+    await ctx.sql`update "Alerts" set "Status" = 4 where "AlertType" = 13`;
+    await service.syncOnce();
+    expect(await ctx.sql`select 1 from "Alerts" where "AlertType" = 13`).toHaveLength(1);
+  });
+
+  it('an open alert of a camera that is no longer missing is resolved on the next run (review #3)', async () => {
+    const dss = new ScriptedDss(full);
+    const { service } = build(dss);
+    await service.syncOnce();
+    const [dev] = await ctx.sql`select "Id" from "Devices" where "DeviceCode" = 'SIM-0006'`;
+    // simulate a crash after the commit that cleared VendorMissingSince: the alert stayed open
+    await ctx.sql`
+      insert into "Alerts" ("AlertType", "Severity", "Status", "DeviceId", "Title", "DedupeKey")
+      values (13, 2, 1, ${dev.Id}, 'ค้าง', ${`13:device:${dev.Id}`})`;
+    await service.syncOnce();
+    const [alert] = await ctx.sql`select "Status" from "Alerts" where "AlertType" = 13`;
+    expect(alert.Status).toBe(3);
+  });
+
   it('DSS failing ⇒ the run rejects and nothing changes', async () => {
     const dss = new ScriptedDss(full);
     const { service } = build(dss);

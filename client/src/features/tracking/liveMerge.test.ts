@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { devicesFromSnapshot, mergeGpsPoints, type LiveDevice } from './liveMerge';
+import { devicesFromSnapshot, mergeGpsPoints, mergeSnapshot, type LiveDevice } from './liveMerge';
 import type { GpsPoint, PositionRow } from './tracking.api';
 
 const row = (id: string, extra: Partial<PositionRow> = {}): PositionRow => ({
@@ -71,5 +71,25 @@ describe('mergeGpsPoints', () => {
       point('1', '2026-11-23T03:00:15.000Z', 13.8),
     ]);
     expect(next[0].lat).toBe(13.9);
+  });
+});
+
+describe('mergeSnapshot (review #11)', () => {
+  it('a refetched snapshot keeps positions newer than its own; status always comes from the snapshot', () => {
+    const live = mergeGpsPoints(devicesFromSnapshot([row('1'), row('2')]), [point('1', '2026-11-23T03:00:30.000Z')]);
+    const snapshot = devicesFromSnapshot([
+      row('1', { lastFixAt: '2026-11-23T03:00:15.000Z', lat: 13.7, platformState: 'offline' }),
+      row('3'),
+    ]);
+    const merged = mergeSnapshot(live, snapshot);
+    expect(merged.map((d) => d.id)).toEqual(['1', '3']);
+    expect(merged[0]).toMatchObject({ lat: 13.8, lastFixAt: '2026-11-23T03:00:30.000Z', live: true, platformState: 'offline' });
+    expect(merged[1]).toMatchObject({ id: '3', live: false });
+  });
+
+  it('a snapshot newer than the live position wins', () => {
+    const live = devicesFromSnapshot([row('1')]);
+    const snapshot = devicesFromSnapshot([row('1', { lastFixAt: '2026-11-23T03:05:00.000Z', lat: 13.9 })]);
+    expect(mergeSnapshot(live, snapshot)[0]).toMatchObject({ lat: 13.9, lastFixAt: '2026-11-23T03:05:00.000Z' });
   });
 });

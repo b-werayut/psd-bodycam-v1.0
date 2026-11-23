@@ -10,10 +10,10 @@ import type { LiveDevice } from '../liveMerge';
 import { positionAge } from '../positionAge';
 
 /** Details of the selected camera on the live map. Live view comes in P4. */
-export function CameraCard({ device, onClose }: { device: LiveDevice; onClose: () => void }) {
+export function CameraCard({ device, now, onClose }: { device: LiveDevice; now: number; onClose: () => void }) {
   const { t, language } = useLanguage();
   const canSeeHistory = usePermission('tracking:history');
-  const age = device.lastFixAt ? positionAge(device.lastFixAt) : null;
+  const age = device.lastFixAt ? positionAge(device.lastFixAt, now) : null;
 
   return (
     <section aria-label={device.deviceCode} className="rounded-xl border border-border bg-card p-4 shadow-sm">

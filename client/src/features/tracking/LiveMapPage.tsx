@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { RotateCw, TriangleAlert } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { PageHeader } from '@/components/command-center';
 import { MapCanvas } from '@/components/map/MapCanvas';
@@ -33,6 +33,16 @@ function markerIcon(state: DeviceDisplayState, stale: boolean, selected: boolean
   return icon;
 }
 
+/** Re-renders every `ms` so time-based looks (dimmed markers, "x min ago") age without new data. */
+function useNow(ms: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(timer);
+  }, [ms]);
+  return now;
+}
+
 /** แผนที่ติดตาม: every camera's last position, moved live by `gps:batch`. */
 export function LiveMapPage() {
   const { t } = useLanguage();
@@ -40,6 +50,8 @@ export function LiveMapPage() {
   const [search, setSearch] = useState('');
   const [state, setState] = useState<StateFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // a stopped pipeline sends nothing: markers must still dim as their fix ages (review #7)
+  const now = useNow(15_000);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -61,12 +73,12 @@ export function LiveMapPage() {
                 lat: d.lat,
                 lng: d.lng,
                 title: d.deviceCode,
-                icon: markerIcon(d.platformState, isStaleFix(d.lastFixAt, fixActiveSeconds), d.id === selectedId),
+                icon: markerIcon(d.platformState, isStaleFix(d.lastFixAt, fixActiveSeconds, now), d.id === selectedId),
                 onClick: () => setSelectedId(d.id),
               },
             ],
       ),
-    [filtered, fixActiveSeconds, selectedId],
+    [filtered, fixActiveSeconds, selectedId, now],
   );
 
   const selected = devices.find((d) => d.id === selectedId) ?? null;
@@ -97,7 +109,7 @@ export function LiveMapPage() {
           </MapCanvas>
         </div>
         <aside className="flex min-h-0 flex-col gap-4" aria-busy={isPending}>
-          {selected ? <CameraCard device={selected} onClose={() => setSelectedId(null)} /> : null}
+          {selected ? <CameraCard device={selected} now={now} onClose={() => setSelectedId(null)} /> : null}
           <CameraListPanel
             devices={filtered}
             total={devices.length}

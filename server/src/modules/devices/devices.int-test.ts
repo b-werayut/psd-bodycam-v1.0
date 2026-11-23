@@ -101,6 +101,8 @@ describe('GET /api/devices', () => {
   });
 
   it('DSS down ⇒ status from DeviceState, platformStatusFetchedAt null', async () => {
+    // no cache window here, so the failure is not remembered for the next tests
+    await setCacheSeconds('0');
     vi.spyOn(dss, 'listDevices').mockRejectedValue(new Error('DSS down'));
     await ctx.sql`
       update "DeviceState" set "PlatformState" = 1, "LastObservedAt" = now()
@@ -146,6 +148,45 @@ describe('DeviceStatusDisplayService fail-open (Redis)', () => {
     const map = await service(null).statuses(await sample());
     expect(spy).toHaveBeenCalledTimes(1);
     expect([...map.values()].map((s) => s.platformState)).toEqual(['online', 'online', 'online']);
+  });
+
+  it('concurrent lookups share one DSS call (review #6)', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const real = dss.listDevices.bind(dss);
+    const spy = vi.spyOn(dss, 'listDevices').mockImplementation(async () => {
+      await gate;
+      return real();
+    });
+    const one = service(null);
+    const devices = await sample();
+    await ctx.app.get(SettingsService).getInt('status.display-cache-seconds'); // warm: no DB read in the race
+    const pending = Promise.all([one.statuses(devices), one.statuses(devices), one.statuses(devices)]);
+    await new Promise((resolve) => setTimeout(resolve, 200)); // all three are waiting on DSS now
+    release();
+    const results = await pending;
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(results.every((m) => m.size === 3)).toBe(true);
+  });
+
+  it('DSS down: the next lookup within the cache window falls back at once (review #6)', async () => {
+    const spy = vi.spyOn(dss, 'listDevices').mockRejectedValue(new Error('DSS down'));
+    const one = service(null);
+    const devices = await sample();
+    await one.statuses(devices);
+    const second = await one.statuses(devices);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect([...second.values()].every((s) => s.platformStatusFetchedAt === null)).toBe(true);
+  });
+
+  it('a paged (incomplete) list: cameras not on it use DeviceState, not "unknown" (review #5)', async () => {
+    const devices = await sample();
+    await ctx.sql`update "DeviceState" set "PlatformState" = 2, "LastObservedAt" = now() where "DeviceId" = ${devices[2].id}`;
+    const listed = (await dss.listDevices()).devices.filter((d) => d.vendorDeviceId !== devices[2].vendorDeviceId);
+    vi.spyOn(dss, 'listDevices').mockResolvedValue({ devices: listed, complete: false, fetchedAt: new Date() });
+    const map = await service(null).statuses(devices);
+    expect(map.get(String(devices[2].id))).toEqual({ platformState: 'offline', platformStatusFetchedAt: null });
+    expect(map.get(String(devices[0].id))?.platformStatusFetchedAt).not.toBeNull();
   });
 
   it('Redis throwing on read and write ⇒ still asks DSS, no error', async () => {

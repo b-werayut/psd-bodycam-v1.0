@@ -63,6 +63,11 @@ export class DeviceSyncService {
         .from(Devices)
         .orderBy(asc(Devices.Id));
       const plan = planDeviceSync(inventory.devices, local);
+      // an "empty but complete" list while we know cameras is a DSS glitch, never "every camera is gone"
+      const complete = inventory.complete && !(inventory.devices.length === 0 && local.some((row) => !row.isDeleted));
+      if (inventory.complete && !complete) {
+        this.logger.warn('DSS ส่งรายการอุปกรณ์ว่างทั้งที่ระบบมีกล้องอยู่ — ไม่ตั้งกล้องใดเป็นหายในรอบนี้');
+      }
 
       for (const create of plan.creates) {
         const [row] = await tx
@@ -97,7 +102,7 @@ export class DeviceSyncService {
       }
 
       let newlyMissing: { id: bigint; deviceCode: string }[] = [];
-      if (inventory.complete && plan.missingAtVendor.length > 0) {
+      if (complete && plan.missingAtVendor.length > 0) {
         newlyMissing = await tx
           .update(Devices)
           .set({ VendorMissingSince: sql`now()` })
@@ -112,21 +117,12 @@ export class DeviceSyncService {
           )
           .returning({ id: Devices.Id, deviceCode: Devices.DeviceCode });
       }
-      return { plan, reappeared, newlyMissing };
+      return { plan, reappeared, newlyMissing, complete };
     });
 
-    // after commit
-    for (const device of outcome.newlyMissing) {
-      await this.alerts.raise({
-        alertType: ALERT_TYPE.DEVICE_VENDOR_MISSING,
-        severity: ALERT_SEVERITY.WARNING,
-        deviceId: device.id,
-        title: `กล้อง ${device.deviceCode} หายจากรายการอุปกรณ์ของ DSS`,
-        message: 'ตรวจรอบล่าสุดไม่พบกล้องนี้ในรายการอุปกรณ์ — ระบบไม่ลบกล้อง กรุณาตรวจที่ DSS',
-        dedupeKey: vendorMissingDedupeKey(device.id),
-      });
-    }
-    for (const device of outcome.reappeared) await this.alerts.resolve(vendorMissingDedupeKey(device.id));
+    // after commit: bring alert 13 in line with VendorMissingSince (also repairs a run that died between the
+    // commit and the alert writes)
+    await this.reconcileAlerts();
 
     const { plan } = outcome;
     if (plan.skips.length > 0) {
@@ -140,9 +136,45 @@ export class DeviceSyncService {
       reappeared: outcome.reappeared.length,
       skipped: plan.skips.length,
       vendorTotal: inventory.devices.length,
-      complete: inventory.complete,
+      complete: outcome.complete,
     };
     this.logger.log(`DeviceSync: ${JSON.stringify(result)}`);
     return result;
+  }
+
+  /**
+   * Every missing camera has had an alert 13 since it went missing (an ADMIN's dismiss counts — not raised
+   * again); every open alert 13 of a camera that is no longer missing is resolved. Idempotent.
+   */
+  private async reconcileAlerts(): Promise<void> {
+    const missing = await this.db.execute<{ id: string; code: string }>(sql`
+      select d."Id"::text as id, d."DeviceCode" as code from "Devices" d
+      where d."IsDeleted" = false and d."VendorMissingSince" is not null
+        and not exists (
+          select 1 from "Alerts" a
+          where a."DeviceId" = d."Id" and a."AlertType" = ${ALERT_TYPE.DEVICE_VENDOR_MISSING}
+            and a."OccurredAt" >= d."VendorMissingSince")
+      order by d."Id"`);
+    for (const device of missing) {
+      try {
+        await this.alerts.raise({
+          alertType: ALERT_TYPE.DEVICE_VENDOR_MISSING,
+          severity: ALERT_SEVERITY.WARNING,
+          deviceId: BigInt(device.id),
+          title: `กล้อง ${device.code} หายจากรายการอุปกรณ์ของ DSS`,
+          message: 'ตรวจรอบล่าสุดไม่พบกล้องนี้ในรายการอุปกรณ์ — ระบบไม่ลบกล้อง กรุณาตรวจที่ DSS',
+          dedupeKey: vendorMissingDedupeKey(device.id),
+        });
+      } catch (error) {
+        this.logger.error(`เขียน alert กล้อง ${device.code} หายไม่สำเร็จ (ลองใหม่รอบถัดไป): ${String(error)}`);
+      }
+    }
+
+    const back = await this.db.execute<{ key: string }>(sql`
+      select a."DedupeKey" as key from "Alerts" a join "Devices" d on d."Id" = a."DeviceId"
+      where a."AlertType" = ${ALERT_TYPE.DEVICE_VENDOR_MISSING} and a."Status" in (1, 2)
+        and (d."VendorMissingSince" is null or d."IsDeleted" = true)
+      order by a."Id"`);
+    for (const alert of back) await this.alerts.resolve(alert.key);
   }
 }
