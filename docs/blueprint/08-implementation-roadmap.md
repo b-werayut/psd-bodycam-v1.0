@@ -81,7 +81,7 @@ flowchart LR
 - `GET /devices` + สถานะกล้องถาม DSS ตอน request (ไม่มี push `device:status` DL35 · DSS device list ครั้งเดียว + cache Redis `cache:{database}:device-status:{deviceId}` — DL45, DL69 · `currentTeam: null` จนถึง P3a — DL73) · `GET /tracking/positions` · `GET /tracking/devices/:id/history`
 - Client: แผนที่ติดตาม (cluster · ตำแหน่งสดผ่าน `gps:batch`), ประวัติเส้นทาง (Must — DL48) · สีสถานะกล้องตาม DL74 · ไม่มีหน้า Bodycam / ทีม / ฐาน (DL53)
 
-**Acceptance criteria** — ผ่านครบบน simulator (`DSS_DRIVER=mock`) แล้ว 2026-11-23 · **ยังค้าง**: ทดสอบกับ DSS จริงผ่าน VPN (จำนวน `Devices` เท่ากับกล้องใน DSS · แผนที่เห็นกล้องที่มี fix · เวลาต่อรอบ poll จริงสำหรับ R3) เพราะยังไม่ได้ค่า `DSS_BASE_URL` / `DSS_API_KEY`
+**Acceptance criteria** — ผ่านครบบน simulator (`DSS_DRIVER=mock`) แล้ว 2026-11-23 · **ทดสอบกับ DSS จริงผ่าน VPN แล้ว 2026-11-24** (`DSS_DRIVER=dss`): JWT ผ่าน · DSS มีกล้อง 1 ตัว (ชนิด `MPT` รุ่น `DH-MPT230` — เข้ากฎ bodycam) ⇒ `Devices` 1 แถว ไม่มีกล้องถูกตั้งหาย · `GET /api/v1/devices` 412 ms · `/location` ~300 ms ต่อกล้อง (รอบ GpsPoll 1 กล้อง 357 ms) · กล้องออฟไลน์แต่ `/location` คืนพิกัดล่าสุด (5 วันก่อน) ⇒ บันทึก 1 จุด หมุดสีเทาแบบจางบนแผนที่ · เวลาต่อรอบที่กล้องจำนวนมากยังวัดไม่ได้จนกว่า DSS มีกล้องมากขึ้น (R3)
 - simulator 100 อุปกรณ์ (DL56): ตำแหน่งบนแผนที่อัปเดตผ่าน `gps:batch` ทุกรอบ GpsPoll · `GET /devices` คืนสถานะที่ได้จาก DSS · เรียกซ้ำภายใน `status.display-cache-seconds` ไม่เรียก DSS ซ้ำ (DL45) · Redis ล่มยังได้สถานะจาก DSS ตรง · ไม่มีอุปกรณ์ถูกข้ามในรอบ poll/sweep
 - กล้องใหม่ใน DSS ปรากฏใน `Devices` ภายใน 1 รอบ `DeviceSync` · กล้องที่หายจาก DSS ได้ `VendorMissingSince` + alert 13 และไม่ถูกลบ (DL53)
 - DSS หลุดแล้วกลับมา / worker restart **ไม่เปลี่ยน `StateSince`** ของอุปกรณ์ที่สถานะไม่เปลี่ยน

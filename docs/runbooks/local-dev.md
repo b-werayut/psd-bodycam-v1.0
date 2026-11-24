@@ -145,7 +145,7 @@ log ที่ควรเห็น: `DeviceSync: {"created":100,…}` แล้�
 
 แล้ว restart api + worker · ระบบเซ็น JWT อายุ 60 วินาทีใหม่ทุกคำขอ ⇒ นาฬิกาเครื่องเรากับเครื่อง DSS ต้องคลาดกันไม่เกิน 30 วินาที (ไม่งั้นได้ 401 ทุกคำขอ) · กล้องที่ชนิดไม่ใช่ bodycam (ชื่อชนิด / รุ่น / ชื่อไม่มีคำว่า body cam หรือ MPT) จะถูกข้ามและมี log `DeviceSync ข้าม …`
 
-ไม่อยากให้ worker บนเครื่องยิง DSS: `GPS_POLL_ENABLED=false` · กล้องจำลองที่ค้างใน DB เมื่อเปลี่ยนเป็น DSS จริงจะถูกตั้ง `VendorMissingSince` + alert 13 (ระบบไม่ลบกล้อง) — ล้าง DB ใหม่ได้ตามข้อ 11 ช่วง dev
+ไม่อยากให้ worker บนเครื่องยิง DSS: `GPS_POLL_ENABLED=false` · สลับ `mock` ⇄ `dss` บน DB เดียวกัน: กล้องของอีกฝั่งที่ค้างใน DB จะถูกตั้ง `VendorMissingSince` + alert 13 (ระบบไม่ลบกล้อง) และ GpsPoll จะถาม `/location` ของกล้องเหล่านั้นไปที่ DSS ทุกรอบ ⇒ ก่อนสลับให้ soft-delete กล้องของอีกฝั่ง (`update "Devices" set "IsDeleted" = true, "DeletedAt" = now() where "VendorDeviceId" like 'SIM-%'` ตอนไป `dss`) หรือล้าง DB ใหม่ตามข้อ 11 · กล้องที่ soft-delete แล้วจะไม่ถูกสร้างซ้ำ (`VendorDeviceId` ห้ามซ้ำตลอดกาล) — กลับไปใช้ simulator ต้องตั้ง `IsDeleted = false` คืน
 
 แผนที่ใช้ tile ของ OpenStreetMap สาธารณะเมื่อไม่ตั้ง `VITE_MAP_TILE_URL` ใน `client/.env` — ใช้ได้เฉพาะ dev
 

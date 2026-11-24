@@ -184,7 +184,7 @@ Invariant สำคัญที่ DB บังคับ:
 | Phase | ผลลัพธ์ | Priority |
 |---|---|---|
 | P0 Foundation | scaffold, port infra, auth + Entra, RBAC/scope (`all` / `team`), migrations (รวมตัด `Departments`), CI, shell + nav 12 เมนู + design system · พนักงาน / ผู้ใช้ระบบ / ผู้ใช้จาก Entra (DL53) | Must |
-| P1 Devices & Tracking | device sync อัตโนมัติจาก DSS (worker), status/GPS ingest, live map, GPS history (Must — DL48), ตาราง `Alerts` + alert 13 (DL66) · simulator `DSS_DRIVER=mock` (DL68) · acceptance ผ่านบน simulator แล้ว — รอทดสอบกับ DSS จริงผ่าน VPN | Must |
+| P1 Devices & Tracking | device sync อัตโนมัติจาก DSS (worker), status/GPS ingest, live map, GPS history (Must — DL48), ตาราง `Alerts` + alert 13 (DL66) · simulator `DSS_DRIVER=mock` (DL68) · acceptance ผ่านบน simulator และทดสอบกับ DSS จริงผ่าน VPN แล้ว (2026-11-24) | Must |
 | P2 Sessions & Work Orders | session engine (`AwaitingMatch` / `IdleOrCharging`), หน้า ใบงาน + รายละเอียด (ใบงานจาก `booking-simulator`) | Must |
 | P3 Booking Integration | P3a inbound endpoint `POST /api/integration/booking/jobs` + inbox + mapper `v1` + simulator → projection + ทีม / หัวหน้าทีมจากใบงาน + upsert WO 1:1 · P3b matching อัตโนมัติ + rematch · P3c Smart Booking go-live: ตกลง contract/auth, mapper `smart-booking` ถ้าจำเป็น, read API adapter (optional), pilot (**ติด Booking spec gate**) | Must |
 | P4 Media | ภาพสดหลายจอ + talk (Must — DL48), ดูสด / ดูย้อนหลังจากหน้า ใบงาน (dialog ดูสดทุกจุดมี talk — DL62), วิดีโอย้อนหลัง `/evidence` + MP4 export (Local disk PVC) | Must |
