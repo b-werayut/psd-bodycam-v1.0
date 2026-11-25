@@ -20,6 +20,8 @@ const route: RouteHistory = {
   truncated: false,
   start: { lat: 13.75, lng: 100.5, at: '2026-11-23T01:00:00.000Z' },
   end: { lat: 13.8, lng: 100.6, at: '2026-11-23T03:00:00.000Z' },
+  totalDistanceM: 13_000,
+  totalDistanceApprox: true,
   segments: [
     [
       [13.75, 100.5],
@@ -38,6 +40,7 @@ const route: RouteHistory = {
       seconds: 3600,
       from: { lat: 13.76, lng: 100.5 },
       to: { lat: 13.79, lng: 100.6 },
+      distanceM: 11_300,
     },
   ],
   timeline: [],

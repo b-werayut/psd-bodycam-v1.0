@@ -50,7 +50,7 @@ const deviceRow = async (vendorId: string) =>
 
 beforeAll(async () => {
   ctx = await bootHttpContext();
-  const ids = await createTestUsers(ctx.sql, [{ username: `${PREFIX}admin`, role: 'ADMIN' }], 'x');
+  const ids = await createTestUsers(ctx.sql, [{ username: `${PREFIX}admin`, role: 'SUPER_ADMIN' }], 'x');
   adminId = ids.get(`${PREFIX}admin`)!;
   full = await new DssMockClient(100).listDevices();
 });
@@ -153,7 +153,7 @@ describe('DeviceSyncService.syncOnce', () => {
     expect(alerts.map((a) => a.Status)).toEqual([1]);
     expect(emits.filter(([, event]) => event === 'alert:new')).toHaveLength(1);
 
-    // an ADMIN dismissed it: not raised again while the camera stays missing
+    // an SUPER_ADMIN dismissed it: not raised again while the camera stays missing
     await ctx.sql`update "Alerts" set "Status" = 4 where "AlertType" = 13`;
     await service.syncOnce();
     expect(await ctx.sql`select 1 from "Alerts" where "AlertType" = 13`).toHaveLength(1);

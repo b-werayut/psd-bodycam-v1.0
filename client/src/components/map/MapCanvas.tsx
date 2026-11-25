@@ -1,6 +1,7 @@
 import 'leaflet/dist/leaflet.css';
+import type { ControlPosition } from 'leaflet';
 import { useState, type ReactNode } from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
+import { MapContainer, TileLayer, ZoomControl } from 'react-leaflet';
 
 import { useLanguage } from '@/i18n/useLanguage';
 import { cn } from '@/lib/utils';
@@ -11,11 +12,13 @@ export function MapCanvas({
   center = MAP_DEFAULT_CENTER,
   zoom = MAP_DEFAULT_ZOOM,
   className,
+  zoomControlPosition = 'topleft',
   children,
 }: {
   center?: [number, number];
   zoom?: number;
   className?: string;
+  zoomControlPosition?: ControlPosition;
   children?: ReactNode;
 }) {
   const { t } = useLanguage();
@@ -24,7 +27,8 @@ export function MapCanvas({
 
   return (
     <div className={cn('relative isolate h-full min-h-[320px] w-full', className)}>
-      <MapContainer center={center} zoom={zoom} className="h-full w-full" preferCanvas>
+      <MapContainer center={center} zoom={zoom} className="h-full w-full" zoomControl={false} preferCanvas>
+        <ZoomControl position={zoomControlPosition} />
         <TileLayer
           url={tiles.url}
           attribution={tiles.attribution}

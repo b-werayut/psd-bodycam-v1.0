@@ -1,16 +1,19 @@
 import L from 'leaflet';
-import { RotateCw, TriangleAlert } from 'lucide-react';
+import { ListFilter, RotateCw, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { PageHeader } from '@/components/command-center';
+import bodycamOffline from '@/assets/markers/bodycam-offline.png';
+import bodycamOnline from '@/assets/markers/bodycam-online.png';
 import { MapCanvas } from '@/components/map/MapCanvas';
 import { MarkerClusterLayer, type ClusterMarker } from '@/components/map/MarkerClusterLayer';
 import type { DeviceDisplayState } from '@/components/status/deviceStateTone';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useLanguage } from '@/i18n/useLanguage';
-import { CameraCard } from './components/CameraCard';
 import { CameraListPanel, type StateFilter } from './components/CameraListPanel';
+import { LiveMapViewport } from './components/LiveMapViewport';
+import { TrackingViewSwitch } from './components/TrackingViewSwitch';
 import { isStaleFix } from './positionAge';
 import { useLivePositions } from './useLivePositions';
 
@@ -24,9 +27,9 @@ function markerIcon(state: DeviceDisplayState, stale: boolean, selected: boolean
     const attrs = `data-state="${state}"${stale ? ' data-stale' : ''}${selected ? ' data-selected' : ''}`;
     icon = L.divIcon({
       className: 'tracking-marker-icon',
-      html: `<span class="tracking-marker" ${attrs}></span>`,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
+      html: `<span class="tracking-marker" ${attrs}><img class="tracking-marker__pin" src="${state === 'online' ? bodycamOnline : bodycamOffline}" alt="" /></span>`,
+      iconSize: [40, 48],
+      iconAnchor: [20, 46],
     });
     iconCache.set(key, icon);
   }
@@ -50,6 +53,7 @@ export function LiveMapPage() {
   const [search, setSearch] = useState('');
   const [state, setState] = useState<StateFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   // a stopped pipeline sends nothing: markers must still dim as their fix ages (review #7)
   const now = useNow(15_000);
 
@@ -81,47 +85,57 @@ export function LiveMapPage() {
     [filtered, fixActiveSeconds, selectedId, now],
   );
 
-  const selected = devices.find((d) => d.id === selectedId) ?? null;
+  const listPanel = (
+    <CameraListPanel
+      devices={filtered} allDevices={devices} search={search}
+      onSearch={(value) => { setSearch(value); setSelectedId(null); }}
+      state={state} onState={(value) => { setState(value); setSelectedId(null); }}
+      selectedId={selectedId}
+      onSelect={(id) => { setSelectedId(id); setMobilePanelOpen(false); }}
+      onClearSelection={() => setSelectedId(null)} now={now} fixActiveSeconds={fixActiveSeconds} isPending={isPending}
+    />
+  );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <PageHeader title={t('navigation.tracking')} description={t('tracking.live.description')} />
-
-      {isError ? (
-        <Alert variant="destructive" className="mb-3">
-          <TriangleAlert aria-hidden="true" />
-          <div>
-            <AlertTitle>{t('tracking.loadFailed')}</AlertTitle>
-            <AlertDescription>
-              <Button type="button" variant="outline" size="sm" className="mt-2 gap-2" onClick={() => void refetch()}>
-                <RotateCw aria-hidden="true" className="size-4" />
-                {t('tracking.retry')}
-              </Button>
-            </AlertDescription>
-          </div>
-        </Alert>
-      ) : null}
-
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="h-[60vh] min-h-[360px] overflow-hidden rounded-xl border border-border lg:h-auto">
-          <MapCanvas>
+    <Dialog open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
+      <section aria-labelledby="tracking-page-title" className="relative isolate min-h-0 flex-1 overflow-hidden bg-muted">
+        <h1 id="tracking-page-title" className="sr-only">{t('navigation.tracking')}</h1>
+        <div className="absolute inset-0 z-0">
+          <MapCanvas zoomControlPosition="topright" className="tracking-live-map">
             <MarkerClusterLayer markers={markers} />
+            <LiveMapViewport markers={markers} selectedId={selectedId} />
           </MapCanvas>
         </div>
-        <aside className="flex min-h-0 flex-col gap-4" aria-busy={isPending}>
-          {selected ? <CameraCard device={selected} now={now} onClose={() => setSelectedId(null)} /> : null}
-          <CameraListPanel
-            devices={filtered}
-            total={devices.length}
-            search={search}
-            onSearch={setSearch}
-            state={state}
-            onState={setState}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
+        <aside aria-busy={isPending} className="absolute bottom-5 left-5 top-5 z-[500] hidden w-[380px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:flex">
+          {listPanel}
         </aside>
-      </div>
-    </div>
+        <div className="absolute inset-x-3 top-3 z-[500] flex flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-sm lg:hidden">
+          <div>
+            <p className="text-lg font-semibold">{t('navigation.tracking')}</p>
+            <p className="text-xs text-muted-foreground">{t('tracking.list.count', { shown: filtered.length, total: devices.length })}</p>
+          </div>
+          <TrackingViewSwitch />
+          <DialogTrigger asChild><Button type="button" className="w-full"><ListFilter aria-hidden="true" />{t('tracking.list.open')}</Button></DialogTrigger>
+        </div>
+        {isError ? (
+          <Alert variant="destructive" className="absolute bottom-3 right-3 z-[500] w-[calc(100%-1.5rem)] bg-card lg:max-w-sm">
+            <TriangleAlert aria-hidden="true" />
+            <div>
+              <AlertTitle>{t('tracking.loadFailed')}</AlertTitle>
+              <AlertDescription><Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => void refetch()}>
+                <RotateCw aria-hidden="true" />{t('tracking.retry')}
+              </Button></AlertDescription>
+            </div>
+          </Alert>
+        ) : null}
+      </section>
+      <DialogContent closeLabel={t('tracking.list.close')} className="max-h-[88dvh] overflow-hidden p-0 lg:hidden">
+        <DialogHeader className="shrink-0 px-4 pt-4">
+          <DialogTitle>{t('tracking.list.label')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('tracking.live.description')}</DialogDescription>
+        </DialogHeader>
+        {listPanel}
+      </DialogContent>
+    </Dialog>
   );
 }

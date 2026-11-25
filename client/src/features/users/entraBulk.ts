@@ -33,6 +33,10 @@ export function planBulkCreate(rows: EntraDirectoryRow[]): BulkCandidate[] {
     const values = userFormFromEntra({
       upn: row.userPrincipalName,
       displayName: row.displayName,
+      givenName: row.givenName,
+      surname: row.surname,
+      mobilePhone: row.mobilePhone,
+      businessPhones: row.businessPhones,
       mail: row.mail,
       oid: row.id,
     });

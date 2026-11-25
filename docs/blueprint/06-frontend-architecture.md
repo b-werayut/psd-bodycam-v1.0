@@ -15,7 +15,7 @@
 | Client state | Zustand เฉพาะ auth (`stores/authStore.ts`) · Context สำหรับ Realtime/Theme/Language | ตาม reference |
 | HTTP | axios + single-flight refresh (`lib/apiClient.ts`) | port ตรง |
 | Realtime | socket.io-client 4 (`lib/socket.ts`, `providers/RealtimeProvider.tsx`) | port + event ใหม่ |
-| Map | Leaflet 1.9 + react-leaflet 4 | เพิ่ม `leaflet.markercluster` (กล้องประมาณ 100 ตัว — DL56) · tile ตั้งด้วย env `VITE_MAP_TILE_URL` / `VITE_MAP_TILE_ATTRIBUTION` (`components/map/mapConfig.ts`) · ไม่ตั้ง ⇒ tile สาธารณะของ OpenStreetMap ซึ่งใช้ได้เฉพาะ dev — production ต้องตั้งเป็น tile server ของเราหรือผู้ให้บริการที่มี SLA (public OSM ไม่รองรับโหลด) |
+| Map | Leaflet 1.9 + react-leaflet 4 | เพิ่ม `leaflet.markercluster` (กล้องประมาณ 100 ตัว — DL56) · tile ตั้งด้วย env `VITE_MAP_TILE_URL` / `VITE_MAP_TILE_ATTRIBUTION` (`components/map/mapConfig.ts`) · ไม่ตั้ง ⇒ tile สาธารณะของ OpenStreetMap ซึ่งใช้ได้เฉพาะ dev — production ต้องตั้งเป็น tile server ของเราหรือผู้ให้บริการที่มี SLA (public OSM ไม่รองรับโหลด) · ค่าของ production อยู่ใน `client/.env.production` ที่ commit (pipeline ไม่ส่ง build arg — ตัวอย่าง `client/.env.production.example`) |
 | Video | hls.js (dynamic import) | port `StreamPlayer` |
 | Talk | AudioWorklet + raw WebSocket | port `features/talk` |
 | Auth SSO | `@azure/msal-browser` (lazy) | port `msalClient.ts` |
@@ -33,7 +33,7 @@ client/src/
   app/
     router.tsx              # createBrowserRouter + lazy routes
     routeAccess.ts          # path → permission (port lib/routeAccess.ts)
-    nav.ts                  # เมนู 12 รายการ 4 กลุ่ม (port lib/nav.ts · DL53)
+    nav.ts                  # เมนู 11 รายการ 4 กลุ่ม (port lib/nav.ts · DL53)
     providers.tsx           # QueryClient, Theme, Language, Realtime, Motion
     RequireAuth.tsx  RequirePermission.tsx  NotFoundPage.tsx  RouteErrorPage.tsx
     MobileOnlyPage.tsx      # "ใช้งานผ่านแอปมือถือ" สำหรับ TEAM_LEADER (DL47 — ไม่มี web UI)
@@ -59,7 +59,6 @@ client/src/
     work-orders/            # WorkOrdersPage (ตาราง + แท็บสถานะ + คอลัมน์กล้อง — DL53), WorkOrderDetailPage, workOrders.api.ts, workOrderActions.ts
                             # (อ่านอย่างเดียว — ใบงานและสถานะมาจาก Booking · DL33)
     evidence/               # EvidencePage — วิดีโอย้อนหลัง รายกล้อง (เลือกกล้อง + วัน → ไฟล์ทุกช่วง + ป้ายใบงาน — DL59), evidenceCameras.ts (กล้องของใบงาน: sessions + DeviceRefs), evidenceRange.ts (ช่วง ≤ 24 ชม. · ตัดให้อยู่ใน workWindow เมื่อเปิดจากใบงาน)
-    employees/              # (port, ตัด company / แผนก · ฟิลด์ BookingEmployeeRef)
     users/                  # UsersPage (port, ตัด company / แผนก) + EntraUsersPage, entraSync.ts, entraBulk.ts (port — ผู้ใช้จาก Entra · DL53)
     notifications/  audit/  settings/
                             # ไม่มี sessions/, recordings/, devices/, teams/, integration/, departments/ (DL53)
@@ -91,7 +90,6 @@ client/src/
 | `/evidence` | วิดีโอย้อนหลัง (หน้า หลักฐาน เดิม — DL53) — ค้นรายกล้อง: เลือกกล้อง + วัน → ไฟล์ทุกช่วง (ป้ายใบงาน / ไม่ผูกใบงาน) → ดูย้อนหลัง / ดาวน์โหลด MP4 (DL59) | `playback:view` + `devices:read` (export / download ต้องมี `evidence:export` / `evidence:download`) | shell |
 | `/tracking` | แผนที่ติดตาม | `tracking:view` | shell full-bleed |
 | `/tracking/history` | ประวัติเส้นทาง (`?deviceId&from&to`) | `tracking:history` | shell full-bleed |
-| `/employees` | พนักงาน | `org:read` (แก้ไข `org:manage`) | shell |
 | `/users` | ผู้ใช้ระบบ (+ matrix สิทธิ์) | `users:read` | shell |
 | `/entra-users` | ผู้ใช้จาก Entra (port หน้าเดียวกันของ reference — DL53) | `users:manage` | shell |
 | `/notifications` | แจ้งเตือน (notifications + alerts) | `notifications:read` หรือ `alerts:view` | shell |
@@ -104,7 +102,7 @@ client/src/
 - ทุก route `lazy` + `HydrateFallback = LoadingSkeleton` (pattern เดิม) · `errorElement = RouteErrorPage`
 - **ใช้ path จริงสำหรับ detail** (`/work-orders/:id`) — แทน `?open=<id>` dialog ของ reference เพื่อให้ deep link จาก alert / การแจ้งเตือน / Booking app ใช้ได้
 - `RequirePermission` แสดงการ์ด "ไม่มีสิทธิ์" พร้อมรายชื่อ permission (พฤติกรรมเดิม)
-- เมนู / route: `ADMIN` เห็นทุกอย่าง (bypass) · role อื่นตาม permission — `COMPANY_ADMIN` (DL51) จึงไม่เห็น ประวัติการใช้งาน และ ตั้งค่าระบบ (เห็น 10 จาก 12 เมนู) และเปิด URL ตรงได้การ์ด "ไม่มีสิทธิ์" · ตารางเมนู × role อยู่ใน [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §4.2
+- เมนู / route: `SUPER_ADMIN` เห็นทุกอย่าง (bypass) · role อื่นตาม permission — `ADMIN` (DL51) จึงไม่เห็น ประวัติการใช้งาน และ ตั้งค่าระบบ (เห็น 10 จาก 11 เมนู) และเปิด URL ตรงได้การ์ด "ไม่มีสิทธิ์" · ตารางเมนู × role อยู่ใน [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §4.2
 - **`TEAM_LEADER` ไม่มี web UI (DL47)**: `RequireAuth` อ่าน role จาก `/auth/me` · role = `TEAM_LEADER` ⇒ redirect ไป `/mobile-only` ทุก route (รวม deep link `/work-orders/by-booking/...`) · ไม่โหลด shell / `RealtimeProvider` · ไม่ใช้การ์ด "ไม่มีสิทธิ์" เพราะผู้ใช้ไม่ได้ผิดสิทธิ์ แค่ใช้ผิดช่องทาง
 
 ```mermaid
@@ -114,24 +112,24 @@ flowchart TB
   AUTH --> SHELL["AppLayout<br/>Sidebar + Header + RealtimeProvider"]
   SHELL --> OV["ภาพรวม<br/>แดชบอร์ด"]
   SHELL --> OPS["ปฏิบัติงาน<br/>ภาพสดหลายจอ · ใบงาน · วิดีโอย้อนหลัง<br/>แผนที่ติดตาม · ประวัติเส้นทาง"]
-  SHELL --> PPL["ผู้ใช้และพนักงาน<br/>พนักงาน · ผู้ใช้ระบบ · ผู้ใช้จาก Entra"]
+  SHELL --> PPL["ผู้ใช้และสิทธิ์<br/>ผู้ใช้ระบบ · ผู้ใช้จาก Entra"]
   SHELL --> SYS["ระบบ<br/>แจ้งเตือน · ประวัติการใช้งาน · ตั้งค่าระบบ"]
   LOGIN["/login"] -.-> AUTH
 ```
 
 ### Navigation groups (`app/nav.ts`)
 
-เมนู web มี **12 รายการ 4 กลุ่ม** เท่านั้น (DL53 · แทนเมนูหลัก Live + หลักฐาน ของ DL36)
+เมนู web มี **11 รายการ 4 กลุ่ม** เท่านั้น (DL53 · แทนเมนูหลัก Live + หลักฐาน ของ DL36)
 
 | กลุ่ม | รายการ |
 |---|---|
 | ภาพรวม | แดชบอร์ด (`/`) |
 | ปฏิบัติงาน | ภาพสดหลายจอ (`/live-wall`) · ใบงาน (`/work-orders`) · วิดีโอย้อนหลัง (`/evidence`) · แผนที่ติดตาม (`/tracking`) · ประวัติเส้นทาง (`/tracking/history`) |
-| ผู้ใช้และพนักงาน | พนักงาน (`/employees`) · ผู้ใช้ระบบ (`/users`) · ผู้ใช้จาก Entra (`/entra-users`) |
+| ผู้ใช้และสิทธิ์ | ผู้ใช้ระบบ (`/users`) · ผู้ใช้จาก Entra (`/entra-users`) |
 | ระบบ | แจ้งเตือน (`/notifications`) · ประวัติการใช้งาน (`/audit-logs`) · ตั้งค่าระบบ (`/settings`) |
 
 - ไม่มีเมนู Live รายกล้อง (ใช้ ภาพสดหลายจอ หรือปุ่ม ดูสด ในหน้า ใบงาน) · ไม่มีเมนู Bodycam, ทีม, ฐาน/จุดชาร์จ, สถานะการเชื่อมต่อ, Tracking sessions, บันทึกวิดีโอรายกล้อง, งานจาก Booking, แผนก (DL53)
-- สถานะการเชื่อมต่อ Booking เหลือแถบ stale (`BookingStaleBanner`) + alert ถึง `ADMIN` ในหน้า แจ้งเตือน (DL53)
+- สถานะการเชื่อมต่อ Booking เหลือแถบ stale (`BookingStaleBanner`) + alert ถึง `SUPER_ADMIN` ในหน้า แจ้งเตือน (DL53)
 
 ---
 
@@ -143,20 +141,21 @@ flowchart TB
 | **แผนที่ติดตาม** | แผนที่ Leaflet + `leaflet.markercluster` · marker 3 สถานะ (online/offline/unknown — ค่าจาก snapshot ตอนเปิดหน้า, DL35) · marker จางเมื่อ fix เก่ากว่า `fixActiveSeconds` ของ snapshot · panel รายการกล้อง (ค้นหา + filter สถานะ) · คลิก = การ์ดกล้อง + ลิงก์ ประวัติเส้นทาง (เมื่อมี `tracking:history`) · `gps:batch` รวมแล้วใช้ทีละ 1 วินาที · snapshot poll ทุก 60 วินาทีเฉพาะตอน socket หลุด · reconnect ⇒ refetch — ที่มีใน P1 (`features/tracking/LiveMapPage.tsx`) · phase ถัดไปเพิ่ม: halo เมื่อมี session, filter ทีม / มีงาน, ทีม / WO ปัจจุบัน / Booking บนการ์ด และวงรัศมีสถานที่ Booking (P2 / P3a) · ปุ่ม ดูสด (`LiveStreamDialog` + talk — DL62 · P4) | `/tracking/positions` | `gps:batch` (ตำแหน่ง), `session:*` (P2) |
 | **ใบงาน** (DL53) | ตารางใบงานจาก Booking · แท็บสถานะ (ทั้งหมด / รอเริ่ม / กำลังดำเนินการ / ปิดแล้ว / ยกเลิก) · คอลัมน์: ใบงาน (เลข WO + DO / SH) · รายการ (ชื่องาน · "ปฏิบัติงานจริง" `workWindow` หรือ "รอเริ่ม" + เวลาแผน · สถานที่) · ผู้ปฏิบัติงาน (ทีม / หัวหน้าตาม Booking) · **กล้องของใบงาน** (`cameras[]` + สถานะ + ปุ่ม **ดูสด** เมื่อออนไลน์ → `LiveStreamDialog` · ต้องมี `streaming:view-live` · ปุ่ม talk ใน dialog ต้องมี `streaming:talk` — DL62) · สถานะ (+ ป้าย NeedsReview) · ปุ่ม **ดูย้อนหลัง** (`playback:view` · เฉพาะใบที่ check-in แล้ว) เปิด `EvidencePlaybackDialog` ที่แสดงเฉพาะไฟล์ในช่วง `workWindow` (DL59) · filter ทีม, ช่วงเวลา, ต้องตรวจสอบ · ค้นหาเลข WO / Booking / DO / SH · คลิกแถว = `/work-orders/:id` · `VIEWER` เห็นตารางอย่างเดียว (ไม่มีปุ่ม) | `/work-orders`, `/streams/live`, `/work-orders/:id/sessions`, `/streams/recordings` | `workorder:changed`, `session:*` |
 | **รายละเอียดใบงาน** | อ่านอย่างเดียว — Header: เลข, สถานะ (ตาม Booking), ป้าย NeedsReview + เหตุผล (ข้อมูลเท่านั้น), ปุ่มตาม `availableActions` (หมายเหตุ, ดูวิดีโอ — เปิด `EvidencePlaybackDialog` ของใบงาน เฉพาะช่วง `workWindow` · DL59) · **Booking Reference panel** (รวมเลข DO / SH — DL46) · Timeline (`events`) · Sessions (กล้อง, ช่วงเวลา, เหตุผลจบ) · แผนที่เส้นทางของช่วง WO · Recordings ในช่วงใบงาน + ปุ่มดูย้อนหลัง/Export MP4 · Match attempts (เหตุผลที่ระบบผูก session) · หมายเหตุ · ไม่มี link / unlink / void (DL33) | `/work-orders/:id` + sub-resources | `workorder:changed`, `session:*` |
-| **Booking Reference Information** | (1) panel ใน WO detail: เลข/ชื่องาน, **เลข DO / SH** (DL46), สถานะ Booking (raw + canonical), **เวลา check-in / check-out** (เป็นตัวกำหนดสถานะใบงาน), กล้องที่ Booking ระบุ (`deviceRefs`), แผนเวลา, สถานที่, ทีม/หัวหน้าตาม Booking, `lastSyncedAt` (ได้รับข้อมูลล่าสุดเมื่อ) + ป้าย stale, ปุ่ม refresh เฉพาะเมื่อมี `refreshBooking` ใน `availableActions` (มี read API — DL46) · ไม่มีปุ่ม "ดูข้อมูลดิบ" และไม่มีหน้า `/booking-jobs` แยก (DL52, DL53) · mapping issue แจ้ง `ADMIN` ด้วย alert รายวัน (ไม่มีหน้า integration — DL53) | `/work-orders/:id` | `integration:status` |
-| **ประวัติเส้นทาง** | port HistoryPage: เลือกกล้อง + วัน (1 วันตามเวลา Asia/Bangkok 00:00–24:00) หรือช่วง ≤ 24 ชม. ที่มากับลิงก์ · URL `?deviceId&from&to` · polyline + จุดหยุด + gap, timeline คลิกโฟกัส · **ไม่ refetch เอง** (ทุกคำขอถูก audit `VIEW_GPS_HISTORY`) — โหลดเมื่อผู้ใช้เปลี่ยนกล้อง / วันเท่านั้น · phase ถัดไปเพิ่ม: แถบ session/WO บน timeline (P2) · ตัด road-match | `/devices`, `/tracking/devices/:id/history` | — |
+| **Booking Reference Information** | (1) panel ใน WO detail: เลข/ชื่องาน, **เลข DO / SH** (DL46), สถานะ Booking (raw + canonical), **เวลา check-in / check-out** (เป็นตัวกำหนดสถานะใบงาน), กล้องที่ Booking ระบุ (`deviceRefs`), แผนเวลา, สถานที่, ทีม/หัวหน้าตาม Booking, `lastSyncedAt` (ได้รับข้อมูลล่าสุดเมื่อ) + ป้าย stale, ปุ่ม refresh เฉพาะเมื่อมี `refreshBooking` ใน `availableActions` (มี read API — DL46) · ไม่มีปุ่ม "ดูข้อมูลดิบ" และไม่มีหน้า `/booking-jobs` แยก (DL52, DL53) · mapping issue แจ้ง `SUPER_ADMIN` ด้วย alert รายวัน (ไม่มีหน้า integration — DL53) | `/work-orders/:id` | `integration:status` |
+| **ประวัติเส้นทาง** | port HistoryPage: เลือกกล้อง + ช่วง เริ่ม–สิ้นสุด (วัน + เวลา Asia/Bangkok) ≤ 36 ชม. ข้ามวันได้ (DL77) — ค่าเริ่มต้นทั้งวัน 00:00–24:00 · ช่องเป็นร่าง: โหลดเมื่อกด ดูเส้นทาง / ทั้งวัน / วันก่อน–ถัดไป (เลื่อนทั้งช่วง 24 ชม.) / เปลี่ยนกล้อง · ช่วงผิด (ไม่ครบ, สิ้นสุดก่อนเริ่ม, เกิน 36 ชม., เริ่มในอนาคต) กดดูไม่ได้ · ช่องที่แก้แล้วยังไม่โหลดขึ้น "ช่วงในช่องยังไม่ได้โหลด" · ใต้ช่องแสดง "ช่วงที่แสดง" (ช่วงที่โหลดจริง) เสมอ · กด ดูเส้นทาง ซ้ำบนช่วงเดิม = โหลดใหม่ (ลองใหม่ / ดูยอดล่าสุดของวันนี้) · แถวลำดับเหตุการณ์มีวันเมื่อช่วงคร่อมวัน · URL `?deviceId&from&to` · polyline + จุดหยุด + gap, timeline คลิกโฟกัส · ระยะทางรวมของช่วงที่เลือกในสรุป และระยะจากจุดแวะก่อนหน้า (จุดแวะแรกนับจากจุดเริ่ม) ในแถวจุดแวะ · gap แสดงระยะเส้นตรง · ระยะที่ข้ามช่วงไม่มีสัญญาณขึ้น `≈` (DL76) · ต่ำกว่า 1 กม. แสดงเป็นเมตร · **ไม่ refetch เอง** (ทุกคำขอถูก audit `VIEW_GPS_HISTORY`) — โหลดเฉพาะเมื่อผู้ใช้สั่ง (ปุ่ม / เปลี่ยนกล้อง) เท่านั้น · phase ถัดไปเพิ่ม: แถบ session/WO บน timeline (P2) · ตัด road-match | `/devices`, `/tracking/devices/:id/history` | — |
 | **วิดีโอย้อนหลัง (Evidence)** — หน้า หลักฐาน เดิมเปลี่ยนชื่อ (DL53) · ค้นรายกล้อง (DL59) | (1) toolbar: เลือกกล้อง (ทุกกล้อง · ค้นรหัส / ชื่อ) + วัน (ย้อนหลังได้ 3 เดือน · ค้นครั้งละ ≤ 24 ชม.) → (2) panel ไฟล์บันทึกทุกช่วงของกล้อง: ช่วงเวลา + ระยะเวลา + ป้ายใบงาน (เลข WO คลิกไป `/work-orders/:id`) หรือ "ไม่ผูกใบงาน" → (3) player + ปรับช่วง (≤ 24 ชม., `evidenceRange`) → ดูย้อนหลัง หรือดาวน์โหลด MP4 (ใช้ export job เดิมเมื่อ device + channel + start/end ตรงกันและยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่) · player / panel / export ใช้ component เดียวกับ `EvidencePlaybackDialog` (port `features/evidence` ของ reference) · alert `RECORDING_OUTSIDE_WORK` ลิงก์มาหน้านี้พร้อมกล้อง + วัน | `/devices`, `/streams/recordings`, `/streams/playback`, `/evidence-exports*` | `stream:status` |
 | **dialog ดูวิดีโอของใบงาน** (`EvidencePlaybackDialog` — จากหน้า ใบงาน / รายละเอียดใบงาน · DL59) | เลือกกล้อง (กล้องจาก sessions ของใบงาน + กล้องใน `DeviceRefs` ที่ไม่มี session · `evidenceCameras`) + บรรทัด "ใช้ในใบงานนี้" (ช่วง session ของกล้อง) · panel เฉพาะไฟล์ที่ทับ `workWindow` (ส่วนที่อยู่นอกช่วงตัดออก) · ปรับช่วงได้เฉพาะใน `workWindow` (≤ 24 ชม.) → ดูย้อนหลัง / ดาวน์โหลด MP4 · เปิดได้เฉพาะใบที่ check-in แล้ว | `/work-orders/:id/sessions`, `/streams/recordings?workOrderId=`, `/streams/playback`, `/evidence-exports*` | `stream:status`, `workorder:changed` |
 | **ภาพสดหลายจอ** (live wall — DL53 แทนเมนู Live ของ DL36) | port ทั้งหน้า (1/4/6/9/16, drag-drop, slot ใน URL, talk) · รายการกล้องจัดกลุ่มตามทีม · สถานะกล้องดึงตอนเปิดหน้า (DL35) · เป็นทางเดียวที่ดูวิดีโอของกล้องที่ไม่มีใบงาน — ภาพสดเมื่อออนไลน์ ไม่มีย้อนหลังรายกล้อง (DL53) | `/streams/*`, `/devices` | `stream:status` |
-| **พนักงาน** | port `/employees` (ตัด company / แผนก) · ฟิลด์ `BookingEmployeeRef` (ใช้ map หัวหน้าทีมจากใบงาน — DL53) · ผูกบัญชีผู้ใช้ (`Employees.UserId`) | `/employees` | — |
-| **ผู้ใช้ระบบ** | port `/users` (ตัด company / แผนก) + role-permission matrix + ระงับบัญชี · **`COMPANY_ADMIN` (DL51)**: ไม่เห็นบัญชี `ADMIN` ในรายการเลย (server ไม่คืน — DL55) · ปุ่มต่อแถวตาม `availableActions` · dropdown บทบาทไม่มี `ADMIN` · matrix: คอลัมน์ `ADMIN` ล็อก, ช่อง `reservedPermissions` ล็อกในคอลัมน์ role อื่น, ผู้ไม่มี `roles:manage` เห็นแบบอ่านอย่างเดียว (ไม่มีปุ่มบันทึก) · แบบหน้าจอ [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §5.5–5.7 | `/users`, `/roles` | `session:revoked` |
-| **ผู้ใช้จาก Entra** (DL53) | port `EntraUsersPage` ของ reference: ตารางผู้ใช้จาก Microsoft Entra เทียบกับบัญชีในระบบ (สถานะ อัปเดตได้ / ผูกแล้ว / ยังไม่มีบัญชี / ขัดแย้ง · ตัวกรอง "เฉพาะที่ยังไม่มีบัญชี") · ปุ่มอัปเดตข้อมูลจาก Entra (`sync-entra` — dry run ก่อนแล้วยืนยัน · ตัวเลือกจับคู่ด้วย username) · **สร้างบัญชี**จากแถวที่ยังไม่มีบัญชี: ทีละรายการ (ฟอร์มผู้ใช้ที่เติมค่าจาก Entra) หรือเลือกหลายรายการ ≤ 50 แล้วกำหนดบทบาทเดียวกัน · `COMPANY_ADMIN` เลือกบทบาท `ADMIN` ไม่ได้ (DL51) · ไม่ได้ตั้งค่า Graph ⇒ แสดงข้อความ env ที่ขาด | `/users/entra-directory`, `/users/sync-entra`, `POST /users`, `/roles` | — |
+| **ผู้ใช้ระบบ** | port `/users` (ตัด company / แผนก) + role-permission matrix + ระงับบัญชี · **`ADMIN` (DL51)**: ไม่เห็นบัญชี `SUPER_ADMIN` ในรายการเลย (server ไม่คืน — DL55) · ปุ่มต่อแถวตาม `availableActions` · dropdown บทบาทไม่มี `SUPER_ADMIN` · matrix: คอลัมน์ `SUPER_ADMIN` ล็อก, ช่อง `reservedPermissions` ล็อกในคอลัมน์ role อื่น, ผู้ไม่มี `roles:manage` เห็นแบบอ่านอย่างเดียว (ไม่มีปุ่มบันทึก) · แบบหน้าจอ [`docs/design/2026-11-17-paper-ui-brief.md`](../design/2026-11-17-paper-ui-brief.md) §5.5–5.7 | `/users`, `/roles` | `session:revoked` |
+| **ผู้ใช้จาก Entra** (DL53) | port `EntraUsersPage` ของ reference: ตารางผู้ใช้จาก Microsoft Entra เทียบกับบัญชีในระบบ (สถานะ อัปเดตได้ / ผูกแล้ว / ยังไม่มีบัญชี / ขัดแย้ง · ตัวกรอง "เฉพาะที่ยังไม่มีบัญชี") · ปุ่มอัปเดตข้อมูลจาก Entra (`sync-entra` — dry run ก่อนแล้วยืนยัน · ตัวเลือกจับคู่ด้วย username) · **สร้างบัญชี**จากแถวที่ยังไม่มีบัญชี: ทีละรายการ (ฟอร์มผู้ใช้ที่เติมค่าจาก Entra) หรือเลือกหลายรายการ ≤ 50 แล้วกำหนดบทบาทเดียวกัน · `ADMIN` เลือกบทบาท `SUPER_ADMIN` ไม่ได้ (DL51) · ไม่ได้ตั้งค่า Graph ⇒ แสดงข้อความ env ที่ขาด | `/users/entra-directory`, `/users/sync-entra`, `POST /users`, `/roles` | — |
 | แจ้งเตือน, ประวัติการใช้งาน, ตั้งค่าระบบ | port (notifications + alerts · audit log · settings + stream access ต่อ role) | | `alert:new` |
 | **ใช้งานผ่านแอปมือถือ** (`/mobile-only`) | สำหรับ `TEAM_LEADER` ที่ login web (DL47): ข้อความว่าบัญชีนี้ใช้กับแอปมือถือ + ปุ่มออกจากระบบ · ไม่มีเมนู ไม่มีข้อมูลงาน | `/auth/me` | — |
 
 ---
 
 ## 6.5 Component Reuse Strategy
+
+หน้าผู้ใช้ระบบมีคอลัมน์เบอร์โทร (ว่างแสดง `—`) · ช่องชื่อผู้ใช้แก้ได้เมื่อยังไม่เชื่อม Microsoft แม้มีอีเมล ส่วนบัญชีที่เชื่อมแล้วและฟอร์มเพิ่มจาก Entra ยังคง disabled พร้อมเหตุผล · เปลี่ยนชื่อบัญชีตนเองแล้ว header แสดงชื่อใหม่ทันที · dropdown บทบาทในฟอร์มเพิ่ม/แก้ไขและเพิ่มจาก Entra หลายบัญชีกรอง `SUPER_ADMIN` สำหรับผู้ที่ไม่ใช่ `SUPER_ADMIN` และแยก cache ตามผู้เรียก (DL83)
 
 | ระดับ | Component | ที่มา | การกระทำ |
 |---|---|---|---|
@@ -207,7 +206,7 @@ flowchart TB
 
 - Unit: pure logic ทุกไฟล์ (`workOrderActions.ts`, `evidenceCameras.ts`, `evidenceRange.ts` รวม `inWorkWindow` — ทับบางส่วน / ขอบพอดี / `to = null` / ไม่มี `workWindow`, status mapping, filters) · component test ด้วย Testing Library (pattern เดิม, `src/test/setup.ts` บล็อก XHR จริง)
 - Design guard tests ของ reference (`design-foundation.test.ts`, `design-system-source-rules.test.ts`) — port มาด้วยเพื่อกันการหลุด design rules
-- E2E (Playwright) ชุดเล็กเฉพาะ flow หลัก: login → map → (`booking-simulator` POST check-in) → หน้า ใบงาน แสดงใบงาน + กล้อง (ปุ่ม ดูสด เมื่อออนไลน์) → รายละเอียดใบงานแสดง session ที่ระบบผูก + เลข DO / SH → ดูย้อนหลังจากใบงาน: เลือกกล้อง + ช่วงเวลาในช่วงใบงาน → playback / export → หน้า วิดีโอย้อนหลัง: เลือกกล้อง + วัน เห็นทั้งไฟล์ที่ผูกใบงานและไม่ผูก → (`booking-simulator` POST check-out) → ใบงานปิด · sidebar มี 12 เมนูสำหรับ `ADMIN` และ 10 เมนูสำหรับ `COMPANY_ADMIN` (DL53) · login ด้วยบัญชี `TEAM_LEADER` ⇒ เห็นหน้า `/mobile-only` (DL46, DL47)
+- E2E (Playwright) ชุดเล็กเฉพาะ flow หลัก: login → map → (`booking-simulator` POST check-in) → หน้า ใบงาน แสดงใบงาน + กล้อง (ปุ่ม ดูสด เมื่อออนไลน์) → รายละเอียดใบงานแสดง session ที่ระบบผูก + เลข DO / SH → ดูย้อนหลังจากใบงาน: เลือกกล้อง + ช่วงเวลาในช่วงใบงาน → playback / export → หน้า วิดีโอย้อนหลัง: เลือกกล้อง + วัน เห็นทั้งไฟล์ที่ผูกใบงานและไม่ผูก → (`booking-simulator` POST check-out) → ใบงานปิด · sidebar มี 11 เมนูสำหรับ `SUPER_ADMIN` และ 10 เมนูสำหรับ `ADMIN` (DL53) · login ด้วยบัญชี `TEAM_LEADER` ⇒ เห็นหน้า `/mobile-only` (DL46, DL47)
 
 ---
 

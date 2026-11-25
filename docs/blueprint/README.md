@@ -2,8 +2,8 @@
 
 **PSD Body worn camera** — ระบบติดตาม Bodycam และหลักฐานตามใบงานจาก Smart Booking (repo `psd-bodycam-v1.0`)
 
-> เอกสารออกแบบก่อน Implementation ของระบบ **PSD Body worn camera** (`psd-bodycam-v1.0`) · ฉบับ 2026-11-03 · ปรับ 2026-11-09 (DL33–DL36) · ปรับ 2026-11-12 (DL46–DL49) · ปรับ 2026-11-18 (DL53 — เมนู web 12 รายการ · ไม่มีแผนก) · ปรับ 2026-11-23 (DL66–DL75 — ตาม code P1 Devices & Tracking)
-> Requirement: [requirement ฉบับ 2026-11-12](../requirements/2026-11-12-body-camera-requirements.md) — ยึดทั้งฉบับ (Q24) ยกเว้น 2 ข้อ (Q25 — DL48): ชื่อ role คงเดิม `ADMIN` / `OPERATOR` / `VIEWER` (ไม่ใช้คำว่า Safety) · GPS history และ talk เป็น Must
+> เอกสารออกแบบก่อน Implementation ของระบบ **PSD Body worn camera** (`psd-bodycam-v1.0`) · ฉบับ 2026-11-03 · ปรับ 2026-11-09 (DL33–DL36) · ปรับ 2026-11-12 (DL46–DL49) · ปรับ 2026-11-18 (DL53 — เมนู web 11 รายการ · ไม่มีแผนก) · ปรับ 2026-11-23 (DL66–DL75 — ตาม code P1 Devices & Tracking)
+> Requirement: [requirement ฉบับ 2026-11-12](../requirements/2026-11-12-body-camera-requirements.md) — ยึดทั้งฉบับ (Q24) ยกเว้น 2 ข้อ (Q25 — DL48): ชื่อ role คงเดิม `SUPER_ADMIN` / `OPERATOR` / `VIEWER` (ไม่ใช้คำว่า Safety) · GPS history และ talk เป็น Must
 > Reference: `C:\Git\Internal-BodyCam` (อ่านอย่างเดียว ไม่ถูกแก้ไข)
 > Diagram ทั้งหมดเป็น Mermaid — เปิดดูได้ใน GitHub / GitLab / VS Code (Markdown Preview Mermaid Support)
 
@@ -33,9 +33,9 @@
 - ทุก Booking job ที่รับมาเป็น **Work Order** ภายใน 1:1 (PK ของตัวเอง) · เมื่อกล้องเริ่มใช้งาน ระบบเปิด **Tracking Session** แล้วผูกเข้า WO ของงานที่ตรงกันอัตโนมัติ (1 WO มีหลาย session)
 - **สถานะใบงานตาม Booking check-in/check-out** — check-out ⇒ ปิดใบงาน · Booking ยกเลิก ⇒ Cancelled · ระบบเราไม่มีปุ่มปิด/reopen/void (หัวหน้าทีม/แอดมินทำฝั่ง Booking)
 - จับคู่ไม่ได้ ⇒ session ค้าง `AwaitingMatch` รอ Booking แล้ว rematch อัตโนมัติเมื่อข้อมูลเปลี่ยน · ไม่มีการผูกด้วยมือ ไม่มีคิวตรวจสอบ (DL33) · กล้องชาร์จที่ฐาน ⇒ session `IdleOrCharging` (ระยะแรก `Depots` ว่าง กฎนี้ยังไม่ทำงาน — DL53)
-- **เมนู web 12 รายการ 4 กลุ่ม** (DL53): ภาพรวม (แดชบอร์ด) · ปฏิบัติงาน (ภาพสดหลายจอ, ใบงาน, วิดีโอย้อนหลัง, แผนที่ติดตาม, ประวัติเส้นทาง) · ผู้ใช้และพนักงาน (พนักงาน, ผู้ใช้ระบบ, ผู้ใช้จาก Entra) · ระบบ (แจ้งเตือน, ประวัติการใช้งาน, ตั้งค่าระบบ) · **ใบงาน** `/work-orders` = ตารางใบงานจาก Booking + ปุ่ม ดูสด (กล้องออนไลน์) / ดูย้อนหลัง · **วิดีโอย้อนหลัง** `/evidence` = ค้นรายกล้อง: เลือกกล้อง + วัน → ไฟล์ทุกช่วงพร้อมป้ายใบงาน / ไม่ผูกใบงาน → playback / ดาวน์โหลด MP4 · ปุ่ม ดูย้อนหลัง ของใบงานเล่นได้เฉพาะช่วง check-in – check-out ของ Booking (DL59) · GPS history และ talk เป็น Must แม้ requirement จัดเป็น Optional (DL48)
-- **ไม่มีแผนก** (ระบบใช้กับฝ่าย จป. ฝ่ายเดียว — DL53): ทุก role web เห็นทั้งบริษัท (scope `all`) · กล้อง sync จาก DSS อัตโนมัติใน worker · ทีม / หัวหน้าทีมสร้างจาก `teamRef` / `leaderRef` ของใบงาน **[Assumption]** · ไม่มีหน้าจัดการ Bodycam / ทีม / ฐาน / สถานะการเชื่อมต่อ (เหลือ alert ถึง `ADMIN` + แถบ stale)
-- ผู้ใช้ **web** = `ADMIN` (super admin ของฝั่ง dev — ไม่ใช่บทบาทของลูกค้า · DL55), `COMPANY_ADMIN` (ผู้ดูแลบริษัท = แอดมินฝ่ายความปลอดภัยใน requirement · จัดการผู้ใช้ทุก role ยกเว้น `ADMIN` · ไม่มี audit / ตั้งค่าระบบ / แก้ matrix สิทธิ์ — DL51, DL53), `OPERATOR` (ผู้จัดการฝ่าย), `VIEWER` — ทุก role web ใช้ scope `all` · ฝั่ง monitoring และตรวจหลักฐาน · ไม่เปลี่ยนชื่อ role และไม่ใช้คำว่า Safety (DL48)
+- **เมนู web 11 รายการ 4 กลุ่ม** (DL53): ภาพรวม (แดชบอร์ด) · ปฏิบัติงาน (ภาพสดหลายจอ, ใบงาน, วิดีโอย้อนหลัง, แผนที่ติดตาม, ประวัติเส้นทาง) · ผู้ใช้และสิทธิ์ (ผู้ใช้ระบบ, ผู้ใช้จาก Entra) · ระบบ (แจ้งเตือน, ประวัติการใช้งาน, ตั้งค่าระบบ) · **ใบงาน** `/work-orders` = ตารางใบงานจาก Booking + ปุ่ม ดูสด (กล้องออนไลน์) / ดูย้อนหลัง · **วิดีโอย้อนหลัง** `/evidence` = ค้นรายกล้อง: เลือกกล้อง + วัน → ไฟล์ทุกช่วงพร้อมป้ายใบงาน / ไม่ผูกใบงาน → playback / ดาวน์โหลด MP4 · ปุ่ม ดูย้อนหลัง ของใบงานเล่นได้เฉพาะช่วง check-in – check-out ของ Booking (DL59) · GPS history และ talk เป็น Must แม้ requirement จัดเป็น Optional (DL48)
+- **ไม่มีแผนก** (ระบบใช้กับฝ่าย จป. ฝ่ายเดียว — DL53): ทุก role web เห็นทั้งบริษัท (scope `all`) · กล้อง sync จาก DSS อัตโนมัติใน worker · ทีม / หัวหน้าทีมสร้างจาก `teamRef` / `leaderRef` ของใบงาน **[Assumption]** · ไม่มีหน้าจัดการ Bodycam / ทีม / ฐาน / สถานะการเชื่อมต่อ (เหลือ alert ถึง `SUPER_ADMIN` + แถบ stale)
+- ผู้ใช้ **web** = `SUPER_ADMIN` (super admin ของฝั่ง dev — ไม่ใช่บทบาทของลูกค้า · DL55), `ADMIN` (ผู้ดูแลบริษัท = แอดมินฝ่ายความปลอดภัยใน requirement · จัดการผู้ใช้ทุก role ยกเว้น `SUPER_ADMIN` · ไม่มี audit / ตั้งค่าระบบ / แก้ matrix สิทธิ์ — DL51, DL53), `OPERATOR` (ผู้จัดการฝ่าย), `VIEWER` — ทุก role web ใช้ scope `all` · ฝั่ง monitoring และตรวจหลักฐาน · ไม่เปลี่ยนชื่อ role และไม่ใช้คำว่า Safety (DL48)
 - ผู้ใช้ **mobile** = **หัวหน้าทีม** role `TEAM_LEADER` (scope `team`) เท่านั้น: ดู live กล้องของตัวเอง + รายละเอียดใบงานจาก Smart Booking ของทีม · ไม่มี playback / GPS / สถานะกล้อง / talk บนมือถือ · `TEAM_LEADER` ไม่มีเมนู web (DL47)
 - Retention: GPS 3 เดือน · ใบงาน 3 เดือน · audit 12 เดือน · ไม่ย้ายข้อมูลจากระบบเดิม
 - **Deploy ทับระบบเดิม ไม่รันคู่** (DL60): ระบบเดิมใน `team3` (`psd-bwc-frontend`, `psd-bwc-web-backend` — โค้ดชุดเดียวกับ reference) ไม่มีผู้ใช้จริง ⇒ ปิดได้ทันที · ระบบนี้ใช้ repo / Azure pipeline / gitops / ชื่อ Deployment ของระบบเดิม (โค้ดหลักอยู่ที่ `psd-bodycam-v1.0` · copy ไป repo บน Azure ตอน deploy) แต่ใช้ **database ใหม่** (ชื่อตารางและ migration table ชนกับ DB เดิม) · env และ OSRM ของระบบเดิมตัดทิ้ง · **ช่วง dev รันบนเครื่อง local** (PostgreSQL + Redis บนเครื่อง, DSS middleware ผ่าน VPN) และยังไม่ deploy Azure จนกว่าผู้ใช้สั่ง (DL63)
@@ -45,6 +45,14 @@
 - Reuse โค้ดเดิมได้มาก: infra (`server/src/common/*`), auth/Entra (รวมหน้า ผู้ใช้จาก Entra), GPS pipeline, device sync, streaming/playback/export/talk, realtime, HMAC ขาเข้า (pattern ของ webhook เดิม), design system + shell ฝั่ง client
 
 ---
+
+- ผู้ใช้ระบบเก็บชื่อและนามสกุลแยกเป็น `Users.FirstName` / `Users.LastName`; API ใช้ `firstName` / `lastName` (DL78) · บัญชีที่มีอีเมลหรือเชื่อม Microsoft ล็อกชื่อ นามสกุล และอีเมล และรับข้อมูลล่าสุดผ่านการซิงก์ Microsoft (DL79)
+
+- ใช้ `Users` แทนทะเบียนพนักงาน: ไม่มีตารางหรือหน้า `Employees` · สมาชิกทีมอ้าง `TeamMembers.UserId` · เพิ่มเบอร์โทรและล็อกชื่อผู้ใช้จาก UPN (DL80)
+
+- บัญชีที่ยังไม่เชื่อม Microsoft แก้ชื่อผู้ใช้ได้ แม้มีอีเมลแล้ว · ตารางผู้ใช้แสดงเบอร์โทร · dropdown ของ `ADMIN` ไม่มี `SUPER_ADMIN` ทั้งฟอร์มเดี่ยวและเพิ่มหลายบัญชี (DL83)
+
+- Role IDs ใช้ `1 SUPER_ADMIN`, `2 ADMIN`, `3 OPERATOR`, `4 VIEWER`, `5 TEAM_LEADER`; ย้ายสิทธิ์ผู้ดูแลสูงสุดไป `SUPER_ADMIN` โดยคงการผูก role และสิทธิ์เดิม (DL81)
 
 ## Glossary
 
@@ -56,7 +64,7 @@
 | **Smart Booking** | ระบบใบงานภายนอก (ต้นทางใบงานเดียว) · POST ใบงานเข้า inbound endpoint ของเรา (DL46) · ในโค้ดใช้ชื่อ `booking` / `BOOKING` |
 | **Inbound endpoint** | `POST /api/integration/booking/jobs` ใน process `api` ที่ Smart Booking เรียก · ตรวจ auth (HMAC / API key **[Assumption]**) → validate → บันทึก `IntegrationInbox` → ตอบ 202 (`accepted`) / 200 (`duplicate`) · map และ upsert ใน worker `integration` (DL46) |
 | **DO / SH** | เลขอ้างอิงที่มากับใบงาน **[Confirmed]** · ความหมาย = เลข Delivery Order / Shipment **[Assumption]** · เก็บใน `BookingJobs.DoNo` / `ShNo` ใช้แสดงและค้นหา ไม่ใช้จับคู่ |
-| **`COMPANY_ADMIN`** | ผู้ดูแลบริษัท (web, scope `all` — DL51) · งานแบบ `OPERATOR` + จัดการพนักงาน / ผู้ใช้ (รวมผู้ใช้จาก Entra · มองไม่เห็นบัญชี `ADMIN` — DL55) · ไม่ได้รับ permission สงวนของ `ADMIN` (`audit:view`, `settings:manage`, `roles:manage` — DL53) · ไม่ bypass |
+| **`ADMIN`** | ผู้ดูแลบริษัท (web, scope `all` — DL51) · งานแบบ `OPERATOR` + จัดการพนักงาน / ผู้ใช้ (รวมผู้ใช้จาก Entra · มองไม่เห็นบัญชี `SUPER_ADMIN` — DL55) · ไม่ได้รับ permission สงวนของ `SUPER_ADMIN` (`audit:view`, `settings:manage`, `roles:manage` — DL53) · ไม่ bypass |
 | **Data scope** | `all` = ทุก role web (ไม่มีแผนก — DL53) · `team` = `TEAM_LEADER` |
 | **`TEAM_LEADER` / scope `team`** | role ของหัวหน้าทีมที่ใช้แอปมือถือ (DL47) · scope `team` = ใบงานของทีมที่ตนเป็นหัวหน้า active (`TeamMembers.Role = 1 Leader`) หรือที่ระบุตนเป็นหัวหน้า + กล้องของทีม/ของใบงาน `Planned` / `Open` · นอก scope = 404 |
 | **Booking Check-in / Check-out** | หัวหน้าทีม/แอดมินกดเริ่ม/จบงานใน Smart Booking แล้วมากับ POST (`checkInAt` / `checkOutAt`) · check-out = ปิดใบงานในระบบเรา |
@@ -87,9 +95,9 @@
 | ใบงานมาจาก Booking เท่านั้น (`BookingJobId` NOT NULL — DL33) | ใบงานตรง Booking เสมอ · ไม่มีใบงานขยะ · ไม่มีงาน manual (link / void / คิวตรวจสอบ) | session ที่ Booking ไม่ระบุค้าง `AwaitingMatch` ไม่มีใบงาน — ดูย้อนหลังได้ที่หน้า วิดีโอย้อนหลัง รายกล้อง (DL59) |
 | สถานะใบงานตาม Booking check-in/check-out | ไม่มีสองแหล่งความจริงเรื่องสถานะ | Booking ล่ม = ปิดใบงานช้า (ปิดย้อนหลังด้วยเวลาจริง) · ต้องมี SafetyTimeout |
 | Matching อัตโนมัติอย่างเดียว (DL33) | ไม่มีคิวงานให้ Operator · ผลอธิบายได้จาก `MatchAttempts` | การผูกผิดแก้ได้ทางเดียวคือแก้ข้อมูลใน Booking |
-| Mobile app เฉพาะหัวหน้าทีม `TEAM_LEADER` scope `team` (DL47) | ตรง requirement §4 · แอปเล็ก (live กล้องตัวเอง + ใบงานของทีม) · ข้อมูลอ่อนไหว (playback / GPS) อยู่บน web เท่านั้น | scope `team` ต้องทดสอบ 404 ทุก endpoint ที่หัวหน้าทีมเรียก · ต้องผูก `Employees.UserId` และหัวหน้าใน `TeamMembers` (มาจาก leader ref ของใบงาน — DL53) ให้ถูก ไม่งั้นรายการว่าง |
-| ไม่มีแผนก · เมนู 12 รายการ · ข้อมูลกล้อง / ทีมมาจากระบบต้นทางอัตโนมัติ (DL53) | ระบบเล็ก scope ง่าย (`all` / `team`) · ไม่มีงาน master data ของกล้อง / ทีม | แยกข้อมูลตามหน่วยงานไม่ได้ (ถ้าภายหลังมีหลายฝ่ายต้องเพิ่มกลับ) · ทีมพึ่ง Booking ส่ง `teamRef` / `leaderRef` **[Assumption]** · ไม่มีหน้าฐาน ⇒ `IdleOrCharging` ยังไม่ทำงาน · ไม่มีหน้าสถานะการเชื่อมต่อ (เหลือ alert) |
-| ใบงานที่รับแล้วแต่ประมวลผลไม่ผ่าน ประมวลผลใหม่จาก `IntegrationInbox.Payload` ที่เก็บไว้ (DL54) | ไม่ต้องรอ Booking ส่งซ้ำ · กู้เองอัตโนมัติหลังเติมข้อมูลที่ขาด (`re-resolve`) / รายวัน หรือกดปุ่ม "ประมวลผลใหม่" บนการแจ้งเตือนของ `ADMIN` | แถว `Dead` ที่เกิน 7 วันต้องกดปุ่มเอง · ไม่มีหน้ารายการ inbox ให้ไล่ดูทั้งหมด |
+| Mobile app เฉพาะหัวหน้าทีม `TEAM_LEADER` scope `team` (DL47) | ตรง requirement §4 · แอปเล็ก (live กล้องตัวเอง + ใบงานของทีม) · ข้อมูลอ่อนไหว (playback / GPS) อยู่บน web เท่านั้น | scope `team` ต้องทดสอบ 404 ทุก endpoint ที่หัวหน้าทีมเรียก · ต้องผูก `TeamMembers.UserId` และหัวหน้าใน `TeamMembers` (มาจาก leader ref ของใบงาน — DL53) ให้ถูก ไม่งั้นรายการว่าง |
+| ไม่มีแผนก · เมนู 11 รายการ · ข้อมูลกล้อง / ทีมมาจากระบบต้นทางอัตโนมัติ (DL53) | ระบบเล็ก scope ง่าย (`all` / `team`) · ไม่มีงาน master data ของกล้อง / ทีม | แยกข้อมูลตามหน่วยงานไม่ได้ (ถ้าภายหลังมีหลายฝ่ายต้องเพิ่มกลับ) · ทีมพึ่ง Booking ส่ง `teamRef` / `leaderRef` **[Assumption]** · ไม่มีหน้าฐาน ⇒ `IdleOrCharging` ยังไม่ทำงาน · ไม่มีหน้าสถานะการเชื่อมต่อ (เหลือ alert) |
+| ใบงานที่รับแล้วแต่ประมวลผลไม่ผ่าน ประมวลผลใหม่จาก `IntegrationInbox.Payload` ที่เก็บไว้ (DL54) | ไม่ต้องรอ Booking ส่งซ้ำ · กู้เองอัตโนมัติหลังเติมข้อมูลที่ขาด (`re-resolve`) / รายวัน หรือกดปุ่ม "ประมวลผลใหม่" บนการแจ้งเตือนของ `SUPER_ADMIN` | แถว `Dead` ที่เกิน 7 วันต้องกดปุ่มเอง · ไม่มีหน้ารายการ inbox ให้ไล่ดูทั้งหมด |
 | ไม่ push online/offline — หน้าจอดึงสถานะจาก DSS ตอนเปิด (DL35) ผ่าน cache Redis 10s (DL45) | สถานะที่เห็นสดกว่า GpsPoll · event น้อยลง · หลายคนเปิดพร้อมกันไม่ยิง DSS ซ้ำ | หน้าจอที่เปิดค้างไม่อัปเดตสถานะเอง · สถานะเก่าได้ ≤ 10s |
 | ไฟล์ export MP4 บน Local disk PVC 24 ชม. (DL34) | ไม่ต้องดูแล object storage | ต้อง mount PVC ร่วม `api` + `worker-media` (R16) · ผู้ใช้ต้องดาวน์โหลดเก็บเองภายใน 24 ชม. |
 | Partition GPS/Audit รายเดือน | retention = drop partition · query เร็ว | DDL partition ต้องเขียน custom migration |
@@ -160,7 +168,7 @@ flowchart LR
 
 | กลุ่ม | ตาราง |
 |---|---|
-| Identity & Access | `Employees`, `Users`, `Roles`, `Permissions`, `RolePermissions`, `RefreshTokens`, `UserDevices`, `PushTokens` |
+| Identity & Access | `Users`, `Users`, `Roles`, `Permissions`, `RolePermissions`, `RefreshTokens`, `UserDevices`, `PushTokens` |
 | Teams | `Teams`, `TeamMembers` (สร้างจากใบงาน Booking — DL53) |
 | Devices | `Devices` (sync จาก DSS — DL53), `DeviceState`, `DeviceStatusHistory`, `DeviceAssignments`, `Depots` (ระยะแรกว่าง — DL53) |
 | Tracking | `GpsLocations` (partitioned), `TrackingSessions`, `RecordingSegments` |
@@ -171,7 +179,7 @@ flowchart LR
 
 นอกจาก 33 ตารางนี้ DB เดียวกันมี `dss."RequestLogs"` (schema `dss`) ที่ DSS middleware สร้างและเขียนเองสำหรับเก็บประวัติ request — NestJS / drizzle ไม่ได้จัดการ (ดู Part 4 §4.4 I และ §4.7 ข้อ 8)
 
-Role `TEAM_LEADER` และ scope `team` (DL47) และ role `COMPANY_ADMIN` (DL51) เพิ่มผ่าน data migration (`Roles` / `RolePermissions`) ไม่มีตารางใหม่ · หัวหน้าทีมต้องผูก `Employees.UserId` (บังคับใน service — DL47)
+Role `TEAM_LEADER` และ scope `team` (DL47) และ role `ADMIN` (DL51) เพิ่มผ่าน data migration (`Roles` / `RolePermissions`) ไม่มีตารางใหม่ · หัวหน้าทีมต้องผูก `TeamMembers.UserId` (บังคับใน service — DL47)
 
 Invariant สำคัญที่ DB บังคับ:
 - `UQ_TS_OpenPerDevice` + `EX_TS_NoOverlap` — 1 session เปิดต่ออุปกรณ์ ไม่ซ้อนเวลา
@@ -183,7 +191,7 @@ Invariant สำคัญที่ DB บังคับ:
 
 | Phase | ผลลัพธ์ | Priority |
 |---|---|---|
-| P0 Foundation | scaffold, port infra, auth + Entra, RBAC/scope (`all` / `team`), migrations (รวมตัด `Departments`), CI, shell + nav 12 เมนู + design system · พนักงาน / ผู้ใช้ระบบ / ผู้ใช้จาก Entra (DL53) | Must |
+| P0 Foundation | scaffold, port infra, auth + Entra, RBAC/scope (`all` / `team`), migrations (รวมตัด `Departments`), CI, shell + nav 11 เมนู + design system · ผู้ใช้ระบบ / ผู้ใช้จาก Entra (DL53) | Must |
 | P1 Devices & Tracking | device sync อัตโนมัติจาก DSS (worker), status/GPS ingest, live map, GPS history (Must — DL48), ตาราง `Alerts` + alert 13 (DL66) · simulator `DSS_DRIVER=mock` (DL68) · acceptance ผ่านบน simulator และทดสอบกับ DSS จริงผ่าน VPN แล้ว (2026-11-24) | Must |
 | P2 Sessions & Work Orders | session engine (`AwaitingMatch` / `IdleOrCharging`), หน้า ใบงาน + รายละเอียด (ใบงานจาก `booking-simulator`) | Must |
 | P3 Booking Integration | P3a inbound endpoint `POST /api/integration/booking/jobs` + inbox + mapper `v1` + simulator → projection + ทีม / หัวหน้าทีมจากใบงาน + upsert WO 1:1 · P3b matching อัตโนมัติ + rematch · P3c Smart Booking go-live: ตกลง contract/auth, mapper `smart-booking` ถ้าจำเป็น, read API adapter (optional), pilot (**ติด Booking spec gate**) | Must |

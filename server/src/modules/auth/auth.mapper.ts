@@ -4,7 +4,8 @@ import type { PermissionCode, RoleCode } from '../../common/auth/permission-cata
 export type AuthUserView = {
   id: string;
   username: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   email: string | null;
   roleCode: RoleCode;
   roleName: string;
@@ -14,7 +15,8 @@ export type AuthUserView = {
 export type UserWithRole = {
   Id: bigint;
   Username: string;
-  FullName: string;
+  FirstName: string;
+  LastName: string;
   Email: string | null;
   RoleId: bigint;
   RoleCode: string;
@@ -25,7 +27,8 @@ export function toAuthUserView(user: UserWithRole, permissions: PermissionCode[]
   return {
     id: user.Id.toString(),
     username: user.Username,
-    fullName: user.FullName,
+    firstName: user.FirstName,
+    lastName: user.LastName,
     email: user.Email,
     roleCode: user.RoleCode as RoleCode,
     roleName: user.RoleName,

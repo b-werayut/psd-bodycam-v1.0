@@ -9,7 +9,7 @@ function user(roleCode: AuthUser['roleCode'], permissions: string[]): AuthUser {
   return {
     id: '1',
     username: 'u',
-    fullName: 'U',
+    firstName: 'U', lastName: '',
     email: null,
     roleCode,
     roleName: roleCode,
@@ -30,12 +30,12 @@ describe('usePermission', () => {
     expect(renderHook(() => usePermission(['org:read', 'users:read'])).result.current).toBe(false);
     expect(renderHook(() => usePermission(['org:read', 'users:read'], 'any')).result.current).toBe(true);
   });
-  it('ADMIN with no permissions is allowed', () => {
-    useAuthStore.setState({ user: user('ADMIN', []) });
+  it('SUPER_ADMIN with no permissions is allowed', () => {
+    useAuthStore.setState({ user: user('SUPER_ADMIN', []) });
     expect(renderHook(() => usePermission('anything:manage')).result.current).toBe(true);
   });
-  it('COMPANY_ADMIN has no bypass: it checks codes like any other role', () => {
-    useAuthStore.setState({ user: user('COMPANY_ADMIN', ['users:manage']) });
+  it('ADMIN has no bypass: it checks codes like any other role', () => {
+    useAuthStore.setState({ user: user('ADMIN', ['users:manage']) });
     expect(renderHook(() => usePermission('users:manage')).result.current).toBe(true);
     expect(renderHook(() => usePermission('settings:manage')).result.current).toBe(false);
   });

@@ -15,7 +15,7 @@ import {
 const USER: AuthUser = {
   id: '1',
   username: 'u',
-  fullName: 'U',
+  firstName: 'U', lastName: '',
   email: null,
   roleCode: 'VIEWER',
   roleName: 'Viewer',

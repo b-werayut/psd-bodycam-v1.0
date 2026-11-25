@@ -75,8 +75,8 @@ export function AppHeader({
   const navigate = useAppNavigate();
   const { t } = useLanguage();
   const roleName = user?.roleName || user?.roleCode || '';
-  const fullName = user?.fullName?.trim() ?? '';
-  const displayName = fullName || user?.username || t('header.userFallback');
+  const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim();
+  const displayName = name || user?.username || t('header.userFallback');
   const initial = Array.from(displayName)[0]?.toLocaleUpperCase() ?? '?';
   const emailLine = user?.email?.trim() || '-';
 

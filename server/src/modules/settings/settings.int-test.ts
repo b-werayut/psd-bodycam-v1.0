@@ -5,8 +5,8 @@ import { bootHttpContext, eventually, type HttpContext, type TestSql } from '../
 
 const PASSWORD = 'Test@12345';
 const USERS = [
-  ['t6s_admin', 'ADMIN'],
-  ['t6s_company', 'COMPANY_ADMIN'],
+  ['t6s_admin', 'SUPER_ADMIN'],
+  ['t6s_company', 'ADMIN'],
   ['t6s_target', 'VIEWER'],
 ] as const;
 const USERNAMES = USERS.map(([u]) => u);
@@ -32,8 +32,8 @@ beforeAll(async () => {
   await sql`delete from "Users" where "Username" in ${sql(USERNAMES)}`;
   const hash = await hashPassword(PASSWORD);
   for (const [username, role] of USERS) {
-    await sql`insert into "Users" ("Username", "FullName", "RoleId", "PasswordHash")
-              select ${username}, ${'T6S ' + username}, r."Id", ${hash} from "Roles" r where r."Code" = ${role}`;
+    await sql`insert into "Users" ("Username", "FirstName", "LastName", "RoleId", "PasswordHash")
+              select ${username}, 'T6S', ${username}, r."Id", ${hash} from "Roles" r where r."Code" = ${role}`;
   }
 });
 
@@ -49,7 +49,7 @@ afterAll(async () => {
 });
 
 describe('GET /api/settings', () => {
-  it('ADMIN sees the auth group with values, bounds and Thai descriptions', async () => {
+  it('SUPER_ADMIN sees the auth group with values, bounds and Thai descriptions', async () => {
     const token = await tokenOf('t6s_admin');
     const r = await http.get('/api/settings').set('Authorization', token);
     expect(r.status).toBe(200);
@@ -64,7 +64,7 @@ describe('GET /api/settings', () => {
     expect(r.body.total).toBeGreaterThanOrEqual(2);
   });
 
-  it('COMPANY_ADMIN is refused (settings:manage is ADMIN-only) and the refusal is audited', async () => {
+  it('ADMIN is refused (settings:manage is SUPER_ADMIN-only) and the refusal is audited', async () => {
     const token = await tokenOf('t6s_company');
     const r = await http.get('/api/settings').set('Authorization', token).set('X-Correlation-Id', 't6s-denied-1');
     expect(r.status).toBe(403);
@@ -78,7 +78,7 @@ describe('GET /api/settings', () => {
 });
 
 describe('PATCH /api/settings/:key', () => {
-  it('ADMIN changes a value; the change is audited with the request correlation id', async () => {
+  it('SUPER_ADMIN changes a value; the change is audited with the request correlation id', async () => {
     const token = await tokenOf('t6s_admin');
     const r = await http
       .patch('/api/settings/auth.lockout-minutes')
@@ -129,13 +129,13 @@ describe('PATCH /api/settings/:key', () => {
     expect((await http.patch('/api/settings/nope.key').set('Authorization', token).send({ value: '1' })).status).toBe(404);
   });
 
-  it('COMPANY_ADMIN cannot change settings', async () => {
+  it('ADMIN cannot change settings', async () => {
     const token = await tokenOf('t6s_company');
     const r = await http.patch('/api/settings/auth.max-failed-logins').set('Authorization', token).send({ value: '5' });
     expect(r.status).toBe(403);
   });
 
-  it('the lockout follows the setting at once: ADMIN sets 5 attempts / 2 minutes', async () => {
+  it('the lockout follows the setting at once: SUPER_ADMIN sets 5 attempts / 2 minutes', async () => {
     const token = await tokenOf('t6s_admin');
     await http.patch('/api/settings/auth.max-failed-logins').set('Authorization', token).send({ value: '5' });
     await http.patch('/api/settings/auth.lockout-minutes').set('Authorization', token).send({ value: '2' });

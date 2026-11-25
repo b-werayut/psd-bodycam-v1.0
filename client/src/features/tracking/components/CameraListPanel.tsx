@@ -1,103 +1,106 @@
-import { Search } from 'lucide-react';
+import { CircleHelp, Video, Wifi, WifiOff } from 'lucide-react';
+import { useId } from 'react';
 
-import { DeviceStateBadge } from '@/components/status/DeviceStateBadge';
+import { LoadingSkeleton } from '@/components/command-center/LoadingSkeleton';
 import type { DeviceDisplayState } from '@/components/status/deviceStateTone';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLanguage } from '@/i18n/useLanguage';
 import { cn } from '@/lib/utils';
 import type { LiveDevice } from '../liveMerge';
+import { CameraCard } from './CameraCard';
+import { TrackingViewSwitch } from './TrackingViewSwitch';
 
 export type StateFilter = 'all' | DeviceDisplayState;
 
-/** Search + status filter + the camera list beside the live map. */
+/** The reference tracking rail, adapted to the Bodycam data contract. */
 export function CameraListPanel({
-  devices,
-  total,
-  search,
-  onSearch,
-  state,
-  onState,
-  selectedId,
-  onSelect,
+  devices, allDevices, search, onSearch, state, onState, selectedId, onSelect, onClearSelection,
+  now, fixActiveSeconds, isPending = false,
 }: {
   devices: readonly LiveDevice[];
-  total: number;
+  allDevices: readonly LiveDevice[];
   search: string;
   onSearch: (value: string) => void;
   state: StateFilter;
   onState: (value: StateFilter) => void;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onClearSelection: () => void;
+  now: number;
+  fixActiveSeconds: number;
+  isPending?: boolean;
 }) {
   const { t } = useLanguage();
+  const searchId = useId();
+  const counts = { online: 0, offline: 0, unknown: 0 };
+  for (const device of allDevices) counts[device.platformState] += 1;
+  const summary = [
+    { label: t('tracking.summary.total'), value: allDevices.length, icon: Video, tone: 'text-primary' },
+    { label: t('tracking.state.online'), value: counts.online, icon: Wifi, tone: 'text-success' },
+    { label: t('tracking.state.offline'), value: counts.offline, icon: WifiOff, tone: 'text-destructive' },
+    ...(counts.unknown > 0 ? [{ label: t('tracking.filter.unknown'), value: counts.unknown, icon: CircleHelp, tone: 'text-muted-foreground' }] : []),
+  ];
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <div className="grid gap-2 sm:grid-cols-[1fr_9rem] lg:grid-cols-1 xl:grid-cols-[1fr_9rem]">
-        <div className="relative">
-          <label htmlFor="tracking-search" className="sr-only">
-            {t('tracking.list.search')}
-          </label>
-          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="tracking-search"
-            value={search}
-            onChange={(e) => onSearch(e.target.value)}
-            placeholder={t('tracking.list.searchPlaceholder')}
-            className="min-h-11 pl-9"
-          />
-        </div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
+      <div className="flex shrink-0 flex-col gap-2.5 border-b border-border p-4">
         <div>
-          <label htmlFor="tracking-state" className="sr-only">
-            {t('tracking.list.status')}
-          </label>
-          <Select id="tracking-state" value={state} onChange={(e) => onState(e.target.value as StateFilter)}>
-            <option value="all">{t('tracking.list.all')}</option>
-            <option value="online">{t('tracking.state.online')}</option>
-            <option value="offline">{t('tracking.state.offline')}</option>
-            <option value="unknown">{t('tracking.state.unknown')}</option>
-          </Select>
+          <h2 aria-hidden="true" className="text-lg font-semibold tracking-tight">{t('navigation.tracking')}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{t('tracking.live.description')}</p>
         </div>
-      </div>
-
-      <p className="text-xs text-muted-foreground" aria-live="polite">
-        {t('tracking.list.count', { shown: devices.length, total })}
-      </p>
-
-      {total === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-          {t('tracking.list.empty')}
-        </p>
-      ) : devices.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-          {t('tracking.list.noMatch')}
-        </p>
-      ) : (
-        <ul aria-label={t('tracking.list.label')} className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-          {devices.map((device) => (
-            <li key={device.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(device.id)}
-                aria-current={device.id === selectedId ? 'true' : undefined}
-                className={cn(
-                  'flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  device.id === selectedId && 'bg-muted',
-                )}
-              >
-                <span className="min-w-0">
-                  <span className="nwl-mono block truncate text-sm font-medium">{device.deviceCode}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {device.lat === null ? t('tracking.list.noPosition') : (device.name ?? '')}
-                  </span>
-                </span>
-                <DeviceStateBadge state={device.platformState} className="shrink-0" />
-              </button>
-            </li>
+        <TrackingViewSwitch />
+        <dl className={cn('grid divide-x divide-border rounded-md border border-border bg-muted/40', summary.length > 3 ? 'grid-cols-4' : 'grid-cols-3')}>
+          {summary.map(({ label, value, icon: Icon, tone }) => (
+            <div key={label} className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">
+              <dt className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <Icon aria-hidden="true" className={cn('size-3.5 shrink-0', tone)} />
+                <span className="truncate" title={label}>{label}</span>
+              </dt>
+              <dd className="pl-5 text-sm font-semibold tabular-nums">{isPending ? '—' : value}</dd>
+            </div>
           ))}
-        </ul>
-      )}
+        </dl>
+        <Field>
+          <FieldLabel htmlFor={searchId} className="sr-only">{t('tracking.list.search')}</FieldLabel>
+          <Input id={searchId} value={search} onChange={(event) => onSearch(event.target.value)}
+            placeholder={t('tracking.list.searchPlaceholder')} disabled={isPending}
+            className="bg-card [@media(pointer:fine)]:h-9" />
+        </Field>
+        <Tabs value={state} onValueChange={(value) => onState(value as StateFilter)}>
+          <TabsList aria-label={t('tracking.list.status')} className="grid w-full grid-cols-4 gap-0 overflow-hidden rounded-md border border-border bg-card p-0">
+            {([
+              ['all', t('tracking.list.all')], ['online', t('tracking.state.online')],
+              ['offline', t('tracking.state.offline')], ['unknown', t('tracking.filter.unknown')],
+            ] as const).map(([value, label]) => (
+              <TabsTrigger key={value} value={value} disabled={isPending}
+                className="rounded-none px-2 py-1 text-xs shadow-none data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none [&:not(:last-child)]:border-r [@media(pointer:fine)]:min-h-8">
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col p-4">
+        <p className="sr-only" aria-live="polite">{t('tracking.list.count', { shown: devices.length, total: allDevices.length })}</p>
+        {isPending ? (
+          <LoadingSkeleton loadingLabel={t('common.loading')} />
+        ) : devices.length === 0 ? (
+          <Empty className="py-8 md:p-6"><EmptyHeader>
+            <EmptyMedia variant="icon"><Video aria-hidden="true" /></EmptyMedia>
+            <EmptyDescription>{t(allDevices.length === 0 ? 'tracking.list.empty' : 'tracking.list.noMatch')}</EmptyDescription>
+          </EmptyHeader></Empty>
+        ) : (
+          <ul aria-label={t('tracking.list.label')} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-1">
+            {devices.map((device) => (
+              <li key={device.id}><CameraCard device={device} now={now} fixActiveSeconds={fixActiveSeconds} selected={device.id === selectedId}
+                onSelect={() => onSelect(device.id)} onClose={onClearSelection} /></li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

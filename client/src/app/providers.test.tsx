@@ -29,7 +29,7 @@ describe('AppProviders', () => {
   it('mounts exactly one Toaster around the signed-in shell', () => {
     useAuthStore.setState({
       accessToken: 't',
-      user: { id: '1', username: 'u', fullName: 'U', email: null, roleCode: 'ADMIN', roleName: 'ผู้ดูแลระบบ', permissions: [] },
+      user: { id: '1', username: 'u', firstName: 'U', lastName: '', email: null, roleCode: 'SUPER_ADMIN', roleName: 'ผู้ดูแลระบบ', permissions: [] },
     });
     render(
       <AppProviders>

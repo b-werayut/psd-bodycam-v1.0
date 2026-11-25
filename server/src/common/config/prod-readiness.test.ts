@@ -25,6 +25,12 @@ describe('checkProdEnv', () => {
     expect(summarizeReadiness(checkProdEnv(base)).fail).toBe(0);
   });
 
+  it('no BOOKING_INBOUND_SECRETS ⇒ warn', () => {
+    expect(level(base, 'BOOKING_INBOUND_SECRETS')).toBe('warn');
+    expect(level({ ...base, BOOKING_INBOUND_SECRETS: ',' }, 'BOOKING_INBOUND_SECRETS')).toBe('warn');
+    expect(level({ ...base, BOOKING_INBOUND_SECRETS: 's' }, 'BOOKING_INBOUND_SECRETS')).toBe('pass');
+  });
+
   it('fails a short JWT secret', () => {
     expect(level({ ...base, JWT_ACCESS_SECRET: 'short' }, 'JWT_ACCESS_SECRET')).toBe('fail');
   });

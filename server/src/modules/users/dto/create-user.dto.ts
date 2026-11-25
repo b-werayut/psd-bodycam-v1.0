@@ -16,7 +16,13 @@ export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
-  fullName!: string;
+  firstName!: string;
+
+  /** Empty for a person without a surname. */
+  @Transform(trimmed)
+  @IsString()
+  @MaxLength(200)
+  lastName!: string;
 
   @IsString()
   @IsNotEmpty()
@@ -28,6 +34,12 @@ export class CreateUserDto {
   @IsEmail()
   @MaxLength(200)
   email?: string;
+
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  phone?: string;
 
   /** Omit for an SSO-only account. */
   @IsOptional()

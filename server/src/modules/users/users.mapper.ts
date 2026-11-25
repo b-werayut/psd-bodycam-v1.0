@@ -5,8 +5,10 @@ import { availableUserActions, type UserAction } from './admin-protection';
 export type UserRowView = {
   id: string;
   username: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   email: string | null;
+  phone: string | null;
   roleId: string;
   roleCode: string;
   roleName: string;
@@ -19,8 +21,10 @@ export type UserRowView = {
 export type UserJoinedRow = {
   Id: bigint;
   Username: string;
-  FullName: string;
+  FirstName: string;
+  LastName: string;
   Email: string | null;
+  Phone: string | null;
   RoleId: bigint;
   RoleCode: string;
   RoleName: string;
@@ -33,8 +37,10 @@ export function toUserRow(row: UserJoinedRow, actor: AuthUser): UserRowView {
   return {
     id: row.Id.toString(),
     username: row.Username,
-    fullName: row.FullName,
+    firstName: row.FirstName,
+    lastName: row.LastName,
     email: row.Email,
+    phone: row.Phone,
     roleId: row.RoleId.toString(),
     roleCode: row.RoleCode,
     roleName: row.RoleName,

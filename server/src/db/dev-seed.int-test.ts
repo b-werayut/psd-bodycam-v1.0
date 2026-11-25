@@ -1,18 +1,16 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { verifyPassword } from '../common/auth/password';
-import { runDevSeed, SEED_DEPOTS, SEED_EMPLOYEES, SEED_USERS } from './dev-seed';
+import { runDevSeed, SEED_DEPOTS, SEED_USERS } from './dev-seed';
 
 const sql = postgres(process.env.DATABASE_URL as string, { max: 1, onnotice: () => {} });
 
 const usernames = SEED_USERS.map((u) => u.username);
-const employeeCodes = SEED_EMPLOYEES.map((e) => e.employeeCode);
 
 const depotCodes = SEED_DEPOTS.map((d) => d.code);
 
 const cleanup = async () => {
   await sql`delete from "Depots" where "Code" in ${sql(depotCodes)}`;
-  await sql`delete from "Employees" where "EmployeeCode" in ${sql(employeeCodes)}`;
   await sql`delete from "Users" where lower("Username") in ${sql(usernames)}`;
 };
 
@@ -29,15 +27,16 @@ describe('dev seed', () => {
     await sql.end();
   });
 
-  it('creates the 4 demo users (one per P0 role) and 2 employees', async () => {
+  it('creates five demo users with the Booking leader reference on the team leader', async () => {
     const result = await runDevSeed(sql, { SEED_ADMIN_PASSWORD: 'Adm-1st', SEED_DEMO_PASSWORD: 'Demo-1st' });
-    expect(result).toEqual({ users: 4, employees: 2, depots: 2 });
+    expect(result).toEqual({ users: 5, depots: 2 });
 
     const users = await seededUsers();
     expect(users.map((u) => [u.Username, u.RoleCode])).toEqual([
-      ['admin', 'ADMIN'],
-      ['companyadmin1', 'COMPANY_ADMIN'],
+      ['admin', 'SUPER_ADMIN'],
+      ['companyadmin1', 'ADMIN'],
       ['operator1', 'OPERATOR'],
+      ['teamleader1', 'TEAM_LEADER'],
       ['viewer1', 'VIEWER'],
     ]);
     for (const u of users) expect(u.Status).toBe(1);
@@ -46,14 +45,8 @@ describe('dev seed', () => {
     expect(await verifyPassword(admin?.PasswordHash, 'Adm-1st')).toBe(true);
     expect(await verifyPassword(viewer?.PasswordHash, 'Demo-1st')).toBe(true);
 
-    const employees = await sql`
-      select e."EmployeeCode", e."FirstName", e."LastName", e."BookingEmployeeRef", u."Username"
-      from "Employees" e left join "Users" u on u."Id" = e."UserId"
-      where e."EmployeeCode" in ${sql(employeeCodes)} order by e."EmployeeCode"`;
-    expect(employees.map((e) => ({ ...e }))).toEqual([
-      { EmployeeCode: 'E0001', FirstName: 'สมชาย', LastName: 'ใจดี', BookingEmployeeRef: null, Username: 'operator1' },
-      { EmployeeCode: 'E0002', FirstName: 'สมหญิง', LastName: 'รักงาน', BookingEmployeeRef: 'BK-EMP-0002', Username: null },
-    ]);
+    const [leader] = await sql`select "BookingEmployeeRef" from "Users" where "Username" = 'teamleader1'`;
+    expect(leader.BookingEmployeeRef).toBe('BK-EMP-0002');
   });
 
   it('creates 2 mock depots (DEPOT-01 / DEPOT-02, radius 150 m) and keeps them on a re-run', async () => {
@@ -76,9 +69,7 @@ describe('dev seed', () => {
     await runDevSeed(sql, { SEED_DEMO_PASSWORD: 'Demo-2nd' });
 
     const users = await seededUsers();
-    expect(users).toHaveLength(4);
-    const [{ n }] = await sql`select count(*)::int as n from "Employees" where "EmployeeCode" in ${sql(employeeCodes)}`;
-    expect(n).toBe(2);
+    expect(users).toHaveLength(5);
 
     const operator = users.find((u) => u.Username === 'operator1');
     expect(await verifyPassword(operator?.PasswordHash, 'Demo-2nd')).toBe(true);

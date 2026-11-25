@@ -195,14 +195,15 @@ export function UsersPage() {
             emptyAction={canManage ? addButton('outline') : undefined}
           />
         ) : (
-          <Table className="min-w-[960px]">
+          <Table className="min-w-[1080px]">
             <TableCaption className="sr-only">{t('users.tableCaption')}</TableCaption>
             <TableHeader>
               <TableRow>
                 <TableHead>{t('users.column.username')}</TableHead>
-                <TableHead>{t('users.column.fullName')}</TableHead>
+                <TableHead>{t('users.column.name')}</TableHead>
                 <TableHead>{t('users.column.role')}</TableHead>
                 <TableHead>{t('users.column.email')}</TableHead>
+                <TableHead>{t('users.column.phone')}</TableHead>
                 <TableHead>{t('users.column.azure')}</TableHead>
                 <TableHead>{t('users.column.statusLastLogin')}</TableHead>
                 {canManage ? (
@@ -225,9 +226,10 @@ export function UsersPage() {
                 return (
                   <TableRow key={user.id}>
                     <TableCell className="font-mono text-xs">{user.username}</TableCell>
-                    <TableCell className="font-medium">{user.fullName}</TableCell>
+                    <TableCell className="font-medium">{[user.firstName, user.lastName].filter(Boolean).join(' ')}</TableCell>
                     <TableCell className="text-sm">{user.roleName}</TableCell>
                     <TableCell className="font-mono text-xs">{user.email ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap font-mono text-xs">{user.phone || '—'}</TableCell>
                     <TableCell>
                       <StatusBadge tone={user.azureLinked ? 'success' : 'neutral'}>
                         {t(user.azureLinked ? 'users.azure.linked' : 'users.azure.notLinked')}
@@ -354,7 +356,7 @@ export function UsersPage() {
         <TabsContent value="users">{usersList}</TabsContent>
         {canReadRoles ? (
           <TabsContent value="roles">
-            {/* Seeing the matrix needs users:read; changing it needs roles:manage (ADMIN). */}
+            {/* Seeing the matrix needs users:read; changing it needs roles:manage (SUPER_ADMIN). */}
             <RolePermissionsPanel readOnly={!canManageRoles} />
           </TabsContent>
         ) : null}

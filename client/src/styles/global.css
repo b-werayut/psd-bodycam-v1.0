@@ -307,23 +307,26 @@ body {
 
 /* ---- Map markers (P1 แผนที่ติดตาม / ประวัติเส้นทาง). Colours come from the status tokens. */
 .tracking-marker {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 9999px;
-  border: 2px solid oklch(var(--surface));
-  background: oklch(var(--unknown, var(--muted-foreground)));
-  box-shadow: 0 1px 4px oklch(0 0 0 / 0.35);
-  color: oklch(var(--surface));
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 48px;
+  filter: drop-shadow(0 4px 6px oklch(var(--foreground) / 0.26));
 }
 
-.tracking-marker[data-state='online'] {
-  background: oklch(var(--success));
+.tracking-marker__pin {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: auto;
+  max-width: none;
+  height: 40px;
+  transform: translateX(-50%);
+  object-fit: contain;
 }
 
 .tracking-marker[data-state='unknown'] {
-  background: oklch(var(--warning-foreground));
+  filter: grayscale(1);
 }
 
 .tracking-marker[data-stale] {
@@ -331,8 +334,18 @@ body {
 }
 
 .tracking-marker[data-selected] {
-  outline: 3px solid oklch(var(--ring));
-  outline-offset: 2px;
+  z-index: 1;
+}
+
+.tracking-marker[data-selected] .tracking-marker__pin {
+  height: 50px;
+}
+
+/* Keep zoom controls below the compact command panel on narrow screens. */
+@media (max-width: 1023px) {
+  .tracking-live-map .leaflet-top.leaflet-right {
+    top: 210px;
+  }
 }
 
 .route-line {

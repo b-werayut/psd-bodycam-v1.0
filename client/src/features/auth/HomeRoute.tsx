@@ -12,7 +12,7 @@ export function HomeRoute() {
   const { t } = useLanguage();
 
   if (canEnter(ROUTE_ACCESS[''], user?.permissions, user?.roleCode)) {
-    return <PageHeader title={t('app.home.title')} description={user?.fullName} />;
+    return <PageHeader title={t('app.home.title')} description={user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : undefined} />;
   }
 
   const fallback = visibleNavItems(user?.permissions, user?.roleCode).find(

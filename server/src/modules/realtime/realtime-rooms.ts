@@ -15,11 +15,13 @@ export function userRoom(userId: bigint | string): string {
 
 /**
  * Rooms a socket joins at connect. `roleCode` / `permissions` come from the DB at handshake (not the
- * token), so a role change applies from the next connect. ADMIN bypasses permission checks (DL55).
+ * token), so a role change applies from the next connect. SUPER_ADMIN bypasses permission checks (DL55).
  */
 export function roomsForClient(identity: { sub: string; roleCode: string; permissions: readonly string[] }): string[] {
+  // Team rooms are added with the mobile API; a team leader never receives org-wide web events.
+  if (identity.roleCode === 'TEAM_LEADER') return [userRoom(identity.sub)];
   const rooms = [ORG_ROOM, userRoom(identity.sub)];
-  const admin = identity.roleCode === 'ADMIN';
+  const admin = identity.roleCode === 'SUPER_ADMIN';
   if (admin || identity.permissions.includes('tracking:view')) rooms.push(TRACKING_ROOM);
   if (admin || identity.permissions.includes('alerts:view')) rooms.push(ALERTS_ROOM);
   return rooms;

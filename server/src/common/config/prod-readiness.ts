@@ -1,3 +1,4 @@
+import { readBookingInboundConfig } from '../../modules/booking-integration/inbound/booking-inbound.config';
 import { resolveTrustProxy } from './trust-proxy';
 import {
   REFRESH_TTL_ENV_DEVICE,
@@ -192,6 +193,18 @@ function checkDss(env: NodeJS.ProcessEnv): ReadinessCheck[] {
   return checks;
 }
 
+function checkBookingInbound(env: NodeJS.ProcessEnv): ReadinessCheck {
+  try {
+    // Same parsing as the endpoint itself: "," alone leaves zero usable secrets.
+    if (readBookingInboundConfig(env).secrets.length > 0) {
+      return { id: 'BOOKING_INBOUND_SECRETS', level: 'pass', message: 'ตั้งแล้ว' };
+    }
+  } catch (err) {
+    return { id: 'BOOKING_INBOUND_SECRETS', level: 'fail', message: (err as Error).message };
+  }
+  return { id: 'BOOKING_INBOUND_SECRETS', level: 'warn', message: 'endpoint รับใบงานปิดอยู่ (ตอบ 401 ทุกคำขอ)' };
+}
+
 export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {
   const checks: ReadinessCheck[] = [];
 
@@ -252,6 +265,7 @@ export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {
 
   checks.push(...checkAzureAd(env));
   checks.push(...checkDss(env));
+  checks.push(checkBookingInbound(env));
   if (has(env.SEED_DEMO_PASSWORD)) {
     checks.push({
       id: 'SEED_DEMO_PASSWORD',

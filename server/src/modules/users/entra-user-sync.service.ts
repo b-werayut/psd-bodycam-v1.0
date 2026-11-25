@@ -34,8 +34,8 @@ export type EntraSyncResult = Omit<EntraSyncPlan, 'updates'> & {
 const norm = (value: string | null | undefined) => (value ?? '').trim().toLowerCase();
 
 /**
- * Compares the Microsoft Entra directory with Users and (when dryRun=false) links oids and fills empty
- * fields. Never creates or disables accounts. Callers that are not ADMIN never see ADMIN accounts (DL55):
+ * Compares the Microsoft Entra directory with Users and (when dryRun=false) links oids and updates
+ * profile fields from Microsoft. Never creates or disables accounts. Non-SUPER_ADMIN callers never see SUPER_ADMIN accounts (DL55):
  * those rows and the directory entries that match them are removed before planning.
  */
 @Injectable()
@@ -69,7 +69,9 @@ export class EntraUserSyncService {
         Id: Users.Id,
         Username: Users.Username,
         Email: Users.Email,
-        FullName: Users.FullName,
+        Phone: Users.Phone,
+        FirstName: Users.FirstName,
+        LastName: Users.LastName,
         AzureObjectId: Users.AzureObjectId,
         RoleCode: Roles.Code,
       })
@@ -79,12 +81,12 @@ export class EntraUserSyncService {
 
     let local: LocalUserRow[] = rows;
     let entraUsers = fetched.users;
-    if (actor.roleCode !== 'ADMIN') {
-      const admins = rows.filter((r) => r.RoleCode === 'ADMIN');
+    if (actor.roleCode !== 'SUPER_ADMIN') {
+      const admins = rows.filter((r) => r.RoleCode === 'SUPER_ADMIN');
       const oids = new Set(admins.map((a) => norm(a.AzureObjectId)).filter(Boolean));
       const emails = new Set(admins.map((a) => norm(a.Email)).filter(Boolean));
       const usernames = new Set(admins.map((a) => norm(a.Username)));
-      local = rows.filter((r) => r.RoleCode !== 'ADMIN');
+      local = rows.filter((r) => r.RoleCode !== 'SUPER_ADMIN');
       entraUsers = entraUsers.filter((u) => {
         const upn = norm(u.userPrincipalName);
         return !oids.has(norm(u.id)) && !emails.has(upn) && !usernames.has(upn.slice(0, upn.indexOf('@')));
@@ -140,5 +142,8 @@ export class EntraUserSyncService {
 }
 
 function stripRole(row: LocalUserRow & { RoleCode: string }): LocalUserRow {
-  return { Id: row.Id, Username: row.Username, Email: row.Email, FullName: row.FullName, AzureObjectId: row.AzureObjectId };
+  return {
+    Id: row.Id, Username: row.Username, Email: row.Email, Phone: row.Phone,
+    FirstName: row.FirstName, LastName: row.LastName, AzureObjectId: row.AzureObjectId,
+  };
 }

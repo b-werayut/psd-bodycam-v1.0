@@ -13,11 +13,11 @@ describe('dev seed guards', () => {
   });
 
   it('uses SEED_ADMIN_PASSWORD for admin and SEED_DEMO_PASSWORD for the rest, with fallbacks', () => {
-    expect(seedPassword('ADMIN', {})).toBe('Admin@12345');
+    expect(seedPassword('SUPER_ADMIN', {})).toBe('Admin@12345');
     expect(seedPassword('OPERATOR', {})).toBe('Demo@12345');
     const env = { SEED_ADMIN_PASSWORD: 'a-secret', SEED_DEMO_PASSWORD: 'd-secret' };
-    expect(seedPassword('ADMIN', env)).toBe('a-secret');
-    expect(seedPassword('COMPANY_ADMIN', env)).toBe('d-secret');
+    expect(seedPassword('SUPER_ADMIN', env)).toBe('a-secret');
+    expect(seedPassword('ADMIN', env)).toBe('d-secret');
     expect(seedPassword('VIEWER', { SEED_DEMO_PASSWORD: '  ' })).toBe('Demo@12345');
   });
 });

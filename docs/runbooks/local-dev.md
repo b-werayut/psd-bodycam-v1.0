@@ -155,7 +155,7 @@ log ที่ควรเห็น: `DeviceSync: {"created":100,…}` แล้�
 cd server; npm run ci
 ```
 
-(= lint + typecheck + unit + integration · integration ต้องมี PostgreSQL + Redis และ `bwc_test`) · ฝั่ง client: `npm run lint`, `npm run typecheck`, `npm test`
+(= lint + typecheck + unit + integration · integration ต้องมี PostgreSQL + Redis และ `bwc_test` · integration ใช้ simulator 100 กล้องเสมอ ไม่ว่า `DSS_DRIVER` / `DSS_MOCK_DEVICES` ใน `server/.env` จะตั้งเป็นอะไร (`src/test/int-setup.ts`) จึงไม่ต้องต่อ VPN) · ฝั่ง client: `npm run lint`, `npm run typecheck`, `npm test`
 
 ## 11. ปัญหาที่เจอบ่อย
 

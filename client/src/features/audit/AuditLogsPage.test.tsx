@@ -21,7 +21,7 @@ const row = (over: Partial<AuditRow>): AuditRow => ({
   occurredAt: '2026-10-01T03:00:00.000Z',
   userId: '5',
   actorUsername: 'somchai',
-  actorRole: 'ADMIN',
+  actorRole: 'SUPER_ADMIN',
   action: 'CREATE_USER',
   resourceType: 'users',
   resourceId: '9',

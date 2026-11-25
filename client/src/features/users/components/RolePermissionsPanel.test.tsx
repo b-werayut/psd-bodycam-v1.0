@@ -25,7 +25,7 @@ beforeEach(() => {
       return Promise.resolve({
         data: {
           data: [
-            { id: '1', code: 'ADMIN', name: 'ผู้ดูแลระบบ', isSystem: true },
+            { id: '1', code: 'SUPER_ADMIN', name: 'ผู้ดูแลระบบ', isSystem: true },
             { id: '2', code: 'OPERATOR', name: 'เจ้าหน้าที่', isSystem: true },
           ],
           total: 2,
@@ -97,7 +97,7 @@ describe('RolePermissionsPanel', () => {
     }
   });
 
-  it('lists all catalog permissions and locks the ADMIN column with a reason', async () => {
+  it('lists all catalog permissions and locks the SUPER_ADMIN column with a reason', async () => {
     renderWithProviders(<RolePermissionsPanel readOnly={false} />);
     await screen.findByRole('checkbox', {
       name: t('users.roles.cell', { permission: 'dashboard:view', role: 'เจ้าหน้าที่' }),
@@ -137,7 +137,7 @@ describe('RolePermissionsPanel', () => {
     expect(await screen.findByText(t('users.roles.savedToast'))).toBeInTheDocument();
   });
 
-  it('locks the reserved permissions for non-ADMIN roles, with a reason', async () => {
+  it('locks the reserved permissions for non-SUPER_ADMIN roles, with a reason', async () => {
     renderWithProviders(<RolePermissionsPanel readOnly={false} />);
     await screen.findByRole('checkbox', {
       name: t('users.roles.cell', { permission: 'dashboard:view', role: 'เจ้าหน้าที่' }),

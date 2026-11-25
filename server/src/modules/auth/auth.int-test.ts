@@ -29,8 +29,8 @@ class GuardTestController {
 
 const PASSWORD = 'Test@12345';
 const USERS = [
-  ['t4a_admin', 'ADMIN', 1],
-  ['t4a_company', 'COMPANY_ADMIN', 1],
+  ['t4a_admin', 'SUPER_ADMIN', 1],
+  ['t4a_company', 'ADMIN', 1],
   ['t4a_operator', 'OPERATOR', 1],
   ['t4a_viewer', 'VIEWER', 1],
   ['t4a_disabled', 'VIEWER', 2],
@@ -69,8 +69,8 @@ beforeAll(async () => {
   const hash = await hashPassword(PASSWORD);
   for (const [username, role, status] of USERS) {
     await sql`
-      insert into "Users" ("Username", "FullName", "RoleId", "PasswordHash", "Status", "Email")
-      select ${username}, ${'T4A ' + username}, r."Id", ${hash}, ${status}, ${username + '@example.test'}
+      insert into "Users" ("Username", "FirstName", "LastName", "RoleId", "PasswordHash", "Status", "Email")
+      select ${username}, 'T4A', ${username}, r."Id", ${hash}, ${status}, ${username + '@example.test'}
       from "Roles" r where r."Code" = ${role}`;
   }
 });
@@ -90,10 +90,10 @@ describe('POST /api/auth/login', () => {
     expect(typeof r.body.accessToken).toBe('string');
     expect(r.body.user).toMatchObject({
       username: 't4a_admin',
-      fullName: 'T4A t4a_admin',
+      firstName: 'T4A', lastName: 't4a_admin',
       email: 't4a_admin@example.test',
-      roleCode: 'ADMIN',
-      roleName: 'ผู้ดูแลระบบ',
+      roleCode: 'SUPER_ADMIN',
+      roleName: 'ผู้ดูแลระบบสูงสุด',
     });
     expect(typeof r.body.user.id).toBe('string');
     expect(r.body.user.permissions).toHaveLength(24);
@@ -161,24 +161,24 @@ describe('POST /api/auth/login', () => {
     expect(r.body.code).toBe('ACCOUNT_DISABLED');
   });
 
-  it('COMPANY_ADMIN never carries an ADMIN-reserved permission, even if a row grants it', async () => {
+  it('ADMIN never carries an SUPER_ADMIN-reserved permission, even if a row grants it', async () => {
     await sql`insert into "RolePermissions" ("RoleId", "PermissionId")
               select r."Id", p."Id" from "Roles" r, "Permissions" p
-              where r."Code" = 'COMPANY_ADMIN' and p."Code" = 'audit:view' on conflict do nothing`;
+              where r."Code" = 'ADMIN' and p."Code" = 'audit:view' on conflict do nothing`;
     try {
       const r = await login('t4a_company');
       expect(r.status).toBe(200);
       expect(r.body.user.permissions).toHaveLength(21);
       expect(r.body.user.permissions).not.toContain('audit:view');
     } finally {
-      await sql`delete from "RolePermissions" where "RoleId" = (select "Id" from "Roles" where "Code" = 'COMPANY_ADMIN')
+      await sql`delete from "RolePermissions" where "RoleId" = (select "Id" from "Roles" where "Code" = 'ADMIN')
                 and "PermissionId" = (select "Id" from "Permissions" where "Code" = 'audit:view')`;
     }
   });
 
   it('rejects a body with missing or extra fields (400 VALIDATION_FAILED)', async () => {
     expect((await http.post('/api/auth/login').send({ username: 'x' })).body.code).toBe('VALIDATION_FAILED');
-    expect((await http.post('/api/auth/login').send({ username: 'x', password: 'y', role: 'ADMIN' })).status).toBe(400);
+    expect((await http.post('/api/auth/login').send({ username: 'x', password: 'y', role: 'SUPER_ADMIN' })).status).toBe(400);
   });
 
   it('AUTH_PASSWORD_LOGIN_ENABLED=false ⇒ 403 PASSWORD_LOGIN_DISABLED', async () => {
@@ -333,7 +333,7 @@ describe('guards', () => {
     return http.get(path).set('Authorization', token);
   };
 
-  it('missing permission ⇒ 403 FORBIDDEN (OPERATOR and COMPANY_ADMIN on audit:view)', async () => {
+  it('missing permission ⇒ 403 FORBIDDEN (OPERATOR and ADMIN on audit:view)', async () => {
     for (const user of ['t4a_operator', 't4a_company']) {
       const r = await getAs('/api/guard-test/audit', user);
       expect(r.status).toBe(403);
@@ -341,7 +341,7 @@ describe('guards', () => {
     }
   });
 
-  it('ADMIN passes', async () => {
+  it('SUPER_ADMIN passes', async () => {
     expect((await getAs('/api/guard-test/audit', 't4a_admin')).status).toBe(200);
   });
 
@@ -350,7 +350,7 @@ describe('guards', () => {
     expect((await http.get('/api/guard-test/login-only')).status).toBe(401);
   });
 
-  it('a handler without a permission decorator is 403 even for ADMIN', async () => {
+  it('a handler without a permission decorator is 403 even for SUPER_ADMIN', async () => {
     expect((await getAs('/api/guard-test/bare', 't4a_admin')).status).toBe(403);
   });
 });

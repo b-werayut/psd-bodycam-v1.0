@@ -274,7 +274,8 @@ export class AuthService {
 const userColumns = {
   Id: Users.Id,
   Username: Users.Username,
-  FullName: Users.FullName,
+  FirstName: Users.FirstName,
+  LastName: Users.LastName,
   Email: Users.Email,
   RoleId: Users.RoleId,
   RoleCode: Roles.Code,

@@ -24,8 +24,8 @@ beforeAll(async () => {
   ids = await createTestUsers(
     ctx.sql,
     [
-      { username: `${PREFIX}admin`, role: 'ADMIN' },
-      { username: `${PREFIX}admin_off`, role: 'ADMIN', status: 2 },
+      { username: `${PREFIX}admin`, role: 'SUPER_ADMIN' },
+      { username: `${PREFIX}admin_off`, role: 'SUPER_ADMIN', status: 2 },
       { username: `${PREFIX}viewer`, role: 'VIEWER' },
     ],
     'x',
@@ -64,7 +64,7 @@ const input = () => ({
 });
 
 describe('AlertWriterService', () => {
-  it('raise inserts a New alert and pushes alert:new to each active ADMIN only', async () => {
+  it('raise inserts a New alert and pushes alert:new to each active SUPER_ADMIN only', async () => {
     const { service, emits } = writer();
     const alertId = await service.raise(input());
     expect(alertId).not.toBeNull();

@@ -42,7 +42,6 @@ import {
   filterDirectoryRows,
   paginateDirectory,
   plannedWrites,
-  scopeNotes,
   DIRECTORY_COLUMNS,
   type EntraDirectoryRow,
   type EntraSyncCounts,
@@ -71,7 +70,7 @@ const METRICS: ReadonlyArray<{
 
 /**
  * ผู้ใช้จาก Entra: the Microsoft Entra directory against the accounts here (dry run), with
- * create-from-row (one or many, one role), link-to-existing, and an apply of the planned links/fills.
+ * create-from-row (one or many, one role), link-to-existing, and apply Microsoft profile updates.
  */
 export function EntraUsersPage() {
   const { t } = useLanguage();
@@ -216,17 +215,6 @@ export function EntraUsersPage() {
         ))}
       </div>
 
-      {result ? (
-        <ul
-          aria-label={t('users.entraSync.scopeLabel')}
-          className="flex list-disc flex-col gap-0.5 pl-5 text-caption text-muted-foreground"
-        >
-          {scopeNotes(result).map((note) => (
-            <li key={note.key}>{t(note.key, note.values)}</li>
-          ))}
-        </ul>
-      ) : null}
-
       {error ? (
         <Alert variant="destructive" feedbackScope="page">
           <TriangleAlert aria-hidden="true" />
@@ -293,7 +281,9 @@ export function EntraUsersPage() {
               setPage(1);
             }}
           />
-          <Label htmlFor="entra-only-missing">{t('users.entraSync.onlyMissing')}</Label>
+          <Label htmlFor="entra-only-missing" className="flex min-h-11 items-center">
+            {t('users.entraSync.onlyMissing')}
+          </Label>
         </div>
         <div className="flex min-h-11 items-center gap-2">
           <Checkbox
@@ -305,7 +295,9 @@ export function EntraUsersPage() {
             }}
             disabled={apply.isPending}
           />
-          <Label htmlFor="entra-match-username">{t('users.entraSync.matchByUsername')}</Label>
+          <Label htmlFor="entra-match-username" className="flex min-h-11 items-center">
+            {t('users.entraSync.matchByUsername')}
+          </Label>
         </div>
         <Button
           type="button"
@@ -395,6 +387,10 @@ export function EntraUsersPage() {
                 userFormFromEntra({
                   upn: row.userPrincipalName,
                   displayName: row.displayName,
+                  givenName: row.givenName,
+                  surname: row.surname,
+                  mobilePhone: row.mobilePhone,
+                  businessPhones: row.businessPhones,
                   mail: row.mail,
                   oid: row.id,
                 }),

@@ -31,8 +31,8 @@
 | Booking job มี identifier ของทีม/หัวหน้าทีม/รถ | [Assumption] — **ความเสี่ยงอันดับ 1** | ถ้าไม่มี matching อัตโนมัติทำไม่ได้ ⇒ session ค้าง `AwaitingMatch` / `NoTeam` (ไม่มี manual link — DL33) |
 | ทีม / หัวหน้าทีมในระบบเรามาจาก `teamRef` + `leaderRef` ของใบงาน (Booking ส่งมากับทุกใบ) | [Assumption] (DL53) | ไม่มีหน้าจัดการทีม · inbox processor สร้าง/อัปเดต `Teams` / `TeamMembers` (§7.5.2) · ไม่ส่ง ⇒ ไม่มีทีม — matching เหลือ `DeviceRefs` อย่างเดียว และหัวหน้าทีมไม่เห็นใบงานในแอป |
 | Booking job มีเวลาเริ่ม/จบตามแผน | [Assumption] | ไม่มี ⇒ ใช้ทั้งวันของ `ScheduledDate` (confidence ลดเป็น MEDIUM) |
-| หัวหน้าทีมดูใบงานของทีมในแอปมือถือของระบบนี้ | **[Confirmed]** requirement ฉบับ 2026-11-12 (DL47) | scope `team` อาศัย `BookingJobs.TeamId` / `LeaderEmployeeId` ที่ resolve จาก `teamRef` / `leaderRef` ⇒ `leaderRef` ที่ map เป็นพนักงานไม่ได้ (`Employees.BookingEmployeeRef`) = ทีมไม่มีหัวหน้า หัวหน้าทีมไม่เห็นใบงานนั้น (`MappingIssues` 2) |
-| Booking app เปิดดูหลักฐานของใบงานผ่าน deep link | [Assumption] (DL31 · คงเดิม) | §7.9 · ผู้เปิดต้องมีบัญชีเว็บ (`ADMIN` / `COMPANY_ADMIN` / `OPERATOR` / `VIEWER`) |
+| หัวหน้าทีมดูใบงานของทีมในแอปมือถือของระบบนี้ | **[Confirmed]** requirement ฉบับ 2026-11-12 (DL47) | scope `team` อาศัย `BookingJobs.TeamId` / `LeaderUserId` ที่ resolve จาก `teamRef` / `leaderRef` ⇒ `leaderRef` ที่ map เป็นพนักงานไม่ได้ (`Users.BookingEmployeeRef`) = ทีมไม่มีหัวหน้า หัวหน้าทีมไม่เห็นใบงานนั้น (`MappingIssues` 2) |
+| Booking app เปิดดูหลักฐานของใบงานผ่าน deep link | [Assumption] (DL31 · คงเดิม) | §7.9 · ผู้เปิดต้องมีบัญชีเว็บ (`SUPER_ADMIN` / `ADMIN` / `OPERATOR` / `VIEWER`) |
 | Auth ขาเข้า (Booking → เรา) | [Assumption] — ตกลงกับ Booking | HMAC-SHA256 (default) หรือ API key · §7.4 |
 | Auth ขาออก (เรา → Booking เฉพาะ read API) | [Assumption] | OAuth2 client credentials / API key / mTLS |
 
@@ -222,7 +222,7 @@ export interface BookingJobSnapshot {
   rawStatus: string;
   title?: string;
   teamRef?: string;                 // [Assumption] map → Teams.BookingTeamRef · ไม่พบ ⇒ สร้างทีมใหม่ (DL53)
-  leaderRef?: string;               // [Assumption] map → Employees.BookingEmployeeRef → หัวหน้าทีม (TeamMembers Role 1 — DL53)
+  leaderRef?: string;               // [Assumption] map → Users.BookingEmployeeRef → หัวหน้าทีม (TeamMembers Role 1 — DL53)
   scheduledDate?: string;           // 'YYYY-MM-DD' Asia/Bangkok — fallback เมื่อไม่มีเวลาตามแผน
   plannedStartAt?: Date;
   plannedEndAt?: Date;
@@ -321,9 +321,9 @@ RETURNING "Id", (xmax = 0) AS inserted;
 - `PayloadHash` เปลี่ยน ⇒ enqueue `matching.rematch` (`jobId = team:{TeamId}:{yyyyMMdd}` dedupe) ของทั้งทีมเก่าและทีมใหม่ถ้าย้ายทีม
 - **ทีม / หัวหน้าทีมจากใบงาน (DL53 — ไม่มีหน้าจัดการทีม · [Assumption] Booking ส่ง `teamRef` + `leaderRef` มากับทุกใบ)** ก่อน upsert projection ใน transaction เดียวกัน:
   - `teamRef` ไม่ตรง `Teams.BookingTeamRef` ใด ⇒ สร้าง `Teams` ใหม่ (`Code` = `Name` = `teamRef`, `BookingTeamRef` = `teamRef`) · ไม่มี `teamRef` ⇒ ใบงานไม่มีทีม (`TeamId` null)
-  - `leaderRef` map เป็นพนักงานได้ (`Employees.BookingEmployeeRef`) และยังไม่ใช่หัวหน้า active ของทีมนั้น ⇒ ปิดแถว Leader เดิม (`ValidTo = now()`) + เปิดแถว Leader ใหม่ (`AssignedBy` null = ระบบ) · พนักงานคนนั้นเป็นสมาชิก active ทีมอื่นอยู่ ⇒ ปิดแถวเดิมก่อน (`UQ_TeamMembers_ActiveEmployee`) · ทีม / หัวหน้าเปลี่ยน ⇒ enqueue rematch ของทีมเก่าและใหม่
+  - `leaderRef` map เป็นพนักงานได้ (`Users.BookingEmployeeRef`) และยังไม่ใช่หัวหน้า active ของทีมนั้น ⇒ ปิดแถว Leader เดิม (`ValidTo = now()`) + เปิดแถว Leader ใหม่ (`AssignedBy` null = ระบบ) · พนักงานคนนั้นเป็นสมาชิก active ทีมอื่นอยู่ ⇒ ปิดแถวเดิมก่อน (`UQ_TeamMembers_ActiveUser`) · ทีม / หัวหน้าเปลี่ยน ⇒ enqueue rematch ของทีมเก่าและใหม่
   - ใบงานที่ version เก่ากว่า (ถูก version guard ข้าม) ไม่แตะทีม / หัวหน้า
-- resolve `TeamId` / `LeaderEmployeeId` ตอน upsert · `leaderRef` / `deviceRefs` / สถานะที่ map ไม่ได้ ⇒ บันทึก `MappingIssues` (ไม่ fail ข้อความ) และสรุปใน alert รายวัน `BOOKING_MAPPING_ISSUES` ถึง `ADMIN` (ไม่มีหน้า integration — DL53)
+- resolve `TeamId` / `LeaderUserId` ตอน upsert · `leaderRef` / `deviceRefs` / สถานะที่ map ไม่ได้ ⇒ บันทึก `MappingIssues` (ไม่ fail ข้อความ) และสรุปใน alert รายวัน `BOOKING_MAPPING_ISSUES` ถึง `SUPER_ADMIN` (ไม่มีหน้า integration — DL53)
 
 ### 7.5.3 Refresh รายใบ (optional — ต้องมี read API)
 
@@ -342,7 +342,7 @@ RETURNING "Id", (xmax = 0) AS inserted;
 |---|---|---|
 | รายละเอียดงาน, เลข DO / SH, ลูกค้า, สถานที่, แผนเวลา, สถานะงาน | Booking | projection บางส่วน + `Raw` (read-only) |
 | ทีม, หัวหน้าทีม | Booking — ระบบเราสร้าง/อัปเดตจาก `teamRef` / `leaderRef` ของใบงาน (DL53 [Assumption]) | `Teams` / `TeamMembers` (ประวัติหัวหน้า) |
-| พนักงาน (รวม `BookingEmployeeRef`), ผู้ใช้ | ระบบเรา (หน้า พนักงาน / ผู้ใช้ระบบ / ผู้ใช้จาก Entra) | เต็ม |
+| พนักงาน (รวม `BookingEmployeeRef`), ผู้ใช้ | ระบบเรา (หน้า ผู้ใช้ระบบ / ผู้ใช้จาก Entra) | เต็ม |
 | อุปกรณ์ | DSS — `DeviceSync` ใน worker (DL53) | เต็ม |
 | สถานะ, GPS, session, recording index | ระบบเรา / DSS | เต็ม |
 | Work Order (ใบงาน + หลักฐานกล้องที่ผูก) | Booking — ระบบเราสร้าง/อัปเดต 1:1 จาก `BookingJobs` เท่านั้น (DL33) | เต็ม + session / หลักฐานที่ผูก · Booking เปิดดูผ่าน deep link (§7.9) |
@@ -365,7 +365,7 @@ RETURNING "Id", (xmax = 0) AS inserted;
 - **เลข DO / SH**: `doNo` / `shNo` → `BookingJobs.DoNo` / `ShNo` — แสดงผล + ค้นหาเท่านั้น **ไม่ใช้จับคู่** (ความหมาย [Assumption] — DL46)
 - **ใบงาน**: ทุกแถว `BookingJobs` มี `WorkOrders` 1 แถว (upsert ใน processor §7.5.2) · ไม่มีใบงานที่ไม่ผูก Booking (DL33)
 - **check-in / check-out / ยกเลิก**: upsert แล้ว apply สถานะใบงานทันทีใน inbox processor (ยังไม่ check-in ⇒ Planned (DL37), check-in ⇒ Open, check-out / Completed ⇒ Closed `BookingCheckout`, check-in หลังปิด ⇒ reopen, Booking ยกเลิก ⇒ Cancelled) — ไม่ต้องรอ sweep
-- **Matching key คือ ref ดิบ** (`BookingJobs.BookingTeamRef`, `BookingLeaderRef`) — matcher เทียบกับ `Teams.BookingTeamRef` และ `Employees.BookingEmployeeRef` ของหัวหน้าทีม **ณ เวลาเริ่ม session** (Part 3 §3.3.1) · `BookingJobs.TeamId` / `LeaderEmployeeId` เป็น cache สำหรับแสดงผลและ data scope `team` ของ `TEAM_LEADER` (DL47)
+- **Matching key คือ ref ดิบ** (`BookingJobs.BookingTeamRef`, `BookingLeaderRef`) — matcher เทียบกับ `Teams.BookingTeamRef` และ `Users.BookingEmployeeRef` ของหัวหน้าทีม **ณ เวลาเริ่ม session** (Part 3 §3.3.1) · `BookingJobs.TeamId` / `LeaderUserId` เป็น cache สำหรับแสดงผลและ data scope `team` ของ `TEAM_LEADER` (DL47)
 - admin แก้ `BookingEmployeeRef` ของพนักงาน (หน้า พนักงาน) หรือ processor เปลี่ยนทีม / หัวหน้าทีม ⇒ job `re-resolve` อัปเดต cache + ล้าง `MappingIssues` ที่แก้แล้ว + enqueue re-match ของทีมนั้น + คืนแถว inbox `Dead` อายุ ≤ 7 วันไปประมวลผลใหม่ (DL54) (ไม่ต้องรอ `PayloadHash` เปลี่ยน)
 - ถ้า Booking ใช้ "ทะเบียนรถ" เป็นตัวระบุทีม (หัวหน้าทีม = คนขับ) ⇒ `teamRef` = ทะเบียนรถ แล้ว processor สร้างทีมตามทะเบียนรถเอง โดยไม่ต้องมีตารางรถ (DL53)
 
@@ -414,7 +414,7 @@ https://{host}/work-orders/by-booking/{externalJobId}
 ```
 
 - SPA เรียก `GET /api/work-orders/by-booking/:externalJobId` → ได้ `{ id }` แล้ว redirect ไป `/work-orders/:id` (Part 5 §5.2, Part 6 §6.3)
-- ใช้กับผู้ใช้ **เว็บ** เท่านั้น: ผู้เปิดต้อง login ด้วยบัญชี `ADMIN` / `COMPANY_ADMIN` / `OPERATOR` / `VIEWER` + data scope ตามปกติ · ไม่พบหรือนอก scope = 404
+- ใช้กับผู้ใช้ **เว็บ** เท่านั้น: ผู้เปิดต้อง login ด้วยบัญชี `SUPER_ADMIN` / `ADMIN` / `OPERATOR` / `VIEWER` + data scope ตามปกติ · ไม่พบหรือนอก scope = 404
 - `TEAM_LEADER` ไม่มี web UI (login เว็บแล้วเห็นหน้า "ใช้งานผ่านแอปมือถือ" — DL47) · หัวหน้าทีมดูรายละเอียดใบงานในแอปมือถือแทน (`/mobile/jobs/:workOrderId`)
 - deep link ไม่ต้องให้ระบบเรารู้ URL ของ Booking หรือเก็บ token ขาออก
 
@@ -428,17 +428,17 @@ https://{host}/work-orders/by-booking/{externalJobId}
 | Full reconcile (optional — read API) | รายคืน 02:00 + หลัง breaker ปิด | 7.5.4 | จำนวน upsert / missing · `LastFullSyncAt` |
 | Rematch session ที่ค้าง | ทุกครั้งที่ processor upsert ใบงานที่ `PayloadHash` เปลี่ยน + หลัง full reconcile | session `AwaitingMatch` / `NoTeam` ภายใน `booking.rematch-horizon-hours` → re-run | `MatchAttempts.Trigger` = 3 BookingChanged (POST) / 6 Reconcile |
 | Inbox retry sweep | 5 นาที | `Failed` + `Pending` ที่เก่ากว่า 1 นาที → enqueue `booking-inbox` ซ้ำ | ไป `Processed` / `Ignored` หรือ `Dead` |
-| ประมวลผลแถว `Dead` ใหม่ (DL54) | หลัง `re-resolve` + รายวัน 03:00 · หรือปุ่ม "ประมวลผลใหม่" บนการแจ้งเตือนของ `ADMIN` | แถว `Dead` ที่ `ReceivedAt` ≤ 7 วัน → `Pending` (`Attempts = 0`) → enqueue `booking-inbox` (ใช้ `Payload` ที่เก็บไว้ — ไม่ต้องให้ Booking ส่งซ้ำ) | ผ่าน ⇒ resolve alert 11 · ไม่ผ่าน ⇒ `Dead` อีกครั้ง (alert เดิมยังเปิด ไม่แจ้งซ้ำ) |
+| ประมวลผลแถว `Dead` ใหม่ (DL54) | หลัง `re-resolve` + รายวัน 03:00 · หรือปุ่ม "ประมวลผลใหม่" บนการแจ้งเตือนของ `SUPER_ADMIN` | แถว `Dead` ที่ `ReceivedAt` ≤ 7 วัน → `Pending` (`Attempts = 0`) → enqueue `booking-inbox` (ใช้ `Payload` ที่เก็บไว้ — ไม่ต้องให้ Booking ส่งซ้ำ) | ผ่าน ⇒ resolve alert 11 · ไม่ผ่าน ⇒ `Dead` อีกครั้ง (alert เดิมยังเปิด ไม่แจ้งซ้ำ) |
 | ตรวจ Booking เงียบ | `AlertSweep` 60s | ไม่มี POST ที่ผ่าน auth นาน `booking.inbound-silence-alert-hours` | alert 17 `BOOKING_INBOUND_SILENT` |
 | CSV import | — (ระยะแรกยังไม่มีหน้า upload — DL53) | แถว CSV → inbox `Channel = 3 CsvImport` (fallback เมื่อ POST หายและไม่มี read API) | จำนวนแถว processed / failed |
-| Mapping report | รายวัน | สรุป leaderRef / deviceRefs / สถานะที่ map ไม่ได้ | alert 12 ถึง `ADMIN` ให้เติม `BookingEmployeeRef` ที่หน้า พนักงาน หรือแจ้ง Booking แก้ข้อมูล |
+| Mapping report | รายวัน | สรุป leaderRef / deviceRefs / สถานะที่ map ไม่ได้ | alert 12 ถึง `SUPER_ADMIN` ให้เติม `BookingEmployeeRef` ของผู้ใช้ หรือแจ้ง Booking แก้ข้อมูล |
 
 ---
 
 ## 7.11 Integration Monitoring
 
 **ไม่มีหน้า `/integration` ในระยะแรก** (DL53 — ตัดพร้อม permission `integration:view` / `integration:manage` และ endpoint `/integration/*` ยกเว้น inbound) · สถานะการเชื่อมต่อ Booking เหลือ:
-- **alert ถึง `ADMIN`** (ตารางด้านล่าง): inbox backlog (10), dead letter (11), mapping issues รายวัน (12), ไม่ได้รับ POST นาน (17)
+- **alert ถึง `SUPER_ADMIN`** (ตารางด้านล่าง): inbox backlog (10), dead letter (11), mapping issues รายวัน (12), ไม่ได้รับ POST นาน (17)
 - **แถบ stale** ทุกหน้าที่แสดงข้อมูล Booking จาก Socket.IO `integration:status`
 - **metrics / health** สำหรับทีมระบบ (Prometheus ด้านล่าง · `/api/health/integrations`) — `IntegrationCallLogs`, `IntegrationInbox` ยังบันทึกครบไว้ตรวจย้อนหลังที่ DB
 - retry inbox อัตโนมัติด้วย retry sweep (§7.7) · แถว `Dead` ประมวลผลใหม่จาก `Payload` ที่เก็บไว้ — อัตโนมัติหลัง `re-resolve` / รายวัน หรือกดปุ่ม "ประมวลผลใหม่" บนการแจ้งเตือน `INTEGRATION_DEAD_LETTER` (DL54) · full reconcile รันตามรอบเองเมื่อมี read API · refresh รายใบอยู่ที่ panel Booking ของหน้ารายละเอียดใบงาน (`booking:refresh`)

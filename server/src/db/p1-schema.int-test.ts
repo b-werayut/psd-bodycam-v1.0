@@ -16,7 +16,7 @@ const cleanup = async () => {
   await sql`delete from "Alerts" where "DedupeKey" like 'p1t:%'`;
   await sql`delete from "TeamMembers" where "TeamId" in (select "Id" from "Teams" where "Code" like 'P1T_%')`;
   await sql`delete from "Teams" where "Code" like 'P1T_%'`;
-  await sql`delete from "Employees" where "EmployeeCode" like 'P1T_%'`;
+  await sql`delete from "Users" where "Username" like 'P1T_%'`;
   await sql`delete from "DeviceStatusHistory" where "DeviceId" in (select "Id" from "Devices" where "VendorDeviceId" like 'P1T-%')`;
   await sql`delete from "DeviceState" where "DeviceId" in (select "Id" from "Devices" where "VendorDeviceId" like 'P1T-%')`;
   await sql`delete from "Devices" where "VendorDeviceId" like 'P1T-%'`;
@@ -30,9 +30,10 @@ const insertDevice = async (code: string, vendorId: string) => {
   return row;
 };
 
-const insertEmployee = async (code: string) => {
+const insertUser = async (code: string) => {
   const [row] = await sql`
-    insert into "Employees" ("EmployeeCode", "FirstName", "LastName") values (${code}, 'ทดสอบ', 'P1')
+    insert into "Users" ("Username", "FirstName", "LastName", "RoleId")
+    select ${code}, 'ทดสอบ', 'P1', "Id" from "Roles" where "Code" = 'OPERATOR'
     returning "Id"`;
   return String(row.Id);
 };
@@ -112,9 +113,9 @@ describe('P1 schema', () => {
 
     it('rejects a window that ends before it starts', async () => {
       const team = await insertTeam('P1T_T1');
-      const emp = await insertEmployee('P1T_E1');
+      const emp = await insertUser('P1T_E1');
       await expect(sql`
-        insert into "TeamMembers" ("TeamId", "EmployeeId", "Role", "ValidFrom", "ValidTo")
+        insert into "TeamMembers" ("TeamId", "UserId", "Role", "ValidFrom", "ValidTo")
         values (${team}, ${emp}, 1, now(), now() - interval '1 hour')`).rejects.toMatchObject({
         constraint_name: 'CK_TeamMembers_Window',
       });
@@ -122,38 +123,38 @@ describe('P1 schema', () => {
 
     it('two leaders of one team cannot overlap in time, even when both windows are closed', async () => {
       const team = await insertTeam('P1T_T1');
-      const a = await insertEmployee('P1T_E1');
-      const b = await insertEmployee('P1T_E2');
+      const a = await insertUser('P1T_E1');
+      const b = await insertUser('P1T_E2');
       await sql`
-        insert into "TeamMembers" ("TeamId", "EmployeeId", "Role", "ValidFrom", "ValidTo")
+        insert into "TeamMembers" ("TeamId", "UserId", "Role", "ValidFrom", "ValidTo")
         values (${team}, ${a}, 1, '2026-01-01T00:00:00Z', '2026-01-03T00:00:00Z')`;
       await expect(sql`
-        insert into "TeamMembers" ("TeamId", "EmployeeId", "Role", "ValidFrom", "ValidTo")
+        insert into "TeamMembers" ("TeamId", "UserId", "Role", "ValidFrom", "ValidTo")
         values (${team}, ${b}, 1, '2026-01-02T00:00:00Z', '2026-01-04T00:00:00Z')`).rejects.toMatchObject({
         constraint_name: 'EX_TeamMembers_LeaderNoOverlap',
       });
       // back-to-back windows are fine ('[)' range)
       await expect(sql`
-        insert into "TeamMembers" ("TeamId", "EmployeeId", "Role", "ValidFrom", "ValidTo")
+        insert into "TeamMembers" ("TeamId", "UserId", "Role", "ValidFrom", "ValidTo")
         values (${team}, ${b}, 1, '2026-01-03T00:00:00Z', '2026-01-04T00:00:00Z')`).resolves.toBeDefined();
     });
 
-    it('one active leader per team and one active team per employee', async () => {
+    it('one active leader per team and one active team per user', async () => {
       const t1 = await insertTeam('P1T_T1');
       const t2 = await insertTeam('P1T_T2');
-      const a = await insertEmployee('P1T_E1');
-      const b = await insertEmployee('P1T_E2');
+      const a = await insertUser('P1T_E1');
+      const b = await insertUser('P1T_E2');
       await sql`
-        insert into "TeamMembers" ("TeamId", "EmployeeId", "Role", "ValidFrom") values (${t1}, ${a}, 2, now())`;
+        insert into "TeamMembers" ("TeamId", "UserId", "Role", "ValidFrom") values (${t1}, ${a}, 2, now())`;
       await expect(sql`
-        insert into "TeamMembers" ("TeamId", "EmployeeId", "Role", "ValidFrom") values (${t2}, ${a}, 2, now())`,
-      ).rejects.toMatchObject({ constraint_name: 'UQ_TeamMembers_ActiveEmployee' });
+        insert into "TeamMembers" ("TeamId", "UserId", "Role", "ValidFrom") values (${t2}, ${a}, 2, now())`,
+      ).rejects.toMatchObject({ constraint_name: 'UQ_TeamMembers_ActiveUser' });
       await sql`
-        insert into "TeamMembers" ("TeamId", "EmployeeId", "Role", "ValidFrom")
+        insert into "TeamMembers" ("TeamId", "UserId", "Role", "ValidFrom")
         values (${t2}, ${b}, 1, '2026-01-01T00:00:00Z')`;
-      const c = await insertEmployee('P1T_E3');
+      const c = await insertUser('P1T_E3');
       await expect(sql`
-        insert into "TeamMembers" ("TeamId", "EmployeeId", "Role", "ValidFrom")
+        insert into "TeamMembers" ("TeamId", "UserId", "Role", "ValidFrom")
         values (${t2}, ${c}, 1, '2027-01-01T00:00:00Z')`).rejects.toMatchObject({
         // both guard this case; which one fires first is up to PostgreSQL
         constraint_name: expect.stringMatching(/^(UQ_TeamMembers_ActiveLeader|EX_TeamMembers_LeaderNoOverlap)$/),

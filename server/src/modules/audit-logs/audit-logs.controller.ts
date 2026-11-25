@@ -3,7 +3,7 @@ import { RequirePermission } from '../../common/auth/require-permission.decorato
 import { AuditLogsService } from './audit-logs.service';
 import { QueryAuditLogsDto } from './dto/query-audit-logs.dto';
 
-/** ประวัติการใช้งาน — audit:view is reserved for ADMIN (Q19, DL51). */
+/** ประวัติการใช้งาน — audit:view is reserved for SUPER_ADMIN (Q19, DL51). */
 @Controller('audit-logs')
 export class AuditLogsController {
   constructor(private readonly service: AuditLogsService) {}

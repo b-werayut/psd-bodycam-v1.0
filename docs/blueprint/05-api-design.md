@@ -23,8 +23,8 @@
 
 | Code | ใช้เมื่อ |
 |---|---|
-| 400 | validation / ค่าไม่ถูกต้องตามกติกาธุรกิจ (เช่น ขอ playback ช่วงเกิน 24 ชม.) · **`INVALID_RANGE`** = ช่วง `from` / `to` ของประวัติเส้นทางใช้ไม่ได้ (§5.2 Tracking) · **`SETTING_OUT_OF_RANGE`** = ค่า setting นอกช่วง หรือผิดเงื่อนไขระหว่าง key (เช่น `status.unknown-after-seconds` < 2 × `gps.poll-interval-seconds`) · `VALIDATION_FAILED` เมื่อ body ที่ Smart Booking POST มาขาด field บังคับ (DL46) · **`PERMISSION_RESERVED_FOR_ADMIN`** = ให้ permission สงวนของ `ADMIN` กับ role อื่น (DL51 · §5.7) |
-| 401 / 403 | ไม่ได้ login / ไม่มี permission · **`INBOUND_AUTH_FAILED` (401)** = ลายเซ็น HMAC / api-key / IP ของ Smart Booking ไม่ผ่านที่ `POST /integration/booking/jobs` (DL46) · **`ADMIN_ACCOUNT_PROTECTED` (403)** = ผู้ใช้ที่ไม่ใช่ `ADMIN` กำหนด role `ADMIN` (สร้าง / แก้ผู้ใช้ / สร้างจาก Entra — DL51) · บัญชี `ADMIN` เองถูกซ่อนจากผู้ใช้ที่ไม่ใช่ `ADMIN` ⇒ 404 (DL55) |
+| 400 | validation / ค่าไม่ถูกต้องตามกติกาธุรกิจ (เช่น ขอ playback ช่วงเกิน 24 ชม.) · **`INVALID_RANGE`** = ช่วง `from` / `to` ของประวัติเส้นทางใช้ไม่ได้ (§5.2 Tracking) · **`SETTING_OUT_OF_RANGE`** = ค่า setting นอกช่วง หรือผิดเงื่อนไขระหว่าง key (เช่น `status.unknown-after-seconds` < 2 × `gps.poll-interval-seconds`) · `VALIDATION_FAILED` เมื่อ body ที่ Smart Booking POST มาขาด field บังคับ (DL46) · **`PERMISSION_RESERVED_FOR_SUPER_ADMIN`** = ให้ permission สงวนของ `SUPER_ADMIN` กับ role อื่น (DL51 · §5.7) |
+| 401 / 403 | ไม่ได้ login / ไม่มี permission · **`INBOUND_AUTH_FAILED` (401)** = ลายเซ็น HMAC / api-key / IP ของ Smart Booking ไม่ผ่านที่ `POST /integration/booking/jobs` (DL46) · **`SUPER_ADMIN_ACCOUNT_PROTECTED` (403)** = ผู้ใช้ที่ไม่ใช่ `SUPER_ADMIN` กำหนด role `SUPER_ADMIN` (สร้าง / แก้ผู้ใช้ / สร้างจาก Entra — DL51) · บัญชี `SUPER_ADMIN` เองถูกซ่อนจากผู้ใช้ที่ไม่ใช่ `SUPER_ADMIN` ⇒ 404 (DL55) |
 | **404** | ไม่พบ **หรืออยู่นอก data scope** (ไม่ยืนยันว่ามี record — กติกาเดิม) |
 | 409 | สถานะหรือข้อมูลขัดกัน · ใบงานไม่มี action เปลี่ยนสถานะ เพราะสถานะตาม Booking เท่านั้น (DL33) · **`INTEGRATION_READ_API_DISABLED`** = เรียก refresh รายใบ / full reconcile ขณะไม่มี read API (`BOOKING_PROVIDER_DRIVER=none` — DL46) |
 | 412 | `If-Match` ไม่ตรง `RowVersion` |
@@ -36,7 +36,7 @@
 
 ## 5.2 Endpoint Catalog
 
-> คอลัมน์ Permission = ต้องมีทุกตัวที่ระบุ · ทุก endpoint ใช้ data scope ตาม role — `all` (ทุก role web: `ADMIN`, `COMPANY_ADMIN`, `OPERATOR`, `VIEWER` — ไม่มีแผนก DL53) / `team` (`TEAM_LEADER` — DL47) (Part 2 §2.8) · ✱ = port จาก reference · endpoint ที่ไม่มีหน้าจอเรียกแล้วตัดออกตาม DL53 (แผนก, ทีม, ฐาน, แก้ไข / sync กล้อง, tracking sessions, หน้า integration, `/booking-jobs`)
+> คอลัมน์ Permission = ต้องมีทุกตัวที่ระบุ · ทุก endpoint ใช้ data scope ตาม role — `all` (ทุก role web: `SUPER_ADMIN`, `ADMIN`, `OPERATOR`, `VIEWER` — ไม่มีแผนก DL53) / `team` (`TEAM_LEADER` — DL47) (Part 2 §2.8) · ✱ = port จาก reference · endpoint ที่ไม่มีหน้าจอเรียกแล้วตัดออกตาม DL53 (แผนก, ทีม, ฐาน, แก้ไข / sync กล้อง, tracking sessions, หน้า integration, `/booking-jobs`)
 
 ### Auth & Account ✱
 
@@ -51,18 +51,23 @@
 | POST | `/auth/change-password` | login | |
 | GET / PATCH / DELETE | `/auth/devices[/:id]` | login | ทะเบียนเครื่องของตัวเอง (`deviceName`, `pushEnabled`) — **ไม่มี PIN ฝั่ง server** (PIN อยู่บนเครื่อง — DL61) |
 
-### Users, Roles, Employees
+### Users, Roles
+
+`PATCH /users/:id` รับ `username` สำหรับบัญชีที่ยังไม่เชื่อม Microsoft (`AzureObjectId` ว่าง) แม้มีอีเมลแล้ว · trim + lowercase, ยาว 3–50 ตัวอักษรและใช้เฉพาะ a–z, 0–9, `. _ @ -` เช่นเดียวกับตอนสร้าง · ชื่อซ้ำคืน `409 USERNAME_TAKEN` · บัญชีที่เชื่อม Microsoft เปลี่ยนชื่อผู้ใช้ไม่ได้ (`409 MICROSOFT_USERNAME_READ_ONLY`) รวมการส่งคำขอยกเลิกการเชื่อมพร้อมเปลี่ยนชื่อ · ID และการอ้างอิงผู้ใช้คงเดิม · response ผู้ใช้มี `phone` สำหรับแสดงคอลัมน์เบอร์โทร (DL83)
+
+Role IDs และ code (DL81): `1 SUPER_ADMIN`, `2 ADMIN`, `3 OPERATOR`, `4 VIEWER`, `5 TEAM_LEADER` · `SUPER_ADMIN` เท่านั้นที่ bypass permission และถือสิทธิ์ audit/settings/roles · `ADMIN` จัดการบัญชีทั่วไปแต่ไม่เห็นหรือแก้บัญชี `SUPER_ADMIN` · `TEAM_LEADER` scope `team` (เริ่มด้วย `streaming:view-live`; mobile API ตาม P5)
+
+ชื่อของผู้ใช้ระบบใน auth response และ Users CRUD ใช้ `firstName` / `lastName` แยกกัน (สูงสุดช่องละ 200 ตัวอักษร · `lastName` เป็นค่าว่างได้) · PATCH เปลี่ยนแต่ละช่องแยกกันได้ · ค้นชื่อ นามสกุล หรือชื่อ-นามสกุลรวมได้ · Entra ใช้ `givenName` / `surname` (DL78) · บัญชีที่มีอีเมลหรือเชื่อม Microsoft แล้วล็อกชื่อ นามสกุล และอีเมลในฟอร์มและ Users PATCH (`409 MICROSOFT_PROFILE_READ_ONLY` เมื่อพยายามเปลี่ยน) · การซิงก์อัปเดตข้อมูลเหล่านี้จาก Microsoft รวมค่าที่มีอยู่แล้ว · บัญชี local ที่ไม่มีอีเมลยังแก้ได้ และการเปลี่ยนบทบาทยังทำได้ (DL79)
 
 | Method | Path | Permission |
 |---|---|---|
-| GET / POST | `/users` | `users:read` / `users:manage` · GET ของผู้ที่ไม่ใช่ `ADMIN` ไม่คืนบัญชี role `ADMIN` (DL55) · POST `roleCode = ADMIN` โดยผู้ที่ไม่ใช่ `ADMIN` ⇒ 403 `ADMIN_ACCOUNT_PROTECTED` (DL51) · หน้า ผู้ใช้จาก Entra สร้างบัญชีจากแถว Entra ผ่าน POST นี้ (ทีละรายการ หรือหลายรายการ ≤ 50 ด้วยบทบาทเดียวกัน — DL53) |
-| GET / PATCH / DELETE | `/users/:id` | `users:read` / `users:manage` · ผู้ที่ไม่ใช่ `ADMIN`: เป้าหมายเป็นบัญชี `ADMIN` ⇒ 404 (ซ่อน — DL55) · เปลี่ยน role เป็น `ADMIN` ⇒ 403 `ADMIN_ACCOUNT_PROTECTED` · list / detail คืน `availableActions` ต่อแถว (`edit`, `suspend`, `restore`, `delete`) ให้ UI ซ่อนปุ่มระงับ / ลบของบัญชีตัวเอง |
-| PATCH | `/users/:id/access` | `users:manage` ✱ ระงับ/คืนสิทธิ์ (ตัด session ทันที) · กติกาบัญชี `ADMIN` เดียวกับแถวบน |
-| GET | `/roles`, `/roles/:id/permissions` | `users:read` · ผู้ที่ไม่ใช่ `ADMIN` ไม่เห็น role `ADMIN` ใน `/roles` (DL55) · `/roles` คืน `reservedPermissions` (permission สงวนของ `ADMIN` — ช่องที่ matrix ต้องล็อก · DL51) · `COMPANY_ADMIN` ใช้ดู matrix แบบอ่านอย่างเดียว |
-| PUT | `/roles/:id/permissions` | `roles:manage` (`ADMIN` เท่านั้น) · ใส่ permission สงวนให้ role ที่ไม่ใช่ `ADMIN` ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN` (DL51) |
+| GET / POST | `/users` | `users:read` / `users:manage` · GET ของผู้ที่ไม่ใช่ `SUPER_ADMIN` ไม่คืนบัญชี role `SUPER_ADMIN` (DL55) · POST `roleCode = SUPER_ADMIN` โดยผู้ที่ไม่ใช่ `SUPER_ADMIN` ⇒ 403 `SUPER_ADMIN_ACCOUNT_PROTECTED` (DL51) · หน้า ผู้ใช้จาก Entra สร้างบัญชีจากแถว Entra ผ่าน POST นี้ (ทีละรายการ หรือหลายรายการ ≤ 50 ด้วยบทบาทเดียวกัน — DL53) |
+| GET / PATCH / DELETE | `/users/:id` | `users:read` / `users:manage` · ผู้ที่ไม่ใช่ `SUPER_ADMIN`: เป้าหมายเป็นบัญชี `SUPER_ADMIN` ⇒ 404 (ซ่อน — DL55) · เปลี่ยน role เป็น `SUPER_ADMIN` ⇒ 403 `SUPER_ADMIN_ACCOUNT_PROTECTED` · list / detail คืน `availableActions` ต่อแถว (`edit`, `suspend`, `restore`, `delete`) ให้ UI ซ่อนปุ่มระงับ / ลบของบัญชีตัวเอง |
+| PATCH | `/users/:id/access` | `users:manage` ✱ ระงับ/คืนสิทธิ์ (ตัด session ทันที) · กติกาบัญชี `SUPER_ADMIN` เดียวกับแถวบน |
+| GET | `/roles`, `/roles/:id/permissions` | `users:read` · ผู้ที่ไม่ใช่ `SUPER_ADMIN` ไม่เห็น role `SUPER_ADMIN` ใน `/roles` (DL55) · `/roles` คืน `reservedPermissions` (permission สงวนของ `SUPER_ADMIN` — ช่องที่ matrix ต้องล็อก · DL51) · `ADMIN` ใช้ดู matrix แบบอ่านอย่างเดียว |
+| PUT | `/roles/:id/permissions` | `roles:manage` (`SUPER_ADMIN` เท่านั้น) · ใส่ permission สงวนให้ role ที่ไม่ใช่ `SUPER_ADMIN` ⇒ 400 `PERMISSION_RESERVED_FOR_SUPER_ADMIN` (DL51) |
 | GET | `/users/entra-directory` | `users:manage` ✱ · รายชื่อผู้ใช้จาก Microsoft Graph เทียบกับบัญชีในระบบ (= `sync-entra` แบบ dry run) · สถานะต่อแถว `update` / `keptLocal` / `linked` / `missing` (ยังไม่มีบัญชี — สร้างได้) / `conflict` (DL53) |
-| POST | `/users/sync-entra` | `users:manage` ✱ · `{ dryRun, matchByUsername? }` · จับคู่บัญชีด้วย `AzureObjectId` → email = UPN (→ username = ส่วนหน้า `@` ของ UPN สำหรับบัญชีที่ไม่มี email เมื่อ `matchByUsername`) แล้วผูก `AzureObjectId` + เติม email / ชื่อเฉพาะช่องที่ยังว่าง · `dryRun` (default true) = คืนแผนอย่างเดียว · ไม่สร้างบัญชีเอง (DL53) |
-| GET / POST / PATCH / DELETE | `/employees[/:id]` | `org:read` / `org:manage` · body มี `bookingEmployeeRef` (ใช้ map หัวหน้าทีมจากใบงาน — DL53) |
+| POST | `/users/sync-entra` | `users:manage` ✱ · `{ dryRun, matchByUsername? }` · จับคู่บัญชีด้วย `AzureObjectId` → email = UPN (→ username = ส่วนหน้า `@` ของ UPN สำหรับบัญชีที่ไม่มี email เมื่อ `matchByUsername`) แล้วผูก `AzureObjectId` + อัปเดต email / ชื่อ / นามสกุลให้ตรง Microsoft (DL79) · `dryRun` (default true) = คืนแผนอย่างเดียว · ไม่สร้างบัญชีเอง (DL53) |
 
 ไม่มี endpoint แผนก (ไม่มีแผนก) และทีม (ทีม / หัวหน้าทีมสร้างจากใบงาน Booking — Part 7 §7.5.2) ตาม DL53 · `entra-directory` / `sync-entra` เรียก Microsoft Graph ด้วย app registration แยกจากแอป SSO (env `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` · application permission `User.Read.All` + admin consent · กรองโดเมนด้วย `GRAPH_ALLOWED_DOMAINS` — แบบ reference) · ไม่ได้ตั้ง ⇒ 400 พร้อมข้อความบอก env ที่ขาด
 
@@ -84,7 +89,7 @@
 | Method | Path | Permission | หมายเหตุ |
 |---|---|---|---|
 | GET | `/tracking/positions` | `tracking:view` ✱ | snapshot ทุกกล้องที่ไม่ถูกลบและไม่ Retired → `{ data: [{ deviceId, deviceCode, name, lat, lng, speedKph, heading, lastFixAt, fixValid, platformState, platformStatusFetchedAt }], total, fixActiveSeconds }` · `fixActiveSeconds` = `status.unknown-after-seconds` + 2 × `gps.poll-interval-seconds` (150 ตามค่าเริ่มต้น) ให้ client ใช้ทำ marker จาง |
-| GET | `/tracking/devices/:id/history?from&to` | `tracking:history` ✱ | audit `VIEW_GPS_HISTORY` / `Devices` ทุกครั้ง · → `{ device: { id, code, name }, from, to, rules: { stopRadiusM, stopMinMinutes, gapSeconds }, pointCount, suspectCount, staleStartCount, spikeCount, smoothedCount, truncated, start, end, segments, gaps, timeline }` · ใช้เฉพาะจุด valid · อ่านสูงสุด 50,000 จุด (เกิน ⇒ `truncated: true`) · ไม่มี road matching (ไม่มี OSRM) · `rules` มาจาก `tracking.stop-radius-meters`, `tracking.stop-min-minutes` และ `gapSeconds` = `fixActiveSeconds` · 400 `INVALID_RANGE` เมื่ออ่านวันที่ไม่ได้, `to` ≤ `from`, ช่วงเกิน 24 ชม. หรือ `from` เลยอนาคตเกิน 5 นาที · กล้องไม่มี ⇒ 404 |
+| GET | `/tracking/devices/:id/history?from&to` | `tracking:history` ✱ | audit `VIEW_GPS_HISTORY` / `Devices` ทุกครั้ง · → `{ device: { id, code, name }, from, to, rules: { stopRadiusM, stopMinMinutes, gapSeconds }, pointCount, suspectCount, staleStartCount, spikeCount, smoothedCount, truncated, start, end, totalDistanceM, totalDistanceApprox, segments, gaps, timeline }` · ระยะทาง (เมตร จำนวนเต็ม · DL76): `totalDistanceM` = ระยะตามเส้นทางทั้งช่วงจากจุดที่กรองแล้ว (จุดในจุดแวะวัดจากจุดกึ่งกลางของจุดแวะ ⇒ GPS แกว่งระหว่างจอดไม่นับ) · ช่วงไม่มีสัญญาณนับเป็นเส้นตรง และทำให้ `totalDistanceApprox: true` · จุดแวะใน `timeline` มี `distanceFromPrevM` / `distanceFromPrevApprox` (จากจุดแวะก่อนหน้า · จุดแวะแรกนับจาก `start`) · gap มี `distanceM` (เส้นตรง) · ใช้เฉพาะจุด valid · อ่านสูงสุด 50,000 จุด (เกิน ⇒ `truncated: true`) · ไม่มี road matching (ไม่มี OSRM) · `rules` มาจาก `tracking.stop-radius-meters`, `tracking.stop-min-minutes` และ `gapSeconds` = `fixActiveSeconds` · 400 `INVALID_RANGE` เมื่ออ่านวันที่ไม่ได้, `to` ≤ `from`, ช่วงเกิน 36 ชม. (DL77) หรือ `from` เลยอนาคตเกิน 5 นาที · กล้องไม่มี ⇒ 404 |
 
 Session อ่านอย่างเดียว — ผูกกับใบงานโดย matching อัตโนมัติเท่านั้น · ไม่มี endpoint รายการ session (ไม่มีหน้า Tracking sessions — DL53) · session ของใบงานดูผ่าน `/work-orders/:id/sessions` · session ที่ยังไม่มีใบงาน (`AwaitingMatch` / `NoTeam`) รอข้อมูล Booking — วิดีโอของ session เหล่านี้ดูได้ที่หน้า วิดีโอย้อนหลัง รายกล้อง (DL59) · ไม่มี attach / classify ด้วยมือ (DL33)
 
@@ -110,7 +115,7 @@ Session อ่านอย่างเดียว — ผูกกับใบ�
 | POST | `/booking-jobs/:id/refresh` | `booking:refresh` | `fetchJob` สดจาก read API (timeout 5s · 503 `BOOKING_UNAVAILABLE` ถ้าไม่ได้) · **ใช้ได้เฉพาะเมื่อมี read API** (`BOOKING_PROVIDER_DRIVER ≠ none`) ไม่งั้น 409 `INTEGRATION_READ_API_DISABLED` และไม่อยู่ใน `availableActions` (DL46) |
 
 - ข้อมูล Booking ของใบงาน (รวม `doNo` / `shNo`) มากับ `GET /work-orders/:id` · ไม่มี `GET /booking-jobs` (list / detail) และไม่มีปุ่ม "ดูข้อมูลดิบ" (`raw`) — ไม่มีหน้า `/booking-jobs` และไม่มี permission `integration:view` แล้ว (DL52, DL53)
-- **ไม่มีหน้า / endpoint ดูแล integration ในระยะแรก** (ตัด `/integration/status`, `/integration/inbox`, `/integration/call-logs`, `/integration/booking/sync`, `/integration/mapping-issues` พร้อม `integration:view` / `integration:manage` — DL53): สถานะการเชื่อมต่อแจ้งด้วย alert ถึง `ADMIN` (10, 11, 12, 17 — §5.6) + แถบ stale จาก Socket.IO `integration:status` · inbox retry อัตโนมัติด้วย retry sweep · แถว `Dead` ประมวลผลใหม่อัตโนมัติ (`re-resolve` / รายวัน) หรือจากปุ่มบนการแจ้งเตือน → `POST /integration/inbox/:id/retry` (`settings:manage` — `ADMIN` · DL54) · full reconcile รันตามรอบเองเมื่อมี read API (Part 7 §7.5.4)
+- **ไม่มีหน้า / endpoint ดูแล integration ในระยะแรก** (ตัด `/integration/status`, `/integration/inbox`, `/integration/call-logs`, `/integration/booking/sync`, `/integration/mapping-issues` พร้อม `integration:view` / `integration:manage` — DL53): สถานะการเชื่อมต่อแจ้งด้วย alert ถึง `SUPER_ADMIN` (10, 11, 12, 17 — §5.6) + แถบ stale จาก Socket.IO `integration:status` · inbox retry อัตโนมัติด้วย retry sweep · แถว `Dead` ประมวลผลใหม่อัตโนมัติ (`re-resolve` / รายวัน) หรือจากปุ่มบนการแจ้งเตือน → `POST /integration/inbox/:id/retry` (`settings:manage` — `SUPER_ADMIN` · DL54) · full reconcile รันตามรอบเองเมื่อมี read API (Part 7 §7.5.4)
 
 read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือไม่ = **[Assumption]** — ถ้าไม่มี ใบงานที่ POST หายจะกลับมาได้เมื่อ Smart Booking ส่งซ้ำเท่านั้น (Part 7)
 
@@ -343,7 +348,7 @@ Booking app ลิงก์มาที่ `https://{host}/work-orders/by-bookin
 { "id": "1042" }
 ```
 
-ต้อง login + data scope ตามปกติ · ไม่พบใบงานหรือนอก scope = 404 · ใช้กับผู้ใช้ web (`ADMIN` / `COMPANY_ADMIN` / `OPERATOR` / `VIEWER`) เท่านั้น — `TEAM_LEADER` ไม่มี web UI (เปิดแล้วเห็นหน้า "ใช้งานผ่านแอปมือถือ" — DL47) · ข้อมูลใบงานเข้ามาทาง `POST /integration/booking/jobs` (DL46)
+ต้อง login + data scope ตามปกติ · ไม่พบใบงานหรือนอก scope = 404 · ใช้กับผู้ใช้ web (`SUPER_ADMIN` / `ADMIN` / `OPERATOR` / `VIEWER`) เท่านั้น — `TEAM_LEADER` ไม่มี web UI (เปิดแล้วเห็นหน้า "ใช้งานผ่านแอปมือถือ" — DL47) · ข้อมูลใบงานเข้ามาทาง `POST /integration/booking/jobs` (DL46)
 
 ---
 
@@ -353,8 +358,8 @@ Booking app ลิงก์มาที่ `https://{host}/work-orders/by-bookin
 
 - port จาก `docs/MOBILE-API-CONTRACT.md` ของ reference เฉพาะ login/SSO/refresh body-mode, ทะเบียนเครื่อง, push token — **ตัด PIN ฝั่ง server (`/auth/devices/:id/pin`, ธง PIN ใน `UserDevices`), my-jobs (approval/delegation), attachments, sites** · `/mobile/jobs` เขียนใหม่ อ่านอย่างเดียว
 - **PIN (DL61)**: แอปมีหน้า "ใส่รหัส PIN" (ตั้งหลัง login ครั้งแรก, 6 หลัก หรือ biometric) — แอปเก็บและตรวจเอง (Keystore / Keychain) เพื่อปลดล็อก refresh token ที่เก็บไว้ · server ไม่เก็บค่า / ธง PIN และไม่มี endpoint · ลืม PIN / ผิดเกินที่แอปกำหนด ⇒ ล้าง token กลับหน้า login · ปลด PIN แล้ว `/auth/refresh` ได้ 401 ⇒ ล้าง token ไปหน้า login ทันที ไม่วนหน้า PIN
-- **Login**: Entra SSO (`/auth/azure`) หรือ username/password (`/auth/login`) — ใช้ได้ทั้งสองแบบ: มีบัญชี Entra ⇒ SSO · ไม่มี ⇒ username/password แบบ reference (lockout ตาม Settings `auth.*`, refresh token แบบ body) **[Confirmed — DL49]** · `ADMIN` หรือ `COMPANY_ADMIN` (DL51) สร้างบัญชีใน User Management และผูกกับพนักงาน (`Employees.UserId`)
-- **Data scope `team`** (DL47): พนักงานของผู้ใช้ = `Employees.UserId = me` · ทีม = ทีมที่พนักงานนั้นเป็นหัวหน้าอยู่ (`TeamMembers.Role = 1 Leader` ที่ active — เปลี่ยนหัวหน้ามีผลทันที DL22) · ใบงานใน scope = `BookingJobs.TeamId = ทีมของฉัน` หรือ `BookingJobs.LeaderEmployeeId = พนักงานของฉัน` · กล้องใน scope = `DeviceAssignments` ที่ active ของทีม + กล้องใน `DeviceRefs` ของใบงานที่ `Planned` / `Open` · นอก scope = 404 · ไม่มีทีม / ไม่ได้เป็นหัวหน้า ⇒ list ว่าง ไม่ใช่ error
+- **Login**: Entra SSO (`/auth/azure`) หรือ username/password (`/auth/login`) — ใช้ได้ทั้งสองแบบ: มีบัญชี Entra ⇒ SSO · ไม่มี ⇒ username/password แบบ reference (lockout ตาม Settings `auth.*`, refresh token แบบ body) **[Confirmed — DL49]** · `SUPER_ADMIN` หรือ `ADMIN` (DL51) สร้างบัญชีใน User Management และผูกกับพนักงาน (`TeamMembers.UserId`)
+- **Data scope `team`** (DL47): พนักงานของผู้ใช้ = `TeamMembers.UserId = me` · ทีม = ทีมที่พนักงานนั้นเป็นหัวหน้าอยู่ (`TeamMembers.Role = 1 Leader` ที่ active — เปลี่ยนหัวหน้ามีผลทันที DL22) · ใบงานใน scope = `BookingJobs.TeamId = ทีมของฉัน` หรือ `BookingJobs.LeaderUserId = พนักงานของฉัน` · กล้องใน scope = `DeviceAssignments` ที่ active ของทีม + กล้องใน `DeviceRefs` ของใบงานที่ `Planned` / `Open` · นอก scope = 404 · ไม่มีทีม / ไม่ได้เป็นหัวหน้า ⇒ list ว่าง ไม่ใช่ error
 - แอปเรียก endpoint เหล่านี้เท่านั้น (permission ตาม §5.7 คอลัมน์ `TEAM_LEADER`):
 
 | Method | Path | Permission | Response หลัก |
@@ -410,7 +415,7 @@ Booking app ลิงก์มาที่ `https://{host}/work-orders/by-bookin
 
 - Auth: `handshake.auth.token` = access token (ตรวจใน `server.use` middleware — port) · หมดอายุ ⇒ client reconnect ด้วย token ใหม่
 - Rooms (ตัด company · ไม่มีแผนก — DL53): `org` (ทุกคนที่ login) · `user:{id}` · `tracking` (ผู้ใช้ web ที่มี `tracking:view`) · `alerts` (ผู้ใช้ web ที่มี `alerts:view`) · **`team:{id}`** (DL47 — `TEAM_LEADER` ของทีมนั้น join · คำนวณทีมตอน connect) · ไม่มี room `dept:*`
-  - สิทธิ์ของ `tracking` / `alerts` อ่านจาก grants ของ role ใน DB ตอน handshake (ไม่ใช่จาก token) · role `ADMIN` join ทั้งสอง room เสมอ (bypass) · `server/src/modules/realtime/realtime-rooms.ts`
+  - สิทธิ์ของ `tracking` / `alerts` อ่านจาก grants ของ role ใน DB ตอน handshake (ไม่ใช่จาก token) · role `SUPER_ADMIN` join ทั้งสอง room เสมอ (bypass) · `server/src/modules/realtime/realtime-rooms.ts`
 - `TEAM_LEADER` join เฉพาะ `org`, `user:{id}`, `team:{id}` — ไม่ join `tracking` / `alerts` จึงไม่ได้ `gps:batch` / `session:*` / `alert:new` (DL47)
 - Worker emit ผ่าน `@socket.io/redis-emitter` (key `socket.io`, namespace `/realtime` ต้องตรงกันทั้งสองฝั่ง — กับดักเดิม)
 - **emit หลัง commit เท่านั้น**
@@ -421,9 +426,9 @@ Booking app ลิงก์มาที่ `https://{host}/work-orders/by-bookin
 | `session:opened` | `tracking` | `{ sessionId, deviceId, teamId, workOrderId, startedAt }` | dashboard, แผนที่ (halo), หน้า ใบงาน |
 | `session:closed` | `tracking` | `{ sessionId, deviceId, workOrderId, endedAt, endReason }` | |
 | `workorder:changed` | `tracking` + `team:{teamId}` ของใบงาน (DL47) | `{ workOrderId, status, needsReview, rowVersion, change: 'created'\|'statusChanged'\|'sessionAttached'\|... }` | หน้า ใบงาน / วิดีโอย้อนหลัง / รายละเอียด (invalidate query) · แอปหัวหน้าทีม (งานของฉัน / รายละเอียดใบงาน) |
-| `alert:new` ✱ | `alerts` / `user:{id}` | `{ alertId, alertType, severity, title, message, workOrderId?, deviceId? }` · P1 มีแค่ alert 13 ซึ่งส่งเข้า `user:{id}` ของ `ADMIN` ที่ active ทุกคน (ยังไม่ใช้ room `alerts` — DL66) | toast, bell |
+| `alert:new` ✱ | `alerts` / `user:{id}` | `{ alertId, alertType, severity, title, message, workOrderId?, deviceId? }` · P1 มีแค่ alert 13 ซึ่งส่งเข้า `user:{id}` ของ `SUPER_ADMIN` ที่ active ทุกคน (ยังไม่ใช้ room `alerts` — DL66) | toast, bell |
 | `stream:status` ✱ | `user:{id}` | `{ sessionToken, status, endReason }` | player |
-| `integration:status` | `org` (ทุกคน — payload ไม่มีข้อมูลอ่อนไหว) | `{ source: 'BOOKING', isStale, lastReceivedAt }` (DL46) · ไม่มีหน้ารายละเอียด integration (DL53) — ปัญหาการเชื่อมต่อแจ้ง `ADMIN` ด้วย alert (§5.6) | banner "Booking data stale" ทุกหน้าที่แสดงข้อมูล Booking |
+| `integration:status` | `org` (ทุกคน — payload ไม่มีข้อมูลอ่อนไหว) | `{ source: 'BOOKING', isStale, lastReceivedAt }` (DL46) · ไม่มีหน้ารายละเอียด integration (DL53) — ปัญหาการเชื่อมต่อแจ้ง `SUPER_ADMIN` ด้วย alert (§5.6) | banner "Booking data stale" ทุกหน้าที่แสดงข้อมูล Booking |
 | `session:revoked` ✱ | `user:{id}` | `{ scope: 'account' \| 'device', reason }` | logout ทันที |
 
 Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLivePositions` / `liveMerge` ของ reference) · `workorder:changed` → `queryClient.invalidateQueries(['work-orders'])` (debounce 800ms)
@@ -458,7 +463,7 @@ Client: queue + flush, REST snapshot เมื่อ reconnect (pattern `useLive
 | 16 | *(สงวน — เลิกใช้ DL33)* | | | เดิม `REVIEW_QUEUE_OVERDUE` (SLA คิวตรวจสอบ) |
 | 17 | `BOOKING_INBOUND_SILENT` | Warning | Admin | ไม่ได้รับ POST จาก Smart Booking (ที่ผ่าน auth) นาน `booking.inbound-silence-alert-hours` (24 ชม. · 0 = ปิด) — อาจเป็นปัญหาฝั่งผู้ส่งที่เรามองไม่เห็น (DL46) |
 
-ผู้รับ **Operator** = ผู้ใช้ web ที่มี `alerts:view` (room `alerts` — ทุก role web เห็นทั้งบริษัท ไม่มีแผนก DL53) · ผู้รับ **Admin** = role `ADMIN` เท่านั้น (`user:{id}`) — `COMPANY_ADMIN` ไม่ได้รับ alert ระบบ / การเชื่อมต่อ (DL51) · ไม่มีหน้า integration แล้ว alert 10 / 11 / 12 / 17 จึงเป็นช่องทางเดียวที่ `ADMIN` รู้ปัญหาการเชื่อมต่อ Booking (DL53)
+ผู้รับ **Operator** = ผู้ใช้ web ที่มี `alerts:view` (room `alerts` — ทุก role web เห็นทั้งบริษัท ไม่มีแผนก DL53) · ผู้รับ **Admin** = role `SUPER_ADMIN` เท่านั้น (`user:{id}`) — `ADMIN` ไม่ได้รับ alert ระบบ / การเชื่อมต่อ (DL51) · ไม่มีหน้า integration แล้ว alert 10 / 11 / 12 / 17 จึงเป็นช่องทางเดียวที่ `SUPER_ADMIN` รู้ปัญหาการเชื่อมต่อ Booking (DL53)
 
 alert ส่งให้ผู้ใช้ web เท่านั้น (กระดิ่ง + toast) — ไม่ push เข้าแอปหัวหน้าทีม (DL47)
 
@@ -470,7 +475,7 @@ alert ส่งให้ผู้ใช้ web เท่านั้น (กร�
 
 Catalog มี **24 permission** (DL53) · ทุก role web ใช้ scope `all`
 
-| Permission | ADMIN | COMPANY_ADMIN (DL51) | OPERATOR | VIEWER | TEAM_LEADER (scope `team` · มือถือ) | ใช้ที่ (เมนู / หน้า) |
+| Permission | SUPER_ADMIN | ADMIN (DL51) | OPERATOR | VIEWER | TEAM_LEADER (scope `team` · มือถือ) | ใช้ที่ (เมนู / หน้า) |
 |---|:-:|:-:|:-:|:-:|:-:|---|
 | `dashboard:view` | ✓ | ✓ | ✓ | ✓ | | แดชบอร์ด |
 | `tracking:view` | ✓ | ✓ | ✓ | ✓ | | แผนที่ติดตาม · room `tracking` |
@@ -483,7 +488,7 @@ Catalog มี **24 permission** (DL53) · ทุก role web ใช้ scope `a
 | `org:read` | ✓ | ✓ | ✓ | ✓ | | พนักงาน |
 | `org:manage` | ✓ | ✓ | | | | แก้ไขพนักงาน |
 | `users:read` | ✓ | ✓ | | | | ผู้ใช้ระบบ (+ matrix สิทธิ์แบบอ่านอย่างเดียว) |
-| `users:manage` | ✓ | ✓ (ไม่เห็นบัญชี `ADMIN` — DL55) | | | | จัดการผู้ใช้ · ผู้ใช้จาก Entra |
+| `users:manage` | ✓ | ✓ (ไม่เห็นบัญชี `SUPER_ADMIN` — DL55) | | | | จัดการผู้ใช้ · ผู้ใช้จาก Entra |
 | `roles:manage` | ✓ | ✕ | | | | แก้ matrix สิทธิ์ · `/streams/role-access` |
 | `streaming:view-live` | ✓ | ✓ | ✓ | | ✓ | ปุ่ม ดูสด · ภาพสดหลายจอ · live ในแอป |
 | `streaming:live-wall` | ✓ | ✓ | ✓ | | | ภาพสดหลายจอ |
@@ -497,16 +502,16 @@ Catalog มี **24 permission** (DL53) · ทุก role web ใช้ scope `a
 | `audit:view` | ✓ | ✕ | | | | ประวัติการใช้งาน |
 | `settings:manage` | ✓ | ✕ | | | | ตั้งค่าระบบ |
 
-- ✕ = **permission สงวนของ `ADMIN`** (DL51 · เหลือ 3 ตัวตาม DL53): `audit:view`, `settings:manage`, `roles:manage`
+- ✕ = **permission สงวนของ `SUPER_ADMIN`** (DL51 · เหลือ 3 ตัวตาม DL53): `audit:view`, `settings:manage`, `roles:manage`
 - **ตัดตาม DL53** (ยังไม่มีโค้ด — ไม่ต้องสงวน code): `sessions:read`, `teams:read`, `teams:manage`, `devices:manage`, `devices:sync`, `integration:view`, `integration:manage`
 - **ไม่มี permission ปิด/reopen ใบงาน** — สถานะใบงานตาม check-in/check-out ของ Booking **[Confirmed — Q1, Q2, Q9]**
 - **ไม่มี permission link / void ใบงาน หรือ classify session** — ใบงานมาจาก Booking เท่านั้น และ session ผูกกับใบงานโดย matching อัตโนมัติ (DL33) · OPERATOR = monitor (แผนที่, ภาพสดหลายจอ, dialog ดูสด + talk — DL62), ดูย้อนหลัง/export หลักฐาน, รับทราบ alert · ไม่มีงานจัดการทีม (ทีมมาจาก Booking — DL53)
-- **role `TEAM_LEADER` (DL47)** — หัวหน้าทีมภาคสนาม ใช้ **แอปมือถือเท่านั้น** (live กล้องของตัวเอง + รายละเอียดใบงาน — §5.4) · ทุก permission ประเมินด้วย data scope **`team`** · **ไม่มี web UI** — login web แล้วเห็นหน้า "ใช้งานผ่านแอปมือถือ" (ไม่มีเมนู) · check-in/check-out ยังทำใน Booking app · role ใส่ผ่าน data migration · บัญชีต้องผูกพนักงาน (`Employees.UserId` — ตรวจใน service)
-- ชื่อ role ไม่เปลี่ยน (DL48): "แอดมินฝ่ายความปลอดภัย" ใน requirement = `COMPANY_ADMIN` (DL55 — `ADMIN` เป็นบัญชี super admin ของฝั่ง dev ไม่ใช่บทบาทของลูกค้า) · "ผู้จัดการแผนก/ฝ่าย" = `OPERATOR` (scope `all` — ไม่มีแผนก DL53) · `VIEWER` คงไว้
-- **role `COMPANY_ADMIN` (DL51)** — ผู้ดูแลบริษัท (web, scope `all`) = ชุดของ `OPERATOR` + `org:manage` + `users:read` / `users:manage` · **ไม่ bypass** permission · ต่างจาก `ADMIN` แค่ audit, settings, แก้ matrix สิทธิ์ และบัญชี `ADMIN` (DL53) · ✕ = **permission สงวนของ `ADMIN`** (`audit:view`, `settings:manage`, `roles:manage`) — ให้ role ที่ไม่ใช่ `ADMIN` ไม่ได้ (`PUT /roles/:id/permissions` ⇒ 400 `PERMISSION_RESERVED_FOR_ADMIN` · matrix ล็อกช่องตาม `reservedPermissions` จาก `GET /roles`) · จัดการบัญชีทุก role ยกเว้น `ADMIN` — บัญชี `ADMIN` ถูกซ่อน (⇒ 404) และกำหนด role `ADMIN` ไม่ได้ (⇒ 403 `ADMIN_ACCOUNT_PROTECTED` · §5.2 · DL55) · ดู matrix ได้อย่างเดียวผ่าน `users:read`
+- **role `TEAM_LEADER` (DL47)** — หัวหน้าทีมภาคสนาม ใช้ **แอปมือถือเท่านั้น** (live กล้องของตัวเอง + รายละเอียดใบงาน — §5.4) · ทุก permission ประเมินด้วย data scope **`team`** · **ไม่มี web UI** — login web แล้วเห็นหน้า "ใช้งานผ่านแอปมือถือ" (ไม่มีเมนู) · check-in/check-out ยังทำใน Booking app · role ใส่ผ่าน data migration · บัญชีต้องผูกพนักงาน (`TeamMembers.UserId` — ตรวจใน service)
+- ชื่อ role ไม่เปลี่ยน (DL48): "แอดมินฝ่ายความปลอดภัย" ใน requirement = `ADMIN` (DL55 — `SUPER_ADMIN` เป็นบัญชี super admin ของฝั่ง dev ไม่ใช่บทบาทของลูกค้า) · "ผู้จัดการแผนก/ฝ่าย" = `OPERATOR` (scope `all` — ไม่มีแผนก DL53) · `VIEWER` คงไว้
+- **role `ADMIN` (DL51)** — ผู้ดูแลบริษัท (web, scope `all`) = ชุดของ `OPERATOR` + `org:manage` + `users:read` / `users:manage` · **ไม่ bypass** permission · ต่างจาก `SUPER_ADMIN` แค่ audit, settings, แก้ matrix สิทธิ์ และบัญชี `SUPER_ADMIN` (DL53) · ✕ = **permission สงวนของ `SUPER_ADMIN`** (`audit:view`, `settings:manage`, `roles:manage`) — ให้ role ที่ไม่ใช่ `SUPER_ADMIN` ไม่ได้ (`PUT /roles/:id/permissions` ⇒ 400 `PERMISSION_RESERVED_FOR_SUPER_ADMIN` · matrix ล็อกช่องตาม `reservedPermissions` จาก `GET /roles`) · จัดการบัญชีทุก role ยกเว้น `SUPER_ADMIN` — บัญชี `SUPER_ADMIN` ถูกซ่อน (⇒ 404) และกำหนด role `SUPER_ADMIN` ไม่ได้ (⇒ 403 `SUPER_ADMIN_ACCOUNT_PROTECTED` · §5.2 · DL55) · ดู matrix ได้อย่างเดียวผ่าน `users:read`
 - `POST /integration/booking/jobs` **ไม่ใช้ permission ของผู้ใช้** — ตรวจด้วย `BookingInboundAuthGuard` (HMAC / api-key ของ Smart Booking) แทน (DL46)
 - การผูกกล้องกับทีม/งาน (รวมกล้องสำรอง) **มาจาก Booking เท่านั้น** (`DeviceRefs` ในใบงานที่ Smart Booking POST มา) **[Confirmed — Q4, Q20]** — ไม่มี permission ผูกกล้องในระบบนี้
-- `audit:view` = `ADMIN` เท่านั้น **[Confirmed — Q19 · ยืนยันอีกครั้งโดย DL51: `COMPANY_ADMIN` ดู log ไม่ได้]**
-- ADMIN bypass permission/scope (กติกาเดิม) แต่ยังผ่าน audit · role อื่นทุกตัว (รวม `COMPANY_ADMIN`) ใช้ permission ตามตาราง
+- `audit:view` = `SUPER_ADMIN` เท่านั้น **[Confirmed — Q19 · ยืนยันอีกครั้งโดย DL51: `ADMIN` ดู log ไม่ได้]**
+- SUPER_ADMIN bypass permission/scope (กติกาเดิม) แต่ยังผ่าน audit · role อื่นทุกตัว (รวม `ADMIN`) ใช้ permission ตามตาราง
 - Permission/role ใหม่ใส่ผ่าน **data migration** เท่านั้น (ไม่พึ่ง seed)
 - Toggle สิทธิ์สตรีมต่อ role ผ่าน `/streams/role-access` (port `RoleStreamAccessPanel`)

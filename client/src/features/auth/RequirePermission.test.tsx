@@ -19,7 +19,7 @@ function renderGuard(
     user: {
       id: 'u1',
       username: 'operator',
-      fullName: 'Operator',
+      firstName: 'Operator', lastName: '',
       email: null,
       roleCode,
       roleName: roleCode,
@@ -96,8 +96,8 @@ describe('RequirePermission', () => {
     expect(screen.queryByText('Protected content')).not.toBeInTheDocument();
   });
 
-  it('lets ADMIN through', () => {
-    renderGuard([], 'ADMIN');
+  it('lets SUPER_ADMIN through', () => {
+    renderGuard([], 'SUPER_ADMIN');
     expect(screen.getByText('Protected content')).toBeInTheDocument();
   });
 });

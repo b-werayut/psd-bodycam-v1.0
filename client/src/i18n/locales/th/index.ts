@@ -1,5 +1,4 @@
 import { common } from './common';
-import { employees } from './employees';
 import { app } from './app';
 import { audit } from './audit';
 import { auth } from './auth';
@@ -15,7 +14,6 @@ export const th = {
   ...auth,
   ...navigation,
   ...permission,
-  ...employees,
   ...settings,
   ...audit,
   ...users,

@@ -8,7 +8,7 @@ import type {
 } from './users.api';
 
 // Ported from the reference client (features/users/entraSync.ts). This system has no department,
-// company or phone data, so those Graph fields are neither shown nor searched.
+// company data, so those Graph fields are neither shown nor searched. Phones prefill the user form.
 
 const CONFLICT_KEY: Record<EntraSyncConflictReason, TranslationKey> = {
   boundToAnotherAzureAccount: 'users.entraSync.conflict.boundToAnotherAzureAccount',
@@ -25,10 +25,12 @@ export function conflictReasonKey(reason: string): TranslationKey {
 const FIELD_KEY: Record<string, TranslationKey> = {
   AzureObjectId: 'users.entraSync.patchField.AzureObjectId',
   Email: 'users.entraSync.patchField.Email',
-  FullName: 'users.entraSync.patchField.FullName',
+  FirstName: 'users.entraSync.patchField.FirstName',
+  LastName: 'users.entraSync.patchField.LastName',
+  Phone: 'users.entraSync.patchField.Phone',
 };
 
-/** Label of a column the sync fills (`patch`) or keeps (`keptLocal`); null = show the raw name. */
+/** Label of a column the sync updates (`patch`) or cannot update (`keptLocal`); null = show the raw name. */
 export function fieldLabelKey(field: string): TranslationKey | null {
   return FIELD_KEY[field] ?? null;
 }

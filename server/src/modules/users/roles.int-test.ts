@@ -30,7 +30,7 @@ beforeAll(async () => {
   ctx = await bootHttpContext();
   sql = ctx.sql;
   http = supertest(ctx.app.getHttpServer());
-  await createTestUsers(sql, [{ username: `${PREFIX}admin`, role: 'ADMIN' }], await hashPassword(PASSWORD));
+  await createTestUsers(sql, [{ username: `${PREFIX}admin`, role: 'SUPER_ADMIN' }], await hashPassword(PASSWORD));
   admin = await bearerFor(http, `${PREFIX}admin`, PASSWORD);
   roleId = Object.fromEntries(
     (await sql`select "Id", "Code" from "Roles"`).map((r) => [r.Code as string, String(r.Id)]),
@@ -49,13 +49,15 @@ afterAll(async () => {
   await ctx.close();
 });
 
-describe('roles API (ADMIN)', () => {
-  it('GET /roles lists all 4 roles with string ids', async () => {
+describe('roles API (SUPER_ADMIN)', () => {
+  it('GET /roles lists all five roles in the requested ID order', async () => {
     const r = await http.get('/api/roles').set('Authorization', admin);
     expect(r.status).toBe(200);
-    expect(r.body.data.map((x: { code: string }) => x.code).sort()).toEqual(['ADMIN', 'COMPANY_ADMIN', 'OPERATOR', 'VIEWER']);
+    expect(r.body.data.map((x: { id: string; code: string }) => [x.id, x.code])).toEqual([
+      ['1', 'SUPER_ADMIN'], ['2', 'ADMIN'], ['3', 'OPERATOR'], ['4', 'VIEWER'], ['5', 'TEAM_LEADER'],
+    ]);
     expect(r.body.data[0]).toEqual({ id: expect.any(String), code: expect.any(String), name: expect.any(String), isSystem: true });
-    expect(r.body.total).toBe(4);
+    expect(r.body.total).toBe(5);
   });
 
   it('GET /roles/:id/permissions returns the grants in catalog order', async () => {
@@ -74,19 +76,19 @@ describe('roles API (ADMIN)', () => {
     expect(await operatorGrants()).toEqual(['dashboard:view', 'tracking:view']);
   });
 
-  it('a reserved permission for OPERATOR ⇒ 400 PERMISSION_RESERVED_FOR_ADMIN; grants unchanged', async () => {
+  it('a reserved permission for OPERATOR ⇒ 400 PERMISSION_RESERVED_FOR_SUPER_ADMIN; grants unchanged', async () => {
     const before = await operatorGrants();
     const r = await http
       .put(`/api/roles/${roleId.OPERATOR}/permissions`)
       .set('Authorization', admin)
       .send({ permissions: ['dashboard:view', 'audit:view'] });
     expect(r.status).toBe(400);
-    expect(r.body.code).toBe('PERMISSION_RESERVED_FOR_ADMIN');
+    expect(r.body.code).toBe('PERMISSION_RESERVED_FOR_SUPER_ADMIN');
     expect(await operatorGrants()).toEqual(before);
   });
 
-  it('the ADMIN role cannot be edited ⇒ 400 ROLE_IMMUTABLE', async () => {
-    const r = await http.put(`/api/roles/${roleId.ADMIN}/permissions`).set('Authorization', admin).send({ permissions: [] });
+  it('the SUPER_ADMIN role cannot be edited ⇒ 400 ROLE_IMMUTABLE', async () => {
+    const r = await http.put(`/api/roles/${roleId.SUPER_ADMIN}/permissions`).set('Authorization', admin).send({ permissions: [] });
     expect(r.status).toBe(400);
     expect(r.body.code).toBe('ROLE_IMMUTABLE');
   });

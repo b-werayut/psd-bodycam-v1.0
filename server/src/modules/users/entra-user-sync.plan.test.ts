@@ -21,12 +21,12 @@ const local = (over: Partial<LocalUserRow> = {}): LocalUserRow => ({
   Id: 1n,
   Username: 'somchai',
   Email: null,
-  FullName: null,
+  Phone: null,
+  FirstName: null, LastName: null,
   AzureObjectId: null,
   ...over,
 });
 
-// Users has no Phone column in this system: the reference's phone cases are dropped.
 describe('planEntraUserSync — การจับคู่', () => {
   it('อีเมลตรง = ผูก oid + เติมช่องที่ว่างให้', () => {
     const plan = planEntraUserSync([entra()], [local({ Email: 'somchai@psd.co.th' })]);
@@ -34,7 +34,8 @@ describe('planEntraUserSync — การจับคู่', () => {
     expect(plan.updates).toHaveLength(1);
     expect(plan.updates[0].patch).toEqual({
       AzureObjectId: '11111111-1111-1111-1111-111111111111',
-      FullName: 'สมชาย ใจดี',
+      FirstName: 'สมชาย', LastName: 'ใจดี',
+      Phone: '0812345678',
     });
     expect(plan.updates[0].patch.Email).toBeUndefined();
   });
@@ -82,8 +83,8 @@ describe('planEntraUserSync — การจับคู่', () => {
 
     expect(plan.missingInSystem).toHaveLength(0);
     expect(plan.conflicts).toHaveLength(0);
-    expect(plan.updates[0].patch.Email).toBeUndefined();
-    expect(plan.updates[0].keptLocal).toContain('Email');
+    expect(plan.updates[0].patch.Email).toBe('somchai.new@psd.co.th');
+    expect(plan.updates[0].keptLocal).not.toContain('Email');
   });
 
   it('ตรงกันครบแล้ว = unchanged ไม่มีอะไรให้เขียน', () => {
@@ -92,7 +93,8 @@ describe('planEntraUserSync — การจับคู่', () => {
       [
         local({
           Email: 'somchai@psd.co.th',
-          FullName: 'สมชาย ใจดี',
+          Phone: '0812345678',
+          FirstName: 'สมชาย', LastName: 'ใจดี',
           AzureObjectId: '11111111-1111-1111-1111-111111111111',
         }),
       ],
@@ -133,14 +135,14 @@ describe('planEntraUserSync — สิ่งที่ห้ามทำ', () => 
     expect(plan.notInEntra).toEqual([{ username: 'admin', email: null }]);
   });
 
-  it('ไม่เขียนทับค่าที่คนกรอกไว้ — รายงานเป็น keptLocal แทน', () => {
+  it('updates existing profile names from Microsoft', () => {
     const plan = planEntraUserSync(
       [entra({ displayName: 'Somchai Jaidee' })],
-      [local({ Email: 'somchai@psd.co.th', FullName: 'สมชาย (หัวหน้าทีม)' })],
+      [local({ Email: 'somchai@psd.co.th', FirstName: 'สมชาย', LastName: '(หัวหน้าทีม)' })],
     );
 
-    expect(plan.updates[0].patch.FullName).toBeUndefined();
-    expect(plan.updates[0].keptLocal).toContain('FullName');
+    expect(plan.updates[0].patch).toMatchObject({ FirstName: 'Somchai', LastName: 'Jaidee' });
+    expect(plan.updates[0].keptLocal).toEqual([]);
   });
 
   it('แถวผูก oid อื่นอยู่แล้ว = conflict ไม่ย้ายให้', () => {
@@ -165,6 +167,39 @@ describe('planEntraUserSync — สิ่งที่ห้ามทำ', () => 
 });
 
 describe('planEntraUserSync — กรณีขอบ', () => {
+  it('fills an empty phone from Microsoft and preserves a manually entered phone', () => {
+    const empty = planEntraUserSync([entra()], [local({ Email: 'somchai@psd.co.th' })]);
+    expect(empty.updates[0].patch.Phone).toBe('0812345678');
+    const manual = planEntraUserSync([entra()], [local({ Email: 'somchai@psd.co.th', Phone: '029999999' })]);
+    expect(manual.updates[0].patch).not.toHaveProperty('Phone');
+  });
+  it('takes profile changes from Microsoft for matched email accounts', () => {
+    const plan = planEntraUserSync(
+      [entra({ givenName: 'Somchai', surname: 'Jaidee' })],
+      [local({ Email: 'somchai@psd.co.th', FirstName: 'Old', LastName: 'Name' })],
+    );
+    expect(plan.updates[0].patch).toMatchObject({ FirstName: 'Somchai', LastName: 'Jaidee' });
+    expect(plan.updates[0].keptLocal).toEqual([]);
+  });
+
+  it('clears a removed Microsoft surname but keeps names when Microsoft supplies no name data', () => {
+    const user = local({ Email: 'somchai@psd.co.th', FirstName: 'สมชาย', LastName: 'Old' });
+    const cleared = planEntraUserSync([entra({ givenName: 'สมชาย', surname: null })], [user]);
+    expect(cleared.updates[0].patch.LastName).toBe('');
+    const missing = planEntraUserSync([entra({ displayName: null })], [user]);
+    expect(missing.updates[0].patch).not.toHaveProperty('FirstName');
+    expect(missing.updates[0].patch).not.toHaveProperty('LastName');
+  });
+
+  it('prefers structured Entra names and updates changed name parts', () => {
+    const plan = planEntraUserSync(
+      [entra({ givenName: 'Mary Jane', surname: 'Watson', displayName: 'Watson, Mary Jane' })],
+      [local({ Email: 'somchai@psd.co.th', FirstName: 'Local', LastName: '' })],
+    );
+    expect(plan.updates[0].patch).toMatchObject({ FirstName: 'Mary Jane', LastName: 'Watson' });
+    expect(plan.updates[0].keptLocal).toEqual([]);
+  });
+
   it('UPN เดียวจับได้หลายแถว = conflict ไม่เดาว่าแถวไหน', () => {
     const plan = planEntraUserSync(
       [entra()],
@@ -198,7 +233,7 @@ describe('planEntraUserSync — กรณีขอบ', () => {
       [local({ Email: 'somchai@psd.co.th' })],
     );
 
-    expect(plan.updates[0].patch.FullName).toBeUndefined();
+    expect(plan.updates[0].patch.FirstName).toBeUndefined();
     expect(plan.updates[0].patch.AzureObjectId).toBeTruthy();
   });
 
@@ -207,14 +242,16 @@ describe('planEntraUserSync — กรณีขอบ', () => {
       [entra({ displayName: '   ' })],
       [local({ Email: 'somchai@psd.co.th' })],
     );
-    expect(plan.updates[0].patch.FullName).toBeUndefined();
+    expect(plan.updates[0].patch.FirstName).toBeUndefined();
   });
 
   it('รันซ้ำหลังเขียนแล้ว = ไม่มีอะไรให้เขียนอีก (idempotent)', () => {
     const first = planEntraUserSync([entra()], [local()], { matchByUsername: true });
     const applied = local({
       Email: first.updates[0].patch.Email ?? null,
-      FullName: first.updates[0].patch.FullName ?? null,
+      Phone: first.updates[0].patch.Phone ?? null,
+      FirstName: first.updates[0].patch.FirstName ?? null,
+      LastName: first.updates[0].patch.LastName ?? null,
       AzureObjectId: first.updates[0].patch.AzureObjectId ?? null,
     });
 

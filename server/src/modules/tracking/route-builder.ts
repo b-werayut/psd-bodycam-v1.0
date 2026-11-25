@@ -29,6 +29,10 @@ export type RouteStop = {
   lat: number;
   lng: number;
   noSignalSeconds: number;
+  /** ระยะตามเส้นทาง (ม.) จากจุดแวะก่อนหน้า — จุดแวะแรกนับจากจุดเริ่ม */
+  distanceFromPrevM: number;
+  /** ระหว่างทางมีช่วงไม่มีสัญญาณ ช่วงนั้นนับเป็นเส้นตรง */
+  distanceFromPrevApprox: boolean;
 };
 
 export type RouteGap = {
@@ -38,6 +42,8 @@ export type RouteGap = {
   seconds: number;
   from: LatLng;
   to: LatLng;
+  /** ระยะเส้นตรง (ม.) ระหว่างจุดที่สัญญาณหายกับจุดที่กลับมา — ไม่รู้เส้นทางจริง */
+  distanceM: number;
 };
 
 export type RouteEndpoint = { lat: number; lng: number; at: Date };
@@ -56,6 +62,10 @@ export type BuiltRoute = {
   spikeCount: number;
   /** จุดที่ถูกเลื่อนไปค่ากลางของจุดข้างเคียงเพราะกล้องแทบไม่ขยับ (ข้อมูลดิบยังอยู่ครบ) */
   smoothedCount: number;
+  /** ระยะตามเส้นทางทั้งช่วง (ม.) — ช่วงไม่มีสัญญาณนับเป็นเส้นตรง */
+  totalDistanceM: number;
+  /** มีช่วงไม่มีสัญญาณที่นับเป็นเส้นตรงอยู่ในระยะรวม */
+  totalDistanceApprox: boolean;
 };
 
 export const MAX_DRAWN_POINTS = 2000;
@@ -297,6 +307,8 @@ export function buildRoute(raw: RoutePoint[], rules: RouteRules): BuiltRoute {
       staleStartCount: 0,
       spikeCount: 0,
       smoothedCount: 0,
+      totalDistanceM: 0,
+      totalDistanceApprox: false,
     };
   }
 
@@ -315,26 +327,15 @@ export function buildRoute(raw: RoutePoint[], rules: RouteRules): BuiltRoute {
     (cluster) => secondsBetween(points[cluster.first].at, points[cluster.last].at) >= minStopSeconds,
   );
 
-  const stops: RouteStop[] = [];
-  clusters.forEach((cluster, clusterIndex) => {
-    if (!isStop[clusterIndex]) return;
-    const noSignalSeconds = silences(cluster.first, cluster.last).reduce(
-      (sum, silence) => sum + silence.seconds,
-      0,
-    );
-    const startAt = points[cluster.first].at;
-    const endAt = points[cluster.last].at;
-    stops.push({
-      kind: 'stop',
-      index: stops.length + 1,
-      startAt,
-      endAt,
-      seconds: secondsBetween(startAt, endAt),
-      lat: cluster.sumLat / cluster.count,
-      lng: cluster.sumLng / cluster.count,
-      noSignalSeconds,
-    });
-  });
+  const centroids = clusters.map((cluster) => ({
+    lat: cluster.sumLat / cluster.count,
+    lng: cluster.sumLng / cluster.count,
+  }));
+  // วัดระยะจากจุดกึ่งกลางของจุดแวะแทนพิกัดที่อยู่ในจุดแวะ — GPS ที่แกว่งระหว่างจอดจึงไม่นับเป็นระยะทาง
+  const measuredAt = (i: number): LatLng => (isStop[clusterOf[i]] ? centroids[clusterOf[i]] : points[i]);
+  /** ระยะสะสมถึงจุด i (ม.) และจำนวนช่วงไม่มีสัญญาณ (นับเป็นเส้นตรง) ที่ผ่านมาถึงจุด i */
+  const travelled = [0];
+  const gapsSoFar = [0];
 
   const gaps: RouteGap[] = [];
   const segments: RoutePoint[][] = [];
@@ -342,6 +343,9 @@ export function buildRoute(raw: RoutePoint[], rules: RouteRules): BuiltRoute {
   for (let i = 1; i < points.length; i += 1) {
     const prev = points[i - 1];
     const cur = points[i];
+    const leg = metersBetween(measuredAt(i - 1), measuredAt(i));
+    travelled.push(travelled[i - 1] + leg);
+    gapsSoFar.push(gapsSoFar[i - 1]);
     const silent = silences(i - 1, i);
     if (silent.length > 0) {
       segments.push(segment);
@@ -359,12 +363,39 @@ export function buildRoute(raw: RoutePoint[], rules: RouteRules): BuiltRoute {
           seconds: secondsBetween(startAt, endAt),
           from: { lat: prev.lat, lng: prev.lng },
           to: { lat: cur.lat, lng: cur.lng },
+          distanceM: Math.round(leg),
         });
+        gapsSoFar[i] += 1;
       }
     }
     segment.push(cur);
   }
   segments.push(segment);
+
+  const stops: RouteStop[] = [];
+  let prevStopLast = 0;
+  clusters.forEach((cluster, clusterIndex) => {
+    if (!isStop[clusterIndex]) return;
+    const noSignalSeconds = silences(cluster.first, cluster.last).reduce(
+      (sum, silence) => sum + silence.seconds,
+      0,
+    );
+    const startAt = points[cluster.first].at;
+    const endAt = points[cluster.last].at;
+    stops.push({
+      kind: 'stop',
+      index: stops.length + 1,
+      startAt,
+      endAt,
+      seconds: secondsBetween(startAt, endAt),
+      lat: centroids[clusterIndex].lat,
+      lng: centroids[clusterIndex].lng,
+      noSignalSeconds,
+      distanceFromPrevM: Math.round(travelled[cluster.first] - travelled[prevStopLast]),
+      distanceFromPrevApprox: gapsSoFar[cluster.first] > gapsSoFar[prevStopLast],
+    });
+    prevStopLast = cluster.last;
+  });
 
   const timeline = [...stops, ...gaps.filter((gap) => gap.seconds >= minStopSeconds)].sort(
     (a, b) => a.startAt.getTime() - b.startAt.getTime(),
@@ -381,6 +412,8 @@ export function buildRoute(raw: RoutePoint[], rules: RouteRules): BuiltRoute {
     staleStartCount: fresh.staleStartCount,
     spikeCount,
     smoothedCount,
+    totalDistanceM: Math.round(travelled[points.length - 1]),
+    totalDistanceApprox: gapsSoFar[points.length - 1] > 0,
   };
 }
 
@@ -460,12 +493,15 @@ const gapJson = (gap: RouteGap) => ({
   seconds: gap.seconds,
   from: gap.from,
   to: gap.to,
+  distanceM: gap.distanceM,
 });
 
 export function toRouteJson(route: BuiltRoute) {
   return {
     start: route.start ? { lat: route.start.lat, lng: route.start.lng, at: iso(route.start.at) } : null,
     end: route.end ? { lat: route.end.lat, lng: route.end.lng, at: iso(route.end.at) } : null,
+    totalDistanceM: route.totalDistanceM,
+    totalDistanceApprox: route.totalDistanceApprox,
     segments: route.segments,
     gaps: route.gaps.map(gapJson),
     timeline: route.timeline.map((item) =>

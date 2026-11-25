@@ -65,7 +65,7 @@ const t = (key: keyof typeof th) => th[key] as string;
 const operator: AuthUser = {
   id: 'u1',
   username: 'operator',
-  fullName: 'สมชาย ใจดี',
+  firstName: 'สมชาย', lastName: 'ใจดี',
   email: 'somchai@example.com',
   roleCode: 'OPERATOR',
   roleName: 'ผู้ปฏิบัติงาน',
@@ -99,11 +99,11 @@ function AppLayoutHarness({ initialEntry = '/' }: { initialEntry?: string }) {
                   element={
                     <>
                       <p>Dashboard content</p>
-                      <Link to="/employees">go employees</Link>
+                      <Link to="/tracking">go tracking</Link>
                     </>
                   }
                 />
-                <Route path="employees" element={<p>Employees content</p>} />
+                <Route path="tracking" element={<p>Tracking content</p>} />
               </Route>
               <Route path="/login" element={<p>Login destination</p>} />
             </Routes>
@@ -163,10 +163,10 @@ describe('AppLayout', () => {
     await user.click(screen.getByRole('button', { name: t('header.openMenu') }));
     const dialog = await screen.findByRole('dialog');
 
-    await user.click(within(dialog).getByRole('link', { name: t('navigation.employees') }));
+    await user.click(within(dialog).getByRole('link', { name: t('navigation.tracking') }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByLabelText('current route')).toHaveTextContent('/employees');
+    expect(screen.getByLabelText('current route')).toHaveTextContent('/tracking');
   });
 
   it('renders disabled nav items without links', () => {
@@ -177,9 +177,9 @@ describe('AppLayout', () => {
 
     expect(disabled).toHaveAttribute('aria-disabled', 'true');
     expect(disabled).not.toHaveAttribute('href');
-    expect(within(nav).getByRole('link', { name: t('navigation.employees') })).toHaveAttribute(
+    expect(within(nav).getByRole('link', { name: t('navigation.tracking') })).toHaveAttribute(
       'href',
-      '/employees',
+      '/tracking',
     );
   });
 
@@ -189,12 +189,11 @@ describe('AppLayout', () => {
     expect(within(nav).getAllByRole('button').map((head) => head.textContent)).toEqual([
       t('navigation.group.overview'),
       t('navigation.group.operations'),
-      t('navigation.group.people'),
     ]);
   });
 
-  it('shows ADMIN all 12 menu items in four groups', () => {
-    useAuthStore.setState({ user: { ...operator, roleCode: 'ADMIN', permissions: [] } });
+  it('shows SUPER_ADMIN all 11 menu items in four groups', () => {
+    useAuthStore.setState({ user: { ...operator, roleCode: 'SUPER_ADMIN', permissions: [] } });
     render(<AppLayoutHarness />);
     const nav = screen.getByRole('navigation', { name: t('navigation.label') });
     expect(within(nav).getAllByRole('button').map((head) => head.textContent)).toEqual([
@@ -203,7 +202,7 @@ describe('AppLayout', () => {
       t('navigation.group.people'),
       t('navigation.group.system'),
     ]);
-    expect(within(nav).getAllByRole('link')).toHaveLength(12);
+    expect(within(nav).getAllByRole('link')).toHaveLength(11);
   });
 
   it('hides nav items the user has no permission for', () => {

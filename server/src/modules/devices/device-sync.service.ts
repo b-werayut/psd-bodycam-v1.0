@@ -143,7 +143,7 @@ export class DeviceSyncService {
   }
 
   /**
-   * Every missing camera has had an alert 13 since it went missing (an ADMIN's dismiss counts — not raised
+   * Every missing camera has had an alert 13 since it went missing (an SUPER_ADMIN's dismiss counts — not raised
    * again); every open alert 13 of a camera that is no longer missing is resolved. Idempotent.
    */
   private async reconcileAlerts(): Promise<void> {

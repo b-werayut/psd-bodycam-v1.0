@@ -10,7 +10,7 @@ interface Envelope {
   statusCode: number;
   code: string;
   message: string;
-  details?: Record<string, unknown>;
+  details?: Record<string, unknown> | unknown[];
   correlationId: string;
 }
 

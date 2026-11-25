@@ -26,6 +26,7 @@ vi.mock('@/components/map/MarkerClusterLayer', () => ({
     </ul>
   ),
 }));
+vi.mock('./components/LiveMapViewport', () => ({ LiveMapViewport: () => null }));
 
 const live = vi.hoisted(() => ({ devices: [] as LiveDevice[], isPending: false, isError: false }));
 vi.mock('./useLivePositions', () => ({
@@ -56,6 +57,8 @@ const renderPage = () =>
 
 describe('LiveMapPage', () => {
   beforeEach(() => {
+    live.isPending = false;
+    live.isError = false;
     live.devices = [
       device('1'),
       device('2', { platformState: 'offline', lat: null, lng: null, lastFixAt: null }),
@@ -69,7 +72,7 @@ describe('LiveMapPage', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: 'แผนที่ติดตาม' })).toBeInTheDocument();
     const list = screen.getByRole('list', { name: 'รายการกล้อง' });
-    expect(within(list).getAllByRole('button')).toHaveLength(3);
+    expect(within(list).getAllByRole('button', { name: /แสดง .* บนแผนที่/ })).toHaveLength(3);
 
     const markers = within(screen.getByRole('list', { name: 'markers' })).getAllByRole('button');
     expect(markers.map((m) => m.textContent)).toEqual(['marker SIM-0001', 'marker SIM-0003']);
@@ -80,20 +83,20 @@ describe('LiveMapPage', () => {
   it('filters the list by status and by search', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.selectOptions(screen.getByLabelText('สถานะ'), 'offline');
+    await user.click(screen.getByRole('tab', { name: 'ออฟไลน์' }));
     const list = screen.getByRole('list', { name: 'รายการกล้อง' });
-    expect(within(list).getAllByRole('button').map((b) => b.textContent)).toEqual([
+    expect(within(list).getAllByRole('button', { name: /แสดง .* บนแผนที่/ }).map((b) => b.textContent)).toEqual([
       expect.stringContaining('SIM-0002'),
     ]);
-    await user.selectOptions(screen.getByLabelText('สถานะ'), 'all');
+    await user.click(screen.getByRole('tab', { name: 'ทั้งหมด' }));
     await user.type(screen.getByLabelText('ค้นหากล้อง'), '0003');
-    expect(within(list).getAllByRole('button')).toHaveLength(1);
+    expect(within(list).getAllByRole('button', { name: /แสดง .* บนแผนที่/ })).toHaveLength(1);
   });
 
   it('a click on the list opens the card with a link to the route history', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(within(screen.getByRole('list', { name: 'รายการกล้อง' })).getAllByRole('button')[0]);
+    await user.click(screen.getByRole('button', { name: 'แสดง SIM-0001 บนแผนที่' }));
     const card = screen.getByRole('region', { name: 'SIM-0001' });
     expect(within(card).getByText('ออนไลน์')).toBeInTheDocument();
     expect(within(card).getByRole('link', { name: 'ประวัติเส้นทาง' })).toHaveAttribute(
@@ -132,5 +135,44 @@ describe('LiveMapPage', () => {
     live.devices = [];
     renderPage();
     expect(screen.getByText('ยังไม่มีกล้องในระบบ')).toBeInTheDocument();
+  });
+
+  it('shows a loading state instead of an empty camera list while the snapshot loads', () => {
+    live.devices = [];
+    live.isPending = true;
+    renderPage();
+    expect(screen.getByRole('status', { name: 'กำลังโหลดข้อมูล' })).toBeInTheDocument();
+    expect(screen.queryByText('ยังไม่มีกล้องในระบบ')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('ค้นหากล้อง')).toBeDisabled();
+    expect(screen.getByRole('tab', { name: 'ออฟไลน์' })).toBeDisabled();
+  });
+
+  it('shows camera details in the list and selects or clears the camera in place', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const card = screen.getByRole('region', { name: 'SIM-0001' });
+    expect(within(card).getByText('13.75000, 100.50000')).toBeInTheDocument();
+    const select = within(card).getByRole('button', { name: 'แสดง SIM-0001 บนแผนที่' });
+    expect(select).toHaveAttribute('aria-pressed', 'false');
+    await user.click(select);
+    expect(select).toHaveAttribute('aria-pressed', 'true');
+    await user.click(within(card).getByRole('button', { name: 'ปิดรายละเอียดกล้อง' }));
+    expect(select).toHaveAttribute('aria-pressed', 'false');
+    expect(card).toBeInTheDocument();
+  });
+
+  it('copies coordinates without selecting the camera', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText');
+    renderPage();
+    const card = screen.getByRole('region', { name: 'SIM-0001' });
+    await user.click(within(card).getByRole('button', { name: 'คัดลอกพิกัด' }));
+    expect(writeText).toHaveBeenCalledWith('13.75000, 100.50000');
+    expect(within(card).getByRole('button', { name: 'แสดง SIM-0001 บนแผนที่' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('does not label an old GPS fix as online', () => {
+    renderPage();
+    expect(within(screen.getByRole('region', { name: 'SIM-0003' })).getByText('GPS: ไม่ทราบสถานะ')).toBeInTheDocument();
   });
 });

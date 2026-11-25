@@ -16,7 +16,8 @@ export function signIn(
     user: {
       id: '1',
       username: 'admin1',
-      fullName: 'ผู้ดูแล',
+      firstName: 'ผู้ดูแล',
+      lastName: '',
       email: null,
       roleCode: 'OPERATOR',
       roleName: 'OPERATOR',

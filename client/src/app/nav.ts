@@ -2,7 +2,6 @@ import {
   Bell,
   ClipboardList,
   History,
-  IdCard,
   LayoutDashboard,
   Map,
   MonitorPlay,
@@ -44,7 +43,6 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'navigation.playback', icon: Video, group: 'operations', permissions: ['playback:view'], allPermissions: ['work-orders:read'] },
   { labelKey: 'navigation.tracking', icon: Map, group: 'operations', to: '/tracking', permissions: ['tracking:view'], end: true },
   { labelKey: 'navigation.trackingHistory', icon: Route, group: 'operations', to: '/tracking/history', permissions: ['tracking:history'] },
-  { labelKey: 'navigation.employees', icon: IdCard, group: 'people', to: '/employees', permissions: ['org:read'] },
   { labelKey: 'navigation.users', icon: UsersRound, group: 'people', to: '/users', permissions: ['users:read'] },
   { labelKey: 'navigation.entraUsers', icon: UserSearch, group: 'people', to: '/entra-users', permissions: ['users:manage'] },
   { labelKey: 'navigation.notifications', icon: Bell, group: 'system', permissions: ['notifications:read', 'alerts:view'] },
@@ -57,7 +55,7 @@ export function canSee(
   permissions: readonly string[] | undefined,
   roleCode?: AuthUser['roleCode'],
 ): boolean {
-  if (roleCode === 'ADMIN') return true;
+  if (roleCode === 'SUPER_ADMIN') return true;
   if (!permissions) return false;
   if (item.allPermissions?.some((p) => !permissions.includes(p))) return false;
   return item.permissions.some((p) => permissions.includes(p));

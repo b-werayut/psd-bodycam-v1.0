@@ -20,21 +20,19 @@ describe('P0 schema', () => {
   });
 
   beforeEach(async () => {
-    await ctx.sql`delete from "Employees" where "EmployeeCode" like 'T4_%'`;
-    await ctx.sql`delete from "Users" where "FullName" like 'T4 %'`;
+    await ctx.sql`delete from "Users" where "FirstName" = 'T4'`;
   });
 
   afterAll(async () => {
-    await ctx.sql`delete from "Employees" where "EmployeeCode" like 'T4_%'`;
-    await ctx.sql`delete from "Users" where "FullName" like 'T4 %'`;
+    await ctx.sql`delete from "Users" where "FirstName" = 'T4'`;
     await ctx.sql`delete from "Roles" where "Code" = 'T4_ROLE'`;
     await ctx.close();
   });
 
   const insertUser = async (username: string) => {
     const [row] = await ctx.sql`
-      insert into "Users" ("Username","FullName","RoleId")
-      values (${username}, ${'T4 ' + username}, ${roleId}) returning "Id"`;
+      insert into "Users" ("Username","FirstName","LastName","RoleId")
+      values (${username}, 'T4', ${username}, ${roleId}) returning "Id"`;
     return row.Id as bigint;
   };
   const softDeleteUser = (username: string) =>
@@ -85,14 +83,10 @@ describe('P0 schema', () => {
     await expect(insertUser('alice')).resolves.toBeDefined();
   });
 
-  it('employee can link to at most one user', async () => {
-    const userId = await insertUser('bob');
-    const insertEmployee = (code: string) =>
-      ctx.sql`
-        insert into "Employees" ("EmployeeCode","FirstName","LastName","UserId")
-        values (${code}, 'T4', 'Emp', ${userId})`;
-    await insertEmployee('T4_E1');
-    await expect(insertEmployee('T4_E2')).rejects.toThrow(/UQ_Employees_User/);
+  it('has no Employees table or EmployeeId membership column', async () => {
+    const [table] = await ctx.sql`select to_regclass('public."Employees"') as name`;
+    expect(table.name).toBeNull();
+    expect(await ctx.sql`select 1 from information_schema.columns where table_schema = 'public' and table_name = 'TeamMembers' and column_name = 'EmployeeId'`).toHaveLength(0);
   });
 
   it('harness: boots the app over HTTP and reads BigInt through the test sql', async () => {

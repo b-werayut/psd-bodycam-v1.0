@@ -11,7 +11,7 @@ import {
 const valid = {
   ...emptyUserForm(),
   username: 'somchai',
-  fullName: 'สมชาย ใจดี',
+  firstName: 'สมชาย', lastName: 'ใจดี',
   roleCode: 'OPERATOR',
 };
 
@@ -31,13 +31,13 @@ describe('validateUserForm', () => {
   });
 
   it('requires a full name and a role', () => {
-    const errors = validateUserForm({ ...valid, fullName: '', roleCode: '' });
-    expect(errors.fullName).toBe('users.form.errorFullNameRequired');
+    const errors = validateUserForm({ ...valid, firstName: '', lastName: '', roleCode: '' });
+    expect(errors.firstName).toBe('users.form.errorFirstNameRequired');
     expect(errors.roleCode).toBe('users.form.errorRoleRequired');
   });
 
   it('accepts every role with no extra field (single-department system)', () => {
-    for (const roleCode of ['ADMIN', 'COMPANY_ADMIN', 'OPERATOR', 'VIEWER', 'TEAM_LEADER']) {
+    for (const roleCode of ['SUPER_ADMIN', 'ADMIN', 'OPERATOR', 'VIEWER', 'TEAM_LEADER']) {
       expect(validateUserForm({ ...valid, roleCode })).toEqual({});
     }
   });
@@ -50,11 +50,16 @@ describe('validateUserForm', () => {
 });
 
 describe('toCreatePayload', () => {
+  it('trims an optional phone and sends changes or null when clearing it', () => {
+    const values = { ...valid, phone: ' +66 81 234 5678 ' };
+    expect(toCreatePayload(values)).toMatchObject({ phone: '+66 81 234 5678' });
+    expect(toUpdatePayload({ ...values, phone: '' }, values)).toEqual({ phone: null });
+  });
   it('trims and lowercases the username and omits an empty password', () => {
     const payload = toCreatePayload({ ...valid, username: '  SomChai ', password: '', email: ' ' });
     expect(payload).toEqual({
       username: 'somchai',
-      fullName: 'สมชาย ใจดี',
+      firstName: 'สมชาย', lastName: 'ใจดี',
       roleCode: 'OPERATOR',
     });
   });
@@ -74,11 +79,31 @@ describe('toCreatePayload', () => {
 describe('userFormFromEntra', () => {
   const source = { upn: 'Somchai.J@psd.co.th', displayName: 'สมชาย ใจดี', mail: null, oid: 'oid-1' };
 
+  it('prefills the phone from mobilePhone, then a business phone', () => {
+    expect(userFormFromEntra({ ...source, mobilePhone: ' 0812345678 ', businessPhones: ['029999999'] }).phone).toBe('0812345678');
+    expect(userFormFromEntra({ ...source, mobilePhone: null, businessPhones: [' ', '029999999'] }).phone).toBe('029999999');
+  });
+
+  it('uses structured Entra names before the display name', () => {
+    expect(userFormFromEntra({ ...source, givenName: ' Mary Jane ', surname: ' Watson ' })).toMatchObject({
+      firstName: 'Mary Jane', lastName: 'Watson',
+    });
+  });
+
+  it('splits an unstructured name once and supports a missing surname', () => {
+    expect(userFormFromEntra({ ...source, displayName: '  Mary   van der Berg  ' })).toMatchObject({
+      firstName: 'Mary', lastName: 'van der Berg',
+    });
+    expect(userFormFromEntra({ ...source, displayName: 'ผู้ดูแลระบบ' })).toMatchObject({
+      firstName: 'ผู้ดูแลระบบ', lastName: '',
+    });
+  });
+
   it('prefills username from the UPN local part, the name, the UPN as email and the oid', () => {
     expect(userFormFromEntra(source)).toEqual({
       ...emptyUserForm(),
       username: 'somchai.j',
-      fullName: 'สมชาย ใจดี',
+      firstName: 'สมชาย', lastName: 'ใจดี',
       email: 'Somchai.J@psd.co.th',
       azureObjectId: 'oid-1',
     });
@@ -97,7 +122,7 @@ describe('userFormFromEntra', () => {
   });
 
   it('falls back to the UPN local part when Entra has no display name', () => {
-    expect(userFormFromEntra({ ...source, displayName: null }).fullName).toBe('Somchai.J');
+    expect(userFormFromEntra({ ...source, displayName: null }).firstName).toBe('Somchai.J');
   });
 
   it('uses mail when the UPN is not an email address', () => {
@@ -115,10 +140,14 @@ describe('userFormFromEntra', () => {
 });
 
 describe('toUpdatePayload', () => {
+  it('normalizes changed usernames and omits case-only changes', () => {
+    expect(toUpdatePayload({ ...valid, username: ' New.Name ' }, valid)).toEqual({ username: 'new.name' });
+    expect(toUpdatePayload({ ...valid, username: ' SOMCHAI ' }, valid)).toEqual({});
+  });
   it('sends only changed fields and clears optional ones with null', () => {
     const original = { ...valid, email: 'a@b.co' };
-    expect(toUpdatePayload({ ...original, fullName: 'ใหม่', email: '' }, original)).toEqual({
-      fullName: 'ใหม่',
+    expect(toUpdatePayload({ ...original, firstName: 'ใหม่', lastName: '', email: '' }, original)).toEqual({
+      firstName: 'ใหม่', lastName: '',
       email: null,
     });
     expect(toUpdatePayload(original, original)).toEqual({});

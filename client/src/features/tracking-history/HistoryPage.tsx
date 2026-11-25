@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { PageHeader } from '@/components/command-center';
@@ -9,28 +9,58 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import type { TranslationKey } from '@/i18n/locales/th';
 import { useLanguage } from '@/i18n/useLanguage';
 import { apiErrorOf } from '@/lib/apiError';
+import { formatDayMonth, formatTime } from '@/lib/time';
 import { RouteLayers } from './components/RouteLayers';
 import { historyApi } from './history.api';
 import {
+  HISTORY_MAX_HOURS,
   bangkokDateOf,
   dayWindowOf,
   historySearch,
   isFutureDay,
   parseHistoryQuery,
-  shiftDay,
+  rangeFieldsOf,
+  rangeProblem,
+  shiftWindow,
+  spansDays,
+  windowOfFields,
+  type HistoryWindow,
+  type RangeFields,
+  type RangeProblem,
 } from './historyRange';
-import { timelineView } from './historyTimeline';
+import { distanceText, timelineView } from './historyTimeline';
 
-/** ประวัติเส้นทาง: one camera, one Bangkok day (or a ≤ 24 h window from a link). Every load is audited. */
+const PROBLEM_KEY: Record<RangeProblem, TranslationKey> = {
+  incomplete: 'tracking.history.rangeIncomplete',
+  endBeforeStart: 'tracking.history.rangeEndBeforeStart',
+  tooLong: 'tracking.history.rangeTooLong',
+  future: 'tracking.history.rangeFuture',
+};
+
+/**
+ * ประวัติเส้นทาง: one camera over a Bangkok start–end window of at most 36 h (a whole day by default).
+ * The fields are a draft: only Show route (or whole day / previous / next / camera) loads — every load is audited.
+ */
 export function HistoryPage() {
   const { t, language } = useLanguage();
   const [params, setParams] = useSearchParams();
   const query = useMemo(() => parseHistoryQuery(params), [params]);
-  const day = bangkokDateOf(new Date(query.from));
   const today = bangkokDateOf(new Date());
   const [focus, setFocus] = useState<[number, number] | null>(null);
+  const [draft, setDraft] = useState<RangeFields>(() => rangeFieldsOf(query));
+  // back / forward or a link changes the loaded window: the fields follow it
+  useEffect(() => setDraft(rangeFieldsOf({ from: query.from, to: query.to })), [query.from, query.to]);
+
+  const draftWindow = windowOfFields(draft);
+  const problem = rangeProblem(draftWindow);
+  const prevWindow = shiftWindow(query, -1);
+  const nextWindow = shiftWindow(query, 1);
+  const wholeDayOk = /^\d{4}-\d{2}-\d{2}$/.test(draft.startDate) && !isFutureDay(draft.startDate);
+  const edit = (field: keyof RangeFields) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setDraft((current) => ({ ...current, [field]: e.target.value }));
 
   const devices = useQuery({ queryKey: ['tracking', 'history-devices'], queryFn: historyApi.devices });
   const history = useQuery({
@@ -44,30 +74,45 @@ export function HistoryPage() {
     retry: false,
   });
 
-  const go = (next: { deviceId?: string | null; day?: string }) => {
+  const go = (next: { deviceId?: string | null; window?: HistoryWindow }) => {
     setFocus(null);
-    const window = next.day ? dayWindowOf(next.day) : { from: query.from, to: query.to };
+    const window = next.window ?? { from: query.from, to: query.to };
+    setDraft(rangeFieldsOf(window));
     setParams(historySearch({ deviceId: next.deviceId === undefined ? query.deviceId : next.deviceId, ...window }));
   };
+
+  // valid fields that differ from what is loaded: the results below are not for them yet
+  const pending =
+    problem === null && draftWindow !== null && (draftWindow.from !== query.from || draftWindow.to !== query.to);
+  const show = () => {
+    if (!draftWindow) return;
+    if (pending) return go({ window: draftWindow });
+    // same range again = an explicit retry / refresh (e.g. today so far) — a user action, audited like any load
+    setFocus(null);
+    if (query.deviceId) void history.refetch();
+  };
+  const clockOf = (iso: string) => `${formatDayMonth(iso, language)} ${formatTime(iso, language)}`;
 
   const route = history.data;
   const error = history.isError ? apiErrorOf(history.error, t).message : null;
   const stops = route?.timeline.filter((item) => item.kind === 'stop').length ?? 0;
   const filtered = route ? route.suspectCount + route.staleStartCount + route.spikeCount : 0;
+  const withDate = spansDays(query);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PageHeader title={t('navigation.trackingHistory')} description={t('tracking.history.description')} />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,18rem)_auto] sm:items-end">
-        <div>
+      <div className="mb-4 space-y-3">
+        <div className="max-w-[18rem]">
           <label htmlFor="history-camera" className="mb-1 block text-sm font-medium">
             {t('tracking.history.camera')}
           </label>
           <Select
             id="history-camera"
             value={query.deviceId ?? ''}
-            onChange={(e) => go({ deviceId: e.target.value || null })}
+            // the fields' range when valid (what the screen shows is what loads), else the loaded one
+            onChange={(e) => go({ deviceId: e.target.value || null, window: problem ? undefined : draftWindow! })}
             disabled={devices.isPending}
           >
             <option value="">{t('tracking.history.cameraPlaceholder')}</option>
@@ -78,42 +123,100 @@ export function HistoryPage() {
             ))}
           </Select>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-3">
+          <div role="group" aria-labelledby="history-range-start">
+            <span id="history-range-start" className="mb-1 block text-sm font-medium">
+              {t('tracking.history.rangeStart')}
+            </span>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                aria-label={t('tracking.history.startDate')}
+                value={draft.startDate}
+                max={today}
+                onChange={edit('startDate')}
+                className="min-h-11"
+              />
+              <Input
+                type="time"
+                aria-label={t('tracking.history.startTime')}
+                value={draft.startTime}
+                onChange={edit('startTime')}
+                className="min-h-11 w-32"
+              />
+            </div>
+          </div>
+          <div role="group" aria-labelledby="history-range-end">
+            <span id="history-range-end" className="mb-1 block text-sm font-medium">
+              {t('tracking.history.rangeEnd')}
+            </span>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                aria-label={t('tracking.history.endDate')}
+                value={draft.endDate}
+                onChange={edit('endDate')}
+                className="min-h-11"
+              />
+              <Input
+                type="time"
+                aria-label={t('tracking.history.endTime')}
+                value={draft.endTime}
+                onChange={edit('endTime')}
+                className="min-h-11 w-32"
+              />
+            </div>
+          </div>
+          <Button
+            type="button"
+            className="min-h-11"
+            disabled={problem !== null}
+            onClick={show}
+          >
+            {t('tracking.history.show')}
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            disabled={!wholeDayOk}
+            onClick={() => go({ window: dayWindowOf(draft.startDate) })}
+          >
+            {t('tracking.history.wholeDay')}
+          </Button>
           <Button
             type="button"
             variant="outline"
             className="min-h-11 px-3"
             aria-label={t('tracking.history.prevDay')}
-            onClick={() => go({ day: shiftDay(day, -1) })}
+            onClick={() => go({ window: prevWindow })}
           >
             <ChevronLeft aria-hidden="true" className="size-4" />
           </Button>
-          <div>
-            <label htmlFor="history-date" className="mb-1 block text-sm font-medium">
-              {t('tracking.history.date')}
-            </label>
-            <Input
-              id="history-date"
-              type="date"
-              value={day}
-              max={today}
-              onChange={(e) => {
-                if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && !isFutureDay(e.target.value)) go({ day: e.target.value });
-              }}
-              className="min-h-11"
-            />
-          </div>
           <Button
             type="button"
             variant="outline"
             className="min-h-11 px-3"
             aria-label={t('tracking.history.nextDay')}
-            disabled={isFutureDay(shiftDay(day, 1))}
-            onClick={() => go({ day: shiftDay(day, 1) })}
+            disabled={Date.parse(nextWindow.from) > Date.now()}
+            onClick={() => go({ window: nextWindow })}
           >
             <ChevronRight aria-hidden="true" className="size-4" />
           </Button>
         </div>
+        {problem ? (
+          <p role="alert" className="text-sm text-destructive">
+            {t(PROBLEM_KEY[problem], { hours: HISTORY_MAX_HOURS })}
+          </p>
+        ) : null}
+        {pending ? <p className="text-sm font-medium text-warning">{t('tracking.history.notLoaded')}</p> : null}
+        {query.deviceId ? (
+          <p className="text-sm text-muted-foreground">
+            {t('tracking.history.loadedRange', { from: clockOf(query.from), to: clockOf(query.to) })}
+          </p>
+        ) : null}
       </div>
 
       {error ? (
@@ -152,6 +255,14 @@ export function HistoryPage() {
             <>
               <p className="text-sm">
                 {t('tracking.history.summary', { points: route.pointCount, stops })}
+                <span className="block font-medium">
+                  {t('tracking.history.totalDistance', {
+                    distance: distanceText(route.totalDistanceM, route.totalDistanceApprox, language),
+                  })}
+                </span>
+                {route.totalDistanceApprox ? (
+                  <span className="block text-xs text-muted-foreground">{t('tracking.history.totalDistanceApprox')}</span>
+                ) : null}
                 {filtered > 0 ? (
                   <span className="block text-xs text-muted-foreground">
                     {t('tracking.history.filtered', { count: filtered })}
@@ -161,7 +272,7 @@ export function HistoryPage() {
               <h2 className="text-sm font-semibold">{t('tracking.history.timeline')}</h2>
               <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
                 {route.timeline.map((item) => {
-                  const view = timelineView(item, language);
+                  const view = timelineView(item, language, withDate);
                   return (
                     <li key={view.key}>
                       <button
@@ -172,6 +283,9 @@ export function HistoryPage() {
                         <span className={view.kind === 'gap' ? 'text-muted-foreground' : undefined}>
                           {t(view.labelKey, view.params)}
                         </span>
+                        {view.distance ? (
+                          <span className="block text-xs text-muted-foreground">{t(view.distance.key, view.distance.params)}</span>
+                        ) : null}
                         {view.noSignal ? (
                           <span className="block text-xs text-muted-foreground">{t(view.noSignal.key, view.noSignal.params)}</span>
                         ) : null}

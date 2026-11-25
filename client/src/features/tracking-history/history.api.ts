@@ -12,9 +12,22 @@ export type RouteStop = {
   lat: number;
   lng: number;
   noSignalSeconds: number;
+  /** meters along the route from the previous stop (the first stop: from the start) */
+  distanceFromPrevM: number;
+  /** a no-signal stretch on the way counts as a straight line */
+  distanceFromPrevApprox: boolean;
 };
 
-export type RouteGap = { kind: 'gap'; startAt: string; endAt: string; seconds: number; from: LatLng; to: LatLng };
+export type RouteGap = {
+  kind: 'gap';
+  startAt: string;
+  endAt: string;
+  seconds: number;
+  from: LatLng;
+  to: LatLng;
+  /** straight-line meters from where the signal dropped to where it came back */
+  distanceM: number;
+};
 
 export type RouteTimelineItem = RouteStop | RouteGap;
 
@@ -32,6 +45,9 @@ export type RouteHistory = {
   truncated: boolean;
   start: (LatLng & { at: string }) | null;
   end: (LatLng & { at: string }) | null;
+  /** meters along the whole route; no-signal stretches count as straight lines */
+  totalDistanceM: number;
+  totalDistanceApprox: boolean;
   segments: Array<Array<[number, number]>>;
   gaps: RouteGap[];
   timeline: RouteTimelineItem[];

@@ -40,11 +40,14 @@ export async function verifyAccessToken(
   try {
     const { payload } = await jwtVerify(token, key(env), { algorithms: ['HS256'] });
     if (typeof payload.sub !== 'string') return null;
+    // Tokens issued before the naming migration remain valid until their normal expiry.
+    const roleCode = payload.roleCode === 'SUPERADMIN' ? 'SUPER_ADMIN'
+      : payload.roleCode === 'TEAMLEADER' ? 'TEAM_LEADER' : payload.roleCode;
     return {
       sub: payload.sub,
       username: String(payload.username),
       roleId: String(payload.roleId),
-      roleCode: payload.roleCode as JwtPayload['roleCode'],
+      roleCode: roleCode as JwtPayload['roleCode'],
       permissions: Array.isArray(payload.permissions) ? (payload.permissions as JwtPayload['permissions']) : [],
     };
   } catch {

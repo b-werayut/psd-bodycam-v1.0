@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { haversineMeters } from '../../common/geo/haversine';
 import {
   MAX_DRAWN_POINTS,
   buildRoute,
@@ -61,6 +62,8 @@ describe('buildRoute', () => {
       staleStartCount: 0,
       spikeCount: 0,
       smoothedCount: 0,
+      totalDistanceM: 0,
+      totalDistanceApprox: false,
     });
   });
 
@@ -166,6 +169,90 @@ describe('buildRoute', () => {
 
     const stops = route.timeline.filter((item) => item.kind === 'stop');
     expect(stops.map((stop) => (stop.kind === 'stop' ? stop.index : 0))).toEqual([1, 2]);
+  });
+});
+
+/** ระยะจริงกับค่าที่ได้ต่างกันไม่เกิน 2 ม. (ปัดเป็นเมตร + เส้นตรงใน lat/lng ไม่ใช่วงกลมใหญ่พอดี) */
+function expectMeters(actual: number, expected: number) {
+  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(2);
+}
+
+const stopsOf = (route: ReturnType<typeof buildRoute>) =>
+  route.timeline.flatMap((item) => (item.kind === 'stop' ? [item] : []));
+
+describe('buildRoute — ระยะทาง', () => {
+  it('เดินทางจาก A ไป B โดยไม่หยุด -> ระยะรวม = ระยะตามเส้นทาง · ไม่ใช่ค่าประมาณ', () => {
+    const route = buildRoute(travel(A, B, 0, 600), RULES);
+
+    expectMeters(route.totalDistanceM, haversineMeters(A, B));
+    expect(Number.isInteger(route.totalDistanceM)).toBe(true);
+    expect(route.totalDistanceApprox).toBe(false);
+  });
+
+  it('ตามเส้นทาง ไม่ใช่เส้นตรง: ขึ้นเหนือ 2 กม. แล้วเลี้ยวไปตะวันออก 2 กม.', () => {
+    // ไม่ใช้ไป-กลับ: ปลายกลับรถถูก smoothStationary ตัดมนได้หนึ่งช่วง (ข้อจำกัดที่ยอมรับใน SMOOTH_RULES)
+    const corner = shift(A, 2000);
+    const end = shift(corner, 0, 2000);
+    const route = buildRoute([...travel(A, corner, 0, 600), ...travel(corner, end, 615, 1200)], RULES);
+
+    expectMeters(route.totalDistanceM, haversineMeters(A, corner) + haversineMeters(corner, end));
+    expect(route.totalDistanceM).toBeGreaterThan(haversineMeters(A, end) + 1000);
+  });
+
+  it('พิกัดส่ายไปมาระหว่างจอดอยู่ในจุดแวะ -> ไม่นับเป็นระยะทาง', () => {
+    const points: RoutePoint[] = [{ at: at(0), ...A }];
+    for (let m = 1; m <= 10; m += 1) {
+      points.push({ at: at(m * 60), lat: A.lat + (m % 2 ? 0.0002 : -0.0002), lng: A.lng });
+    }
+
+    const route = buildRoute(points, RULES);
+
+    expect(route.totalDistanceM).toBe(0);
+    expect(stopsOf(route)[0]).toMatchObject({ distanceFromPrevM: 0, distanceFromPrevApprox: false });
+  });
+
+  it('จุดแวะที่ 1 นับจากจุดเริ่ม · จุดแวะถัดไปนับจากจุดแวะก่อนหน้า', () => {
+    const route = buildRoute(
+      [...travel(D, A, 0, 600), ...stay(A, 615, 1215), ...travel(A, B, 1230, 1800), ...stay(B, 1815, 2415)],
+      RULES,
+    );
+
+    const [first, second] = stopsOf(route);
+    expectMeters(first.distanceFromPrevM, haversineMeters(D, A));
+    expectMeters(second.distanceFromPrevM, haversineMeters(A, B));
+    expect(second.distanceFromPrevApprox).toBe(false);
+    expectMeters(route.totalDistanceM, haversineMeters(D, A) + haversineMeters(A, B));
+  });
+
+  it('ช่วงไม่มีสัญญาณ -> ระยะเส้นตรงระหว่างปลายทั้งสอง นับรวมในระยะทั้งวัน และเป็นค่าประมาณ', () => {
+    const route = buildRoute([...travel(A, B, 0, 600), ...travel(D, E, 1200, 1800)], RULES);
+
+    expectMeters(route.gaps[0].distanceM, haversineMeters(B, D));
+    expect(route.timeline[0]).toMatchObject({ kind: 'gap' });
+    expectMeters(
+      route.totalDistanceM,
+      haversineMeters(A, B) + haversineMeters(B, D) + haversineMeters(D, E),
+    );
+    expect(route.totalDistanceApprox).toBe(true);
+  });
+
+  it('จุดแวะที่มาถึงหลังช่วงไม่มีสัญญาณ -> ระยะจากจุดแวะก่อนหน้าเป็นค่าประมาณ', () => {
+    const route = buildRoute(
+      [...stay(A, 0, 600), ...travel(B, D, 1800, 2400), ...stay(D, 2415, 3015)],
+      RULES,
+    );
+
+    const [first, second] = stopsOf(route);
+    expect(first.distanceFromPrevApprox).toBe(false);
+    expectMeters(second.distanceFromPrevM, haversineMeters(A, B) + haversineMeters(B, D));
+    expect(second.distanceFromPrevApprox).toBe(true);
+  });
+
+  it('ไม่มีสัญญาณแล้วกลับมาที่จุดแวะเดิม -> ไม่มีระยะ และไม่ใช่ค่าประมาณ', () => {
+    const route = buildRoute([...stay(A, 0, 300), ...stay(A, 2400, 2700)], RULES);
+
+    expect(route.totalDistanceM).toBe(0);
+    expect(route.totalDistanceApprox).toBe(false);
   });
 });
 
@@ -608,5 +695,15 @@ describe('toRouteJson', () => {
       startAt: at(0).toISOString(),
       endAt: at(300).toISOString(),
     });
+  });
+
+  it('ส่งระยะทางของช่วงไม่มีสัญญาณ จุดแวะ และทั้งวันไปด้วย', () => {
+    const route = buildRoute([...stay(A, 0, 300), ...travel(B, D, 2400, 2430)], RULES);
+    const json = toRouteJson(route);
+
+    expect(json.gaps[0].distanceM).toBe(route.gaps[0].distanceM);
+    expect(json.timeline[1]).toMatchObject({ kind: 'gap', distanceM: route.gaps[0].distanceM });
+    expect(json.timeline[0]).toMatchObject({ kind: 'stop', distanceFromPrevM: 0, distanceFromPrevApprox: false });
+    expect(json).toMatchObject({ totalDistanceM: route.totalDistanceM, totalDistanceApprox: true });
   });
 });

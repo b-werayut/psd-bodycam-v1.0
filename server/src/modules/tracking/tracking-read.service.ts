@@ -77,7 +77,7 @@ export class TrackingReadService {
     return { data, total: data.length, fixActiveSeconds: await this.fixActiveSeconds() };
   }
 
-  /** Route of one camera over ≤ 24 h, valid points only (raw rows stay; suspects are counted). */
+  /** Route of one camera over ≤ 36 h (HISTORY_MAX_RANGE_HOURS), valid points only (raw rows stay; suspects are counted). */
   async deviceHistory(deviceId: bigint, from: Date, to: Date, readCap = ROUTE_READ_CAP) {
     const [device] = await this.db
       .select({ id: Devices.Id, code: Devices.DeviceCode, name: Devices.Name })

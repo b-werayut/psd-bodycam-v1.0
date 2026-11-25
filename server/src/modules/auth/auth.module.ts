@@ -30,7 +30,7 @@ import { TokensService } from './tokens.service';
       useFactory: (config: AzureAdConfig) => new EntraTokenVerifier(config),
     },
     {
-      // Lockout policy is editable by ADMIN on ตั้งค่าระบบ (Settings auth.*).
+      // Lockout policy is editable by SUPER_ADMIN on ตั้งค่าระบบ (Settings auth.*).
       provide: AUTH_SETTINGS,
       inject: [SettingsService],
       useFactory: (settings: SettingsService): AuthSettings => ({

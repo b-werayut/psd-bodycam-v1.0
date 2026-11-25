@@ -8,7 +8,7 @@ import { likePattern } from '../../common/http/page-query.dto';
 import { paged, type Paged } from '../../common/http/paged';
 import { DRIZZLE } from '../../db/db.constants';
 import type { DrizzleDB } from '../../db/db.types';
-import { Employees, PushTokens, Roles, Users } from '../../db/schema';
+import { PushTokens, Roles, Users } from '../../db/schema';
 import { USER_STATUS } from '../auth/lockout';
 import { TokensService } from '../auth/tokens.service';
 import { assertAssignableRole, canSeeUser } from './admin-protection';
@@ -34,8 +34,10 @@ const UNIQUE_CODES: Record<string, [string, string]> = {
 const columns = {
   Id: Users.Id,
   Username: Users.Username,
-  FullName: Users.FullName,
+  FirstName: Users.FirstName,
+  LastName: Users.LastName,
   Email: Users.Email,
+  Phone: Users.Phone,
   RoleId: Users.RoleId,
   RoleCode: Roles.Code,
   RoleName: Roles.Name,
@@ -88,8 +90,10 @@ export class UsersService {
       .insert(Users)
       .values({
         Username: username,
-        FullName: dto.fullName,
+        FirstName: dto.firstName,
+        LastName: dto.lastName,
         Email: dto.email ?? null,
+        Phone: dto.phone ?? null,
         RoleId: roleId,
         PasswordHash: passwordHash,
         AzureObjectId: dto.azureObjectId ?? null,
@@ -103,17 +107,39 @@ export class UsersService {
   }
 
   async update(actor: AuthUser, id: bigint, dto: UpdateUserDto): Promise<UserRowView> {
-    await this.visible(actor, id);
+    const target = await this.visible(actor, id);
+    const username = dto.username === undefined ? undefined : normalizeUsername(dto.username);
+    if (username !== undefined && username !== normalizeUsername(target.Username) &&
+      (target.AzureObjectId || dto.azureObjectId)) {
+      throw new AppException(
+        409, 'MICROSOFT_USERNAME_READ_ONLY',
+        'ชื่อผู้ใช้ของบัญชีนี้อ้างอิงจาก Microsoft กรุณาแก้ไขที่ Microsoft',
+      );
+    }
+    const microsoftProfile = Boolean(target.Email?.trim() || target.AzureObjectId || dto.azureObjectId);
+    if (microsoftProfile && (
+      (dto.firstName !== undefined && dto.firstName !== target.FirstName) ||
+      (dto.lastName !== undefined && dto.lastName !== target.LastName) ||
+      (dto.email !== undefined && dto.email !== target.Email)
+    )) {
+      throw new AppException(
+        409, 'MICROSOFT_PROFILE_READ_ONLY',
+        'ชื่อ นามสกุล และอีเมลของบัญชีนี้อ้างอิงจาก Microsoft กรุณาแก้ไขที่ Microsoft แล้วซิงก์ข้อมูลอีกครั้ง',
+      );
+    }
     const changes: Partial<typeof Users.$inferInsert> = { UpdatedAt: new Date(), UpdatedBy: actor.id };
 
     if (dto.roleCode !== undefined) {
       assertAssignableRole(actor.roleCode, dto.roleCode);
       changes.RoleId = await this.roleIdOf(dto.roleCode);
     }
-    if (dto.fullName !== undefined) changes.FullName = dto.fullName;
+    if (username !== undefined) changes.Username = username;
+    if (dto.firstName !== undefined) changes.FirstName = dto.firstName;
+    if (dto.lastName !== undefined) changes.LastName = dto.lastName;
     if (dto.email !== undefined) changes.Email = dto.email;
+    if (dto.phone !== undefined) changes.Phone = dto.phone;
     if (dto.azureObjectId !== undefined) changes.AzureObjectId = dto.azureObjectId;
-    await this.assertAvailable({ email: dto.email, azureObjectId: dto.azureObjectId }, id);
+    await this.assertAvailable({ username, email: dto.email, azureObjectId: dto.azureObjectId }, id);
     if (dto.password) changes.PasswordHash = await hashPassword(dto.password);
 
     await this.db.update(Users).set(changes).where(eq(Users.Id, id)).catch(rethrowUnique);
@@ -155,7 +181,6 @@ export class UsersService {
         .update(Users)
         .set({ IsDeleted: true, DeletedAt: now, DeletedBy: actor.id, UpdatedAt: now, UpdatedBy: actor.id })
         .where(eq(Users.Id, id));
-      await tx.update(Employees).set({ UserId: null, UpdatedAt: now, UpdatedBy: actor.id }).where(eq(Employees.UserId, id));
     });
     await this.cutAllSessions(id, REVOKE_REASON.DELETED);
   }
@@ -178,18 +203,22 @@ export class UsersService {
 
   private listFilters(actor: AuthUser, q: QueryUsersDto): SQL[] {
     const out: SQL[] = [eq(Users.IsDeleted, false)];
-    if (actor.roleCode !== 'ADMIN') out.push(ne(Roles.Code, 'ADMIN'));
+    if (actor.roleCode !== 'SUPER_ADMIN') out.push(ne(Roles.Code, 'SUPER_ADMIN'));
     if (q.roleCode) out.push(eq(Roles.Code, q.roleCode));
     if (q.status) out.push(eq(Users.Status, q.status));
     const term = q.q?.trim();
     if (term) {
       const like = likePattern(term);
-      out.push(or(ilike(Users.Username, like), ilike(Users.FullName, like), ilike(Users.Email, like)) as SQL);
+      out.push(or(
+        ilike(Users.Username, like),
+        ilike(sql`concat_ws(' ', ${Users.FirstName}, nullif(${Users.LastName}, ''))`, like),
+        ilike(Users.Email, like),
+      ) as SQL);
     }
     return out;
   }
 
-  /** The live user, or 404 — also 404 for an ADMIN account when the caller is not ADMIN (DL55). */
+  /** The live user, or 404 — also 404 for an SUPER_ADMIN account when the caller is not SUPER_ADMIN (DL55). */
   private async visible(actor: AuthUser, id: bigint): Promise<UserJoinedRow> {
     const [row] = await this.db
       .select(columns)

@@ -1,81 +1,91 @@
-import { MapPin, Route, X } from 'lucide-react';
+import { Camera, Copy, MapPin, Route, Video, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import { DeviceStateBadge } from '@/components/status/DeviceStateBadge';
-import { buttonVariants } from '@/components/ui/button';
+import { actionToast } from '@/components/ui/action-toast';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/i18n/useLanguage';
 import { usePermission } from '@/lib/usePermission';
-import { formatDateTime } from '@/lib/time';
+import { cn } from '@/lib/utils';
 import type { LiveDevice } from '../liveMerge';
-import { positionAge } from '../positionAge';
+import { isStaleFix, positionAge } from '../positionAge';
 
-/** Details of the selected camera on the live map. Live view comes in P4. */
-export function CameraCard({ device, now, onClose }: { device: LiveDevice; now: number; onClose: () => void }) {
-  const { t, language } = useLanguage();
+/** Adapted from Internal-BodyCam's DeviceTrackingCard. */
+export function CameraCard({ device, now, fixActiveSeconds, selected, onSelect, onClose }: {
+  device: LiveDevice; now: number; fixActiveSeconds: number; selected: boolean; onSelect: () => void; onClose: () => void;
+}) {
+  const { t } = useLanguage();
   const canSeeHistory = usePermission('tracking:history');
   const age = device.lastFixAt ? positionAge(device.lastFixAt, now) : null;
+  const statusAge = device.platformStatusFetchedAt ? positionAge(device.platformStatusFetchedAt, now) : null;
+  const coordinates = device.lat !== null && device.lng !== null
+    ? `${device.lat.toFixed(5)}, ${device.lng.toFixed(5)}` : null;
+  const gpsLabel = !coordinates ? 'tracking.list.noPosition'
+    : isStaleFix(device.lastFixAt, fixActiveSeconds, now) ? 'tracking.state.unknown' : 'tracking.state.online';
+
+  const copyCoordinates = async () => {
+    if (!coordinates) return;
+    try {
+      await navigator.clipboard.writeText(coordinates);
+      actionToast.success(t('tracking.card.copySuccess'));
+    } catch {
+      actionToast.error(t('tracking.card.copyFailed'));
+    }
+  };
 
   return (
-    <section aria-label={device.deviceCode} className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="nwl-mono truncate text-base font-semibold">{device.deviceCode}</h2>
-          {device.name && device.name !== device.deviceCode ? (
-            <p className="truncate text-sm text-muted-foreground">{device.name}</p>
+    <section aria-label={device.deviceCode} className={cn(
+      'relative overflow-hidden rounded-lg border border-border bg-card transition-colors motion-reduce:transition-none',
+      selected && 'border-primary/50 bg-primary/5 ring-1 ring-inset ring-primary/20',
+    )}>
+      <button type="button" onClick={onSelect} aria-pressed={selected}
+        aria-label={t('tracking.card.viewOnMap', { code: device.deviceCode })}
+        className="flex min-h-11 w-full flex-col p-3 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+        <span className={cn('flex w-full items-start justify-between gap-3', selected && 'pr-9')}>
+          <span className="flex min-w-0 items-center gap-2.5">
+            <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Video className="size-4" /></span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold" title={device.name ?? device.deviceCode}>{device.name || device.deviceCode}</span>
+              <span className="mt-0.5 block truncate text-xs tabular-nums text-muted-foreground">{t('tracking.card.code', { code: device.deviceCode })}</span>
+            </span>
+          </span>
+          <Badge variant={device.platformState === 'online' ? 'success' : device.platformState === 'unknown' ? 'warning' : 'secondary'} className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium">
+            {t(`tracking.state.${device.platformState}`)}
+          </Badge>
+        </span>
+        <span className="mt-3 flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/60 pt-2.5 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Camera aria-hidden="true" className="size-3.5" />Bodycam</span>
+          <span>{t('tracking.card.gps', { status: t(gpsLabel) })}</span>
+          {statusAge ? <span>{t('tracking.list.updatedAt', { time: t(statusAge.key, { n: statusAge.n }) })}</span> : null}
+        </span>
+      </button>
+      {selected ? (
+        <Button type="button" variant="ghost" size="icon" onClick={onClose}
+          aria-label={t('tracking.card.close')} title={t('tracking.card.close')}
+          className="absolute right-1 top-1 size-9 [@media(pointer:coarse)]:size-11"><X aria-hidden="true" /></Button>
+      ) : null}
+      <div className="flex flex-col gap-2.5 border-t border-border/60 px-3 py-2.5 text-xs text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="min-w-0 flex-1">
+            {coordinates ? (
+              <span className="inline-flex items-center gap-1.5 font-medium tabular-nums text-foreground"><MapPin aria-hidden="true" className="size-3.5 shrink-0" />{coordinates}</span>
+            ) : <span>{t('tracking.card.noPosition')}</span>}
+            {age ? <span className="mt-0.5 block">{t('tracking.card.positionAge', { age: t(age.key, { n: age.n }) })}</span> : null}
+          </div>
+          {coordinates ? (
+            <Button type="button" variant="ghost" size="icon" onClick={() => void copyCoordinates()}
+              aria-label={t('tracking.card.copyCoordinates')} title={t('tracking.card.copyCoordinates')}
+              className="size-9 shrink-0 [@media(pointer:coarse)]:size-11"><Copy aria-hidden="true" /></Button>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('tracking.card.close')}
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X aria-hidden="true" className="size-4" />
-        </button>
+        {canSeeHistory ? (
+          <Button asChild variant="outline" size="sm" className="w-full text-xs">
+            <Link to={`/tracking/history?deviceId=${encodeURIComponent(device.id)}`}>
+              <Route aria-hidden="true" />{t('tracking.card.history')}
+            </Link>
+          </Button>
+        ) : null}
       </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <DeviceStateBadge state={device.platformState} />
-        <span className="text-xs text-muted-foreground">
-          {device.platformStatusFetchedAt
-            ? t('tracking.card.statusAt', { time: formatDateTime(device.platformStatusFetchedAt, language, { seconds: true }) })
-            : t('tracking.card.statusFallback')}
-        </span>
-      </div>
-
-      <dl className="mt-4 space-y-2 text-sm">
-        <div>
-          <dt className="text-xs text-muted-foreground">{t('tracking.card.position')}</dt>
-          {device.lat !== null && device.lng !== null && age ? (
-            <dd className="flex items-start gap-2">
-              <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <span>
-                <span className="block">{t(age.key, { n: age.n })}</span>
-                <span className="nwl-mono block text-xs text-muted-foreground">
-                  {device.lat.toFixed(5)}, {device.lng.toFixed(5)}
-                </span>
-                {device.speedKph !== null ? (
-                  <span className="block text-xs text-muted-foreground">
-                    {t('tracking.card.speed', { speed: Math.round(device.speedKph) })}
-                  </span>
-                ) : null}
-              </span>
-            </dd>
-          ) : (
-            <dd className="text-muted-foreground">{t('tracking.card.noPosition')}</dd>
-          )}
-        </div>
-      </dl>
-
-      {canSeeHistory ? (
-        <Link
-          to={`/tracking/history?deviceId=${encodeURIComponent(device.id)}`}
-          className={buttonVariants({ variant: 'outline', className: 'mt-4 min-h-11 w-full gap-2' })}
-        >
-          <Route aria-hidden="true" className="size-4" />
-          {t('tracking.card.history')}
-        </Link>
-      ) : null}
     </section>
   );
 }

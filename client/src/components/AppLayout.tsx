@@ -15,8 +15,8 @@ import {
   DialogTitle,
 } from './ui/dialog';
 
-/** หน้าเต็มพื้นที่ (ไม่มี padding ของ main) — P0 ยังไม่มี, P1 เพิ่มหน้าแผนที่ติดตาม */
-const FULL_BLEED_ROUTES = new Set<string>();
+/** Map workspaces own the entire area below the application header. */
+const FULL_BLEED_ROUTES = new Set(['/tracking']);
 
 function AppLayoutContent() {
   const [collapsed, setCollapsed] = useState(false);
@@ -43,7 +43,10 @@ function AppLayoutContent() {
   }, [notice, signedIn, consumeNotice, t]);
 
   return (
-    <div className="operations-theme flex min-h-dvh flex-col bg-background text-foreground lg:flex-row">
+    <div className={cn(
+      'operations-theme flex flex-col bg-background text-foreground lg:flex-row',
+      isFullBleedRoute ? 'h-dvh overflow-hidden' : 'min-h-dvh',
+    )}>
       <a
         href="#main-content"
         className="fixed left-3 top-3 z-50 -translate-y-20 rounded-lg bg-primary px-4 py-2 text-primary-foreground focus:translate-y-0"
@@ -52,7 +55,7 @@ function AppLayoutContent() {
       </a>
       <AppSidebar collapsed={collapsed} />
       <Dialog open={mobileNavigationOpen} onOpenChange={setMobileNavigationOpen}>
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <AppHeader
             collapsed={collapsed}
             onToggleSidebar={() => setCollapsed((value) => !value)}
@@ -67,7 +70,7 @@ function AppLayoutContent() {
               // บนมือถือ (flex-col) ความสูงของ main จึงไม่ "definite" และ h-full ของหน้าตกไปที่ min-h
               // เหลือแถบว่างใต้แผนที่ (desktop รอดเพราะ lg:flex-row ยืด cross-axis ให้)
               isFullBleedRoute
-                ? 'flex flex-col overflow-hidden p-0 [&>*]:flex-1'
+                ? 'flex min-h-0 flex-col overflow-hidden p-0 [&>*]:flex-1'
                 : 'p-4 sm:p-5 xl:p-6',
             )}
           >

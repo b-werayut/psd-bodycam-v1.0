@@ -261,8 +261,8 @@ describe('Command Center patterns', () => {
       '[@media(pointer:fine)]:[&_input]:min-h-9',
       '[@media(pointer:fine)]:[&_select]:h-9',
       '[@media(pointer:fine)]:[&_select]:min-h-9',
-      '[@media(pointer:fine)]:[&_button]:h-9',
-      '[@media(pointer:fine)]:[&_button]:min-h-9',
+      '[@media(pointer:fine)]:[&_button:not([role=checkbox])]:h-9',
+      '[@media(pointer:fine)]:[&_button:not([role=checkbox])]:min-h-9',
     );
     expect(screen.getByRole('searchbox', { name: 'Search devices' })).toHaveClass('min-h-11');
     expect(screen.getByRole('combobox', { name: 'Device type' })).toHaveClass('min-h-11');

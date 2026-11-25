@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PERMISSION_CODES,
-  RESERVED_ADMIN_PERMISSIONS,
+  RESERVED_SUPER_ADMIN_PERMISSIONS,
   ROLE_CODES,
   ROLE_NAMES_TH,
   ROLE_PERMISSIONS,
@@ -21,24 +21,25 @@ describe('permission catalog', () => {
     for (const code of PERMISSION_CODES) expect(code).toMatch(/^[a-z-]+:[a-z-]+$/);
   });
 
-  it('has the 4 web roles of P0 with Thai names', () => {
-    expect(ROLE_CODES).toEqual(['ADMIN', 'COMPANY_ADMIN', 'OPERATOR', 'VIEWER']);
+  it('has all five roles in the requested order with Thai names', () => {
+    expect(ROLE_CODES).toEqual(['SUPER_ADMIN', 'ADMIN', 'OPERATOR', 'VIEWER', 'TEAM_LEADER']);
     expect(ROLE_NAMES_TH).toEqual({
+      SUPER_ADMIN: 'ผู้ดูแลระบบสูงสุด',
       ADMIN: 'ผู้ดูแลระบบ',
-      COMPANY_ADMIN: 'ผู้ดูแลบริษัท',
       OPERATOR: 'ผู้ปฏิบัติการ',
       VIEWER: 'ผู้ดูข้อมูล',
+      TEAM_LEADER: 'หัวหน้าทีม',
     });
   });
 
-  it('ADMIN holds the whole catalog', () => {
-    expect(ROLE_PERMISSIONS.ADMIN).toEqual(PERMISSION_CODES);
+  it('SUPER_ADMIN holds the whole catalog', () => {
+    expect(ROLE_PERMISSIONS.SUPER_ADMIN).toEqual(PERMISSION_CODES);
   });
 
-  it('OPERATOR has 18, COMPANY_ADMIN = OPERATOR + org/users manage (21), VIEWER has 9', () => {
+  it('OPERATOR has 18, ADMIN = OPERATOR + org/users manage (21), VIEWER has 9', () => {
     expect(ROLE_PERMISSIONS.OPERATOR).toHaveLength(18);
-    expect(ROLE_PERMISSIONS.COMPANY_ADMIN).toHaveLength(21);
-    expect(ROLE_PERMISSIONS.COMPANY_ADMIN).toEqual(
+    expect(ROLE_PERMISSIONS.ADMIN).toHaveLength(21);
+    expect(ROLE_PERMISSIONS.ADMIN).toEqual(
       expect.arrayContaining([...ROLE_PERMISSIONS.OPERATOR, 'org:manage', 'users:read', 'users:manage']),
     );
     expect(ROLE_PERMISSIONS.VIEWER).toEqual([
@@ -54,10 +55,10 @@ describe('permission catalog', () => {
     ]);
   });
 
-  it('no non-ADMIN role holds a reserved permission', () => {
-    expect(RESERVED_ADMIN_PERMISSIONS).toEqual(['audit:view', 'settings:manage', 'roles:manage']);
-    for (const role of ['COMPANY_ADMIN', 'OPERATOR', 'VIEWER'] as const) {
-      for (const p of RESERVED_ADMIN_PERMISSIONS) expect(ROLE_PERMISSIONS[role]).not.toContain(p);
+  it('no non-SUPER_ADMIN role holds a reserved permission', () => {
+    expect(RESERVED_SUPER_ADMIN_PERMISSIONS).toEqual(['audit:view', 'settings:manage', 'roles:manage']);
+    for (const role of ['ADMIN', 'OPERATOR', 'VIEWER', 'TEAM_LEADER'] as const) {
+      for (const p of RESERVED_SUPER_ADMIN_PERMISSIONS) expect(ROLE_PERMISSIONS[role]).not.toContain(p);
     }
   });
 
@@ -76,7 +77,9 @@ describe('permission catalog', () => {
     expect(isPermissionCode('')).toBe(false);
   });
 
-  it('every P0 role has scope all', () => {
-    for (const role of ROLE_CODES) expect(ROLE_SCOPE[role]).toBe('all');
+  it('keeps web roles at scope all and restricts TEAM_LEADER to its team', () => {
+    for (const role of ['SUPER_ADMIN', 'ADMIN', 'OPERATOR', 'VIEWER'] as const) expect(ROLE_SCOPE[role]).toBe('all');
+    expect(ROLE_SCOPE.TEAM_LEADER).toBe('team');
+    expect(ROLE_PERMISSIONS.TEAM_LEADER).toEqual(['streaming:view-live']);
   });
 });

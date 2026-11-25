@@ -1,15 +1,20 @@
 type Env = Record<string, string | undefined>;
 
+/** Database name from DATABASE_URL (`bwc`, `bwc_test`), or null when absent / unparsable. */
+export function databaseName(env: Env): string | null {
+  const url = env.DATABASE_URL?.trim();
+  if (!url) return null;
+  try {
+    return new URL(url).pathname.replace(/^\//, '') || null;
+  } catch {
+    return null;
+  }
+}
+
 /** `cache:{database}` — dev (`bwc`) and tests (`bwc_test`) share one Redis without sharing values. */
 function cachePrefix(env: Env): string {
-  const url = env.DATABASE_URL?.trim();
-  if (!url) return 'cache';
-  try {
-    const database = new URL(url).pathname.replace(/^\//, '');
-    return database ? `cache:${database}` : 'cache';
-  } catch {
-    return 'cache';
-  }
+  const database = databaseName(env);
+  return database ? `cache:${database}` : 'cache';
 }
 
 export function cacheKey(key: string, env: Env = process.env): string {

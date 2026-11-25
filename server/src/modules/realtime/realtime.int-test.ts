@@ -78,7 +78,7 @@ beforeAll(async () => {
   ids = await createTestUsers(
     sql,
     [
-      { username: `${PREFIX}admin`, role: 'ADMIN' },
+      { username: `${PREFIX}admin`, role: 'SUPER_ADMIN' },
       { username: `${PREFIX}viewer`, role: 'VIEWER' },
       { username: `${PREFIX}victim`, role: 'OPERATOR' },
       { username: `${PREFIX}noperm`, role: 'T10_NOPERM' },

@@ -17,34 +17,34 @@ const errorOf = (fn: () => void): AppException => {
   throw new Error('expected a throw');
 };
 
-describe('canSeeUser (DL55: ADMIN accounts are hidden from non-ADMIN callers)', () => {
-  it('ADMIN sees everyone', () => {
-    for (const target of ['ADMIN', 'COMPANY_ADMIN', 'OPERATOR', 'VIEWER'] as const) {
-      expect(canSeeUser('ADMIN', target)).toBe(true);
+describe('canSeeUser (DL55: SUPER_ADMIN accounts are hidden from non-SUPER_ADMIN callers)', () => {
+  it('SUPER_ADMIN sees everyone', () => {
+    for (const target of ['SUPER_ADMIN', 'ADMIN', 'OPERATOR', 'VIEWER'] as const) {
+      expect(canSeeUser('SUPER_ADMIN', target)).toBe(true);
     }
   });
 
-  it('other roles see every account except ADMIN ones', () => {
-    for (const actor of ['COMPANY_ADMIN', 'OPERATOR', 'VIEWER'] as const) {
-      expect(canSeeUser(actor, 'ADMIN')).toBe(false);
-      expect(canSeeUser(actor, 'COMPANY_ADMIN')).toBe(true);
+  it('other roles see every account except SUPER_ADMIN ones', () => {
+    for (const actor of ['ADMIN', 'OPERATOR', 'VIEWER'] as const) {
+      expect(canSeeUser(actor, 'SUPER_ADMIN')).toBe(false);
+      expect(canSeeUser(actor, 'ADMIN')).toBe(true);
       expect(canSeeUser(actor, 'VIEWER')).toBe(true);
     }
   });
 });
 
 describe('assertAssignableRole', () => {
-  it('ADMIN may assign any role', () => {
-    expect(() => assertAssignableRole('ADMIN', 'ADMIN')).not.toThrow();
-    expect(() => assertAssignableRole('ADMIN', 'VIEWER')).not.toThrow();
+  it('SUPER_ADMIN may assign any role', () => {
+    expect(() => assertAssignableRole('SUPER_ADMIN', 'SUPER_ADMIN')).not.toThrow();
+    expect(() => assertAssignableRole('SUPER_ADMIN', 'VIEWER')).not.toThrow();
   });
 
-  it('COMPANY_ADMIN may assign every role but ADMIN ⇒ 403 ADMIN_ACCOUNT_PROTECTED', () => {
-    expect(() => assertAssignableRole('COMPANY_ADMIN', 'COMPANY_ADMIN')).not.toThrow();
-    expect(() => assertAssignableRole('COMPANY_ADMIN', 'OPERATOR')).not.toThrow();
-    const error = errorOf(() => assertAssignableRole('COMPANY_ADMIN', 'ADMIN'));
+  it('ADMIN may assign every role but SUPER_ADMIN ⇒ 403 SUPER_ADMIN_ACCOUNT_PROTECTED', () => {
+    expect(() => assertAssignableRole('ADMIN', 'ADMIN')).not.toThrow();
+    expect(() => assertAssignableRole('ADMIN', 'OPERATOR')).not.toThrow();
+    const error = errorOf(() => assertAssignableRole('ADMIN', 'SUPER_ADMIN'));
     expect(error.getStatus()).toBe(403);
-    expect(error.code).toBe('ADMIN_ACCOUNT_PROTECTED');
+    expect(error.code).toBe('SUPER_ADMIN_ACCOUNT_PROTECTED');
   });
 });
 
@@ -53,24 +53,24 @@ describe('assertGrantablePermissions', () => {
     expect(() => assertGrantablePermissions('OPERATOR', ['alerts:view', 'users:read'])).not.toThrow();
   });
 
-  it('a reserved code for a non-ADMIN role ⇒ 400 PERMISSION_RESERVED_FOR_ADMIN listing the codes', () => {
+  it('a reserved code for a non-SUPER_ADMIN role ⇒ 400 PERMISSION_RESERVED_FOR_SUPER_ADMIN listing the codes', () => {
     const error = errorOf(() =>
-      assertGrantablePermissions('COMPANY_ADMIN', ['users:read', 'audit:view', 'roles:manage']),
+      assertGrantablePermissions('ADMIN', ['users:read', 'audit:view', 'roles:manage']),
     );
     expect(error.getStatus()).toBe(400);
-    expect(error.code).toBe('PERMISSION_RESERVED_FOR_ADMIN');
+    expect(error.code).toBe('PERMISSION_RESERVED_FOR_SUPER_ADMIN');
     expect(error.details).toEqual({ permissions: ['audit:view', 'roles:manage'] });
   });
 
-  it('ADMIN may hold reserved codes', () => {
-    expect(() => assertGrantablePermissions('ADMIN', ['audit:view', 'settings:manage'])).not.toThrow();
+  it('SUPER_ADMIN may hold reserved codes', () => {
+    expect(() => assertGrantablePermissions('SUPER_ADMIN', ['audit:view', 'settings:manage'])).not.toThrow();
   });
 });
 
 describe('availableUserActions', () => {
-  const companyAdmin = { id: 1n, roleCode: 'COMPANY_ADMIN' as const, permissions: [...ROLE_PERMISSIONS.COMPANY_ADMIN] };
+  const companyAdmin = { id: 1n, roleCode: 'ADMIN' as const, permissions: [...ROLE_PERMISSIONS.ADMIN] };
   const viewer = { id: 2n, roleCode: 'VIEWER' as const, permissions: [...ROLE_PERMISSIONS.VIEWER] };
-  const admin = { id: 3n, roleCode: 'ADMIN' as const, permissions: [] };
+  const admin = { id: 3n, roleCode: 'SUPER_ADMIN' as const, permissions: [] };
 
   it('without users:manage there is nothing to do', () => {
     expect(availableUserActions(viewer, { id: 9n, status: 1 })).toEqual([]);
@@ -88,7 +88,7 @@ describe('availableUserActions', () => {
     expect(availableUserActions(companyAdmin, { id: 1n, status: 1 })).toEqual(['edit']);
   });
 
-  it('ADMIN bypasses the permission list', () => {
+  it('SUPER_ADMIN bypasses the permission list', () => {
     expect(availableUserActions(admin, { id: 9n, status: 1 })).toEqual(['edit', 'suspend', 'delete']);
   });
 });

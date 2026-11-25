@@ -3,7 +3,7 @@ import { asc, eq, inArray } from 'drizzle-orm';
 import type { AuthUser } from '../../common/auth/auth-user';
 import {
   PERMISSION_CODES,
-  RESERVED_ADMIN_PERMISSIONS,
+  RESERVED_SUPER_ADMIN_PERMISSIONS,
   isPermissionCode,
   type PermissionCode,
 } from '../../common/auth/permission-catalog';
@@ -19,7 +19,7 @@ const notFound = () => new AppException(404, 'NOT_FOUND', 'ไม่พบบท
 export class RolesService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
-  /** Roles for pickers and the permission matrix. The ADMIN role is hidden from non-ADMIN callers. */
+  /** Roles for pickers and the permission matrix. The SUPER_ADMIN role is hidden from non-SUPER_ADMIN callers. */
   async list(actor: AuthUser) {
     const rows = await this.db
       .select({ Id: Roles.Id, Code: Roles.Code, Name: Roles.Name, IsSystem: Roles.IsSystem })
@@ -28,7 +28,7 @@ export class RolesService {
     const data = rows
       .filter((r) => canSeeUser(actor.roleCode, r.Code))
       .map((r) => ({ id: r.Id.toString(), code: r.Code, name: r.Name, isSystem: r.IsSystem }));
-    return { data, total: data.length, reservedPermissions: [...RESERVED_ADMIN_PERMISSIONS] };
+    return { data, total: data.length, reservedPermissions: [...RESERVED_SUPER_ADMIN_PERMISSIONS] };
   }
 
   async permissions(actor: AuthUser, roleId: bigint): Promise<{ data: PermissionCode[]; total: number }> {
@@ -38,11 +38,11 @@ export class RolesService {
     return { data, total: data.length };
   }
 
-  /** Replaces the role's grants. ADMIN's own row set is fixed (it bypasses checks anyway). */
+  /** Replaces the role's grants. SUPER_ADMIN's own row set is fixed (it bypasses checks anyway). */
   async setPermissions(roleId: bigint, requested: string[]): Promise<{ data: PermissionCode[]; total: number }> {
     const role = await this.role(roleId);
-    if (role.Code === 'ADMIN') {
-      throw new AppException(400, 'ROLE_IMMUTABLE', 'สิทธิ์ของบทบาทผู้ดูแลระบบแก้ไขไม่ได้');
+    if (role.Code === 'SUPER_ADMIN') {
+      throw new AppException(400, 'ROLE_IMMUTABLE', 'สิทธิ์ของบทบาทผู้ดูแลระบบสูงสุดแก้ไขไม่ได้');
     }
     const unknown = requested.filter((c) => !isPermissionCode(c));
     if (unknown.length) {

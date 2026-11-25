@@ -9,8 +9,10 @@ export type UserAction = 'edit' | 'suspend' | 'restore' | 'delete';
 export type UserRow = {
   id: string;
   username: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   email: string | null;
+  phone: string | null;
   roleId: string;
   roleCode: string;
   roleName: string;
@@ -22,7 +24,7 @@ export type UserRow = {
 
 export type RoleRow = { id: string; code: string; name: string; isSystem: boolean };
 
-/** GET /roles: the server leaves ADMIN out for non-ADMIN callers and lists the ADMIN-only codes. */
+/** GET /roles: the server leaves SUPER_ADMIN out for non-SUPER_ADMIN callers and lists the SUPER_ADMIN-only codes. */
 export type RolesResponse = { roles: RoleRow[]; reservedPermissions: string[] };
 
 export type UserQuery = { page: number; pageSize: number; q?: string };
@@ -30,16 +32,21 @@ export type UserQuery = { page: number; pageSize: number; q?: string };
 /** No password ⇒ an SSO-only account; `azureObjectId` links it to its Microsoft Entra account. */
 export type CreateUserPayload = {
   username: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   roleCode: string;
   email?: string;
+  phone?: string;
   password?: string;
   azureObjectId?: string;
 };
 
 export type UpdateUserPayload = {
-  fullName?: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string | null;
+  phone?: string | null;
   roleCode?: string;
   password?: string;
   /** null unlinks the Entra account */
@@ -74,12 +81,12 @@ export type EntraDirectoryUser = {
   createdDateTime?: string | null;
 };
 
-/** A local account the sync would fill (`patch`, PascalCase column names) or leaves as is (`keptLocal`). */
+/** Microsoft profile updates (`patch`, PascalCase) and fields that cannot be updated (`keptLocal`). */
 export type EntraSyncUpdate = {
   userId: string;
   username: string;
   upn: string;
-  patch: Partial<Record<'AzureObjectId' | 'Email' | 'FullName', string>>;
+  patch: Partial<Record<'AzureObjectId' | 'Email' | 'FirstName' | 'LastName' | 'Phone', string>>;
   keptLocal: string[];
 };
 

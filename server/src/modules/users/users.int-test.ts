@@ -27,12 +27,11 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await sql`delete from "Employees" where "EmployeeCode" like 'T7U_%'`;
   await dropTestUsers(sql, [`${PREFIX}%`]);
   ids = await createTestUsers(
     sql,
     [
-      { username: `${PREFIX}admin`, role: 'ADMIN' },
+      { username: `${PREFIX}admin`, role: 'SUPER_ADMIN' },
       { username: `${PREFIX}viewer`, role: 'VIEWER' },
       { username: `${PREFIX}victim`, role: 'OPERATOR', email: 't7u_victim@example.test' },
     ],
@@ -42,7 +41,6 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await sql`delete from "Employees" where "EmployeeCode" like 'T7U_%'`;
   await dropTestUsers(sql, [`${PREFIX}%`]);
   await ctx.close();
 });
@@ -50,12 +48,25 @@ afterAll(async () => {
 const post = (body: object) => http.post('/api/users').set('Authorization', admin).send(body);
 
 describe('POST /api/users', () => {
+  it('creates TEAM_LEADER accounts without access to web administration', async () => {
+    const username = `${PREFIX}teamleader`;
+    const created = await post({ username, firstName: 'หัวหน้า', lastName: 'ทีม', roleCode: 'TEAM_LEADER', password: PASSWORD });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ roleId: '5', roleCode: 'TEAM_LEADER' });
+    const login = await http.post('/api/auth/login').send({ username, password: PASSWORD });
+    expect(login.status).toBe(200);
+    expect(login.body.user.permissions).toEqual(['streaming:view-live']);
+    const authorization = `Bearer ${login.body.accessToken}`;
+    for (const path of ['/api/users', '/api/settings', '/api/tracking/positions']) {
+      expect((await http.get(path).set('Authorization', authorization)).status).toBe(403);
+    }
+  });
   it('creates a user with a normalized username and returns the row', async () => {
-    const r = await post({ username: ' T7U_Bob ', fullName: 'Bob Builder', roleCode: 'OPERATOR', password: 'Bob-Password-1' });
+    const r = await post({ username: ' T7U_Bob ', firstName: 'Bob', lastName: 'Builder', roleCode: 'OPERATOR', password: 'Bob-Password-1' });
     expect(r.status).toBe(201);
     expect(r.body).toMatchObject({
       username: 't7u_bob',
-      fullName: 'Bob Builder',
+      firstName: 'Bob', lastName: 'Builder',
       email: null,
       roleCode: 'OPERATOR',
       roleName: 'ผู้ปฏิบัติการ',
@@ -64,35 +75,49 @@ describe('POST /api/users', () => {
       azureLinked: false,
     });
     expect(typeof r.body.id).toBe('string');
+    expect(r.body).not.toHaveProperty('fullName');
     expect(typeof r.body.roleId).toBe('string');
     expect((await http.post('/api/auth/login').send({ username: 't7u_bob', password: 'Bob-Password-1' })).status).toBe(200);
   });
 
   it('without a password the account is SSO-only (cannot log in with a password)', async () => {
-    const r = await post({ username: `${PREFIX}sso`, fullName: 'SSO Only', roleCode: 'VIEWER', email: 'sso@example.test' });
+    const r = await post({ username: `${PREFIX}sso`, firstName: 'SSO', lastName: 'Only', roleCode: 'VIEWER', email: 'sso@example.test' });
     expect(r.status).toBe(201);
     const [row] = await sql`select "PasswordHash" from "Users" where "Username" = ${`${PREFIX}sso`}`;
     expect(row.PasswordHash).toBeNull();
   });
 
   it('duplicate username (any case) ⇒ 409 USERNAME_TAKEN; duplicate email ⇒ 409 EMAIL_TAKEN', async () => {
-    const dupUser = await post({ username: 'T7U_VICTIM', fullName: 'x', roleCode: 'VIEWER', password: 'Some-Password-1' });
+    const dupUser = await post({ username: 'T7U_VICTIM', firstName: 'x', lastName: '', roleCode: 'VIEWER', password: 'Some-Password-1' });
     expect(dupUser.status).toBe(409);
     expect(dupUser.body.code).toBe('USERNAME_TAKEN');
-    const dupEmail = await post({ username: `${PREFIX}other`, fullName: 'x', roleCode: 'VIEWER', email: 'T7U_VICTIM@example.test' });
+    const dupEmail = await post({ username: `${PREFIX}other`, firstName: 'x', lastName: '', roleCode: 'VIEWER', email: 'T7U_VICTIM@example.test' });
     expect(dupEmail.status).toBe(409);
     expect(dupEmail.body.code).toBe('EMAIL_TAKEN');
   });
 
   it('unknown role ⇒ 400 UNKNOWN_ROLE; short password ⇒ 400 VALIDATION_FAILED', async () => {
-    expect((await post({ username: `${PREFIX}x`, fullName: 'x', roleCode: 'NOPE' })).body.code).toBe('UNKNOWN_ROLE');
-    expect((await post({ username: `${PREFIX}x`, fullName: 'x', roleCode: 'VIEWER', password: 'short' })).body.code).toBe(
+    expect((await post({ username: `${PREFIX}x`, firstName: 'x', lastName: '', roleCode: 'NOPE' })).body.code).toBe('UNKNOWN_ROLE');
+    expect((await post({ username: `${PREFIX}x`, firstName: 'x', lastName: '', roleCode: 'VIEWER', password: 'short' })).body.code).toBe(
       'VALIDATION_FAILED',
     );
   });
 });
 
 describe('GET /api/users', () => {
+  it('does not expose the removed employees API', async () => {
+    expect((await http.get('/api/employees').set('Authorization', admin)).status).toBe(404);
+  });
+  it('searches first name, surname, and the combined display name', async () => {
+    const created = await post({ username: `${PREFIX}names`, firstName: 'สมชาย', lastName: 'ใจดี', roleCode: 'VIEWER' });
+    expect(created.status).toBe(201);
+    for (const q of ['สมชาย', 'ใจดี', 'สมชาย ใจดี']) {
+      const r = await http.get('/api/users').query({ q }).set('Authorization', admin);
+      expect(r.status).toBe(200);
+      expect(r.body.data.map((u: { id: string }) => u.id)).toContain(created.body.id);
+    }
+  });
+
   it('returns the paged envelope with string ids and availableActions', async () => {
     const r = await http.get('/api/users').query({ q: PREFIX, pageSize: 50 }).set('Authorization', admin);
     expect(r.status).toBe(200);
@@ -124,13 +149,78 @@ describe('GET /api/users', () => {
 });
 
 describe('PATCH /api/users/:id', () => {
+  it('renames an unlinked user even when it has email, preserving the ID and allowing the new login', async () => {
+    const id = ids.get(`${PREFIX}victim`)!;
+    const r = await http.patch(`/api/users/${id}`).set('Authorization', admin).send({ username: ' T7U_Renamed ' });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ id: id.toString(), username: 't7u_renamed', email: 't7u_victim@example.test' });
+    const login = await http.post('/api/auth/login').send({ username: 't7u_renamed', password: PASSWORD });
+    expect(login.status).toBe(200);
+    expect(login.body.user.id).toBe(id.toString());
+    expect((await http.post('/api/auth/login').send({ username: `${PREFIX}victim`, password: PASSWORD })).status).toBe(401);
+  });
+
+  it('rejects duplicate usernames case-insensitively and keeps Microsoft usernames locked', async () => {
+    const id = ids.get(`${PREFIX}victim`)!;
+    const duplicate = await http.patch(`/api/users/${id}`).set('Authorization', admin).send({ username: 'T7U_VIEWER' });
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body.code).toBe('USERNAME_TAKEN');
+    await sql`update "Users" set "AzureObjectId" = '11111111-2222-3333-4444-555555555555' where "Id" = ${id}`;
+    for (const body of [{ username: 't7u_new' }, { username: 't7u_new', azureObjectId: null }]) {
+      const linked = await http.patch(`/api/users/${id}`).set('Authorization', admin).send(body);
+      expect(linked.status).toBe(409);
+      expect(linked.body.code).toBe('MICROSOFT_USERNAME_READ_ONLY');
+    }
+    const [row] = await sql`select "Username" from "Users" where "Id" = ${id}`;
+    expect(row.Username).toBe(`${PREFIX}victim`);
+  });
+  it('allows setting and clearing a phone for a Microsoft-managed account', async () => {
+    const id = ids.get(`${PREFIX}victim`)!;
+    const updated = await http.patch(`/api/users/${id}`).set('Authorization', admin).send({ phone: ' 0812345678 ' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.phone).toBe('0812345678');
+    const [row] = await sql`select "Phone" from "Users" where "Id" = ${id}`;
+    expect(row.Phone).toBe('0812345678');
+    const cleared = await http.patch(`/api/users/${id}`).set('Authorization', admin).send({ phone: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.phone).toBeNull();
+  });
+  it('rejects manual profile changes for accounts with email without writing any fields', async () => {
+    const id = ids.get(`${PREFIX}victim`)!;
+    for (const body of [
+      { firstName: 'Changed' }, { lastName: 'Changed' }, { email: 'other@example.test' }, { email: null },
+    ]) {
+      const r = await http.patch(`/api/users/${id}`).set('Authorization', admin).send({ ...body, roleCode: 'VIEWER' });
+      expect(r.status).toBe(409);
+      expect(r.body.code).toBe('MICROSOFT_PROFILE_READ_ONLY');
+    }
+    const [row] = await sql`select "FirstName", "LastName", "Email", "RoleId" from "Users" where "Id" = ${id}`;
+    expect(row).toMatchObject({ FirstName: 'Test', LastName: `${PREFIX}victim`, Email: 't7u_victim@example.test' });
+    const current = await http.get(`/api/users/${id}`).set('Authorization', admin);
+    expect(current.body.roleCode).toBe('OPERATOR');
+  });
+
+  it('protects linked Microsoft profiles even without email and allows unchanged fields plus role changes', async () => {
+    const id = ids.get(`${PREFIX}viewer`)!;
+    const oid = '11111111-2222-3333-4444-555555555555';
+    await sql`update "Users" set "AzureObjectId" = ${oid} where "Id" = ${id}`;
+    const changed = await http.patch(`/api/users/${id}`).set('Authorization', admin).send({ firstName: 'Changed' });
+    expect(changed.status).toBe(409);
+    const allowed = await http.patch(`/api/users/${id}`).set('Authorization', admin).send({
+      firstName: 'Test', lastName: `${PREFIX}viewer`, email: null, roleCode: 'OPERATOR',
+    });
+    expect(allowed.status).toBe(200);
+    expect(allowed.body.roleCode).toBe('OPERATOR');
+  });
+
   it('updates name, email and role', async () => {
+    await sql`update "Users" set "Email" = null where "Id" = ${ids.get(`${PREFIX}victim`)!}`;
     const r = await http
       .patch(`/api/users/${ids.get(`${PREFIX}victim`)}`)
       .set('Authorization', admin)
-      .send({ fullName: 'Renamed', email: null, roleCode: 'VIEWER' });
+      .send({ firstName: 'Renamed', lastName: '', email: null, roleCode: 'VIEWER' });
     expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ fullName: 'Renamed', email: null, roleCode: 'VIEWER' });
+    expect(r.body).toMatchObject({ firstName: 'Renamed', lastName: '', email: null, roleCode: 'VIEWER' });
   });
 
   it('a new password cuts every session of the user', async () => {
@@ -183,17 +273,14 @@ describe('PATCH /api/users/:id/access', () => {
 });
 
 describe('DELETE /api/users/:id', () => {
-  it('soft-deletes, unlinks the employee and frees the username', async () => {
+  it('soft-deletes and frees the username', async () => {
     const id = ids.get(`${PREFIX}victim`)!;
-    await sql`insert into "Employees" ("EmployeeCode", "FirstName", "LastName", "UserId") values ('T7U_E1', 'a', 'b', ${id})`;
     const r = await http.delete(`/api/users/${id}`).set('Authorization', admin);
     expect(r.status).toBe(204);
     const [user] = await sql`select "IsDeleted" from "Users" where "Id" = ${id}`;
     expect(user.IsDeleted).toBe(true);
-    const [employee] = await sql`select "UserId" from "Employees" where "EmployeeCode" = 'T7U_E1'`;
-    expect(employee.UserId).toBeNull();
     expect((await http.get(`/api/users/${id}`).set('Authorization', admin)).status).toBe(404);
-    expect((await post({ username: `${PREFIX}victim`, fullName: 'again', roleCode: 'VIEWER', password: 'Again-Password-1' })).status).toBe(201);
+    expect((await post({ username: `${PREFIX}victim`, firstName: 'again', lastName: '', roleCode: 'VIEWER', password: 'Again-Password-1' })).status).toBe(201);
   });
 
   it('deleting yourself ⇒ 400 CANNOT_DELETE_SELF', async () => {
@@ -203,7 +290,7 @@ describe('DELETE /api/users/:id', () => {
   });
 
   it('writes are audited', async () => {
-    const created = await post({ username: `${PREFIX}audited`, fullName: 'x', roleCode: 'VIEWER', password: 'Audit-Password-1' });
+    const created = await post({ username: `${PREFIX}audited`, firstName: 'x', lastName: '', roleCode: 'VIEWER', password: 'Audit-Password-1' });
     const row = await eventually(async () => {
       const [found] = await sql`select "Action", "Result", "ResourceType", "ResourceId", "Changes" from "AuditLogs"
                                 where "Action" = 'CREATE_USER' and "ResourceId" = ${created.body.id}`;

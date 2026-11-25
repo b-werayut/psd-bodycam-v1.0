@@ -9,6 +9,7 @@ import { RequestContextMiddleware } from './common/context/request-context.middl
 import { GlobalExceptionFilter } from './common/errors/global-exception.filter';
 import { LockModule } from './common/lock/lock.module';
 import { AppLoggerModule } from './common/logging/logger.module';
+import { QueueModule } from './common/queue/queue.module';
 import { RateLimitGuard } from './common/rate-limit/rate-limit.guard';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { DssModule } from './common/dss/dss.module';
@@ -17,10 +18,10 @@ import { SettingsModule } from './common/settings/settings.module';
 import { DbModule } from './db/db.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
+import { BookingIntegrationModule } from './modules/booking-integration/booking-integration.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DevicesModule } from './modules/devices/devices.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
-import { EmployeesModule } from './modules/employees/employees.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SettingsAdminModule } from './modules/settings/settings-admin.module';
 import { UsersModule } from './modules/users/users.module';
@@ -31,6 +32,7 @@ import { UsersModule } from './modules/users/users.module';
     DbModule,
     RedisModule,
     LockModule,
+    QueueModule,
     RateLimitModule,
     SettingsModule,
     AuditModule,
@@ -43,7 +45,7 @@ import { UsersModule } from './modules/users/users.module';
     SettingsAdminModule,
     AuditLogsModule,
     UsersModule,
-    EmployeesModule,
+    BookingIntegrationModule,
   ],
   controllers: [AppController],
   providers: [

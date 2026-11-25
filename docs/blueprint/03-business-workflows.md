@@ -83,7 +83,7 @@ sequenceDiagram
 
 ## 3.2 Work Order Creation (จากงานที่ Smart Booking POST เข้ามาเท่านั้น — DL33, DL46) และการเปิด Session
 
-ใบงานเกิดได้ทางเดียว: Smart Booking POST งานมาที่ `POST /api/integration/booking/jobs` → process `api` ตรวจ auth + validate แล้วเก็บ raw ลง `IntegrationInbox` (`Channel = 1 Push`) ตอบ `202` (ไม่ map และไม่แตะ `BookingJobs` / `WorkOrders`) → inbox processor (worker `integration`) map ด้วย `BookingInboundMapper` แล้ว upsert `BookingJobs` + `WorkOrders` **1 ต่อ 1** ใน transaction เดียว (DL46) · ใน transaction เดียวกันสร้าง/อัปเดต `Teams` จาก `teamRef` และหัวหน้าทีม (`TeamMembers` Role 1) จาก leader ref ก่อน resolve `TeamId` / `LeaderEmployeeId` — ไม่มีหน้าจัดการทีม (DL53 **[Assumption — Booking ส่งรหัสทีมและหัวหน้ามากับทุกใบ]**) · **session engine ไม่สร้างใบงาน** — แค่เปิด session แล้วให้ matcher attach เข้า WO ของงานที่ชนะ
+ใบงานเกิดได้ทางเดียว: Smart Booking POST งานมาที่ `POST /api/integration/booking/jobs` → process `api` ตรวจ auth + validate แล้วเก็บ raw ลง `IntegrationInbox` (`Channel = 1 Push`) ตอบ `202` (ไม่ map และไม่แตะ `BookingJobs` / `WorkOrders`) → inbox processor (worker `integration`) map ด้วย `BookingInboundMapper` แล้ว upsert `BookingJobs` + `WorkOrders` **1 ต่อ 1** ใน transaction เดียว (DL46) · ใน transaction เดียวกันสร้าง/อัปเดต `Teams` จาก `teamRef` และหัวหน้าทีม (`TeamMembers` Role 1) จาก leader ref ก่อน resolve `TeamId` / `LeaderUserId` — ไม่มีหน้าจัดการทีม (DL53 **[Assumption — Booking ส่งรหัสทีมและหัวหน้ามากับทุกใบ]**) · **session engine ไม่สร้างใบงาน** — แค่เปิด session แล้วให้ matcher attach เข้า WO ของงานที่ชนะ
 
 ```mermaid
 sequenceDiagram
@@ -193,9 +193,9 @@ flowchart TB
 นิยามที่ใช้ในการ match:
 - **ลำดับแหล่งที่บอกว่ากล้องไปงานไหน**:
   1. **`BookingJobs.DeviceRefs`** — Booking ระบุกล้องที่ใช้กับงาน (รวมกล้องสำรอง) **[Confirmed — Q4, Q20: การผูกกล้องมาจากฝั่ง Booking เท่านั้น · รูปแบบข้อมูลเป็น Assumption]** — match ด้วย `Devices.DeviceCode` / `VendorDeviceId` / `SerialNo` · ไม่ต้องมีทีมก็ match ได้
-  2. **ทีม** จาก `DeviceAssignments` ณ `StartedAt` (**มาจาก Booking เท่านั้น** ถ้า Booking มีข้อมูลกล้องประจำทีม — ดึงผ่าน read API ที่เป็น optional **[Assumption]** · DL46) แล้วเทียบ `BookingJobs.BookingTeamRef` กับ `Teams.BookingTeamRef` หรือ `BookingJobs.BookingLeaderRef` กับ `Employees.BookingEmployeeRef` ของหัวหน้าทีม — ทั้งสองแบบ HIGH ได้ · `Teams` / หัวหน้าทีมเองก็มาจาก `teamRef` / leader ref ของใบงาน (inbox processor สร้าง/อัปเดต — DL53 **[Assumption]**)
+  2. **ทีม** จาก `DeviceAssignments` ณ `StartedAt` (**มาจาก Booking เท่านั้น** ถ้า Booking มีข้อมูลกล้องประจำทีม — ดึงผ่าน read API ที่เป็น optional **[Assumption]** · DL46) แล้วเทียบ `BookingJobs.BookingTeamRef` กับ `Teams.BookingTeamRef` หรือ `BookingJobs.BookingLeaderRef` กับ `Users.BookingEmployeeRef` ของหัวหน้าทีม — ทั้งสองแบบ HIGH ได้ · `Teams` / หัวหน้าทีมเองก็มาจาก `teamRef` / leader ref ของใบงาน (inbox processor สร้าง/อัปเดต — DL53 **[Assumption]**)
   - session ที่ไม่มีทั้งข้อ 1 และ 2 = `NoTeam` (ไม่สร้างใบงาน) และ re-match เมื่อ Booking ส่งข้อมูลมา · **ระบบเราไม่มีหน้าจอผูกกล้องกับทีมเอง**
-- `BookingJobs.TeamId` / `LeaderEmployeeId` เป็น **cache สำหรับแสดงผล** · เมื่อ ref ของพนักงาน (`BookingEmployeeRef` ที่หน้า พนักงาน) / ทีม / กล้องเปลี่ยน ⇒ job `re-resolve` อัปเดต cache + enqueue re-match
+- `BookingJobs.TeamId` / `LeaderUserId` เป็น **cache สำหรับแสดงผล** · เมื่อ ref ของพนักงาน (`BookingEmployeeRef` ของผู้ใช้) / ทีม / กล้องเปลี่ยน ⇒ job `re-resolve` อัปเดต cache + enqueue re-match
 - **ช่วงเวลางาน** = `[min(PlannedStartAt, BookingCheckInAt), BookingCheckOutAt ?? (check-in แล้ว ⇒ ไม่มีขอบบน) ?? PlannedEndAt]` · candidate = ช่วง session `[StartedAt, EndedAt หรือ now]` **ซ้อน** กับช่วงงาน ± `matching.window-before/after-minutes` (60) · tier คิดจาก `StartedAt` · งานที่ไม่มีเวลาใช้ทั้งวัน `ScheduledDate` (Asia/Bangkok) และ confidence สูงสุด MEDIUM (จึงยังไม่ attach จนกว่า Booking จะมีเวลา check-in หรือเวลาตามแผน)
 - **งานที่ check-in แล้วแต่ยังไม่ check-out = ยังเป็นใบเดิม** — กล้องแบตหมด เอาไปชาร์จแล้วเปิดใหม่หลายชั่วโมง session ใหม่ก็ยังเข้า WO เดิม **[Confirmed — Q3]**
 - ระยะห่าง GPS กับ `BookingJobs.SiteLat/SiteLng` เป็นแค่ข้อมูลประกอบใน candidate list (กล้องส่วนใหญ่ไม่มี fix)
@@ -418,7 +418,7 @@ sequenceDiagram
 - **(ค) inbox processor ค้าง**: แถว `Pending` / `Failed` ที่เก่าที่สุดอายุเกิน `booking.stale-after-minutes` (15) ⇒ matching ได้ `ProjectionStale` + banner + alert 10 `BOOKING_SYNC_STALE` (เกิน 60 นาที = Critical) · processor ตามทัน ⇒ re-match (§3.3.3)
 - ระหว่างข้อมูลขาด **ใบงานจะไม่ถูกปิด** (ไม่รู้ check-out) — ปิดย้อนหลังด้วยเวลา `BookingCheckOutAt` จริงเมื่อได้ข้อมูล
 - งานที่สร้างใน Booking ระหว่างข้อมูลขาดยังไม่มี WO จนกว่าจะได้รับ POST (หรือ reconcile) — session ช่วงนั้นค้าง `AwaitingMatch` แล้ว attach ย้อนหลังเมื่อได้ข้อมูล (Rule 1 ยอมให้ session ที่เริ่มก่อน check-out เข้า WO ที่ Closed ได้)
-- แถว inbox ที่ process ไม่ผ่านครบจำนวน retry (Part 7 §7.7) ⇒ `Dead` + alert `INTEGRATION_DEAD_LETTER` ถึง `ADMIN` · ประมวลผลใหม่จาก `Payload` ที่เก็บไว้: อัตโนมัติเมื่อ `re-resolve` / รอบรายวัน 03:00 (แถวอายุ ≤ 7 วัน) หรือกดปุ่ม "ประมวลผลใหม่" บนการแจ้งเตือน (DL54) — ไม่ต้องรอ Booking ส่งซ้ำ
+- แถว inbox ที่ process ไม่ผ่านครบจำนวน retry (Part 7 §7.7) ⇒ `Dead` + alert `INTEGRATION_DEAD_LETTER` ถึง `SUPER_ADMIN` · ประมวลผลใหม่จาก `Payload` ที่เก็บไว้: อัตโนมัติเมื่อ `re-resolve` / รอบรายวัน 03:00 (แถวอายุ ≤ 7 วัน) หรือกดปุ่ม "ประมวลผลใหม่" บนการแจ้งเตือน (DL54) — ไม่ต้องรอ Booking ส่งซ้ำ
 - Circuit breaker / retry ของ outbound ใช้เฉพาะ read API ที่เป็น optional (refresh ต่องาน / reconcile) — ดู Part 7
 
 ---
@@ -499,12 +499,12 @@ User flow (DL47):
 3. แตะกล้อง → **Live กล้องของฉัน** (player เต็มจอ ผ่าน `POST /streams/live` ใน scope `team`) · ปุ่ม live แสดงตาม `availableActions`
 
 กติกา:
-- **Scope `team`**: ทีม = ทีมที่พนักงานของฉัน (`Employees.UserId = me`) เป็นหัวหน้า active (`TeamMembers.Role = 1`) · ใบงาน = `BookingJobs.TeamId` = ทีมของฉัน หรือ `BookingJobs.LeaderEmployeeId` = ฉัน · กล้อง = `DeviceAssignments` active ของทีม + กล้องใน `DeviceRefs` ของใบงาน `Planned` / `Open` ของฉัน · นอก scope = 404 · ไม่มีทีม / ไม่ใช่หัวหน้า ⇒ รายการว่าง (ไม่ error) · เปลี่ยนหัวหน้ามีผลทันที (DL22)
+- **Scope `team`**: ทีม = ทีมที่พนักงานของฉัน (`TeamMembers.UserId = me`) เป็นหัวหน้า active (`TeamMembers.Role = 1`) · ใบงาน = `BookingJobs.TeamId` = ทีมของฉัน หรือ `BookingJobs.LeaderUserId` = ฉัน · กล้อง = `DeviceAssignments` active ของทีม + กล้องใน `DeviceRefs` ของใบงาน `Planned` / `Open` ของฉัน · นอก scope = 404 · ไม่มีทีม / ไม่ใช่หัวหน้า ⇒ รายการว่าง (ไม่ error) · เปลี่ยนหัวหน้ามีผลทันที (DL22)
 - **Push (FCM)** ถึงหัวหน้าทีมเฉพาะ "ใบงานใหม่ของทีม" เมื่อ WO ของทีมถูกสร้าง (deep link `bodycam://jobs/{workOrderId}`) · ใบงานที่ ref ทีม/หัวหน้ายัง map ไม่ได้จะไม่มี push · **alert ไม่ push ไปมือถือแล้ว** (ผู้ใช้ web เห็นที่กระดิ่งบน web)
 - Realtime: `TEAM_LEADER` เข้า room `team:{id}` รับ `workorder:changed` ของทีม · ไม่มี `gps:batch`
 - **ไม่มีในแอป (web เท่านั้น)**: playback / หลักฐาน, GPS / แผนที่, สถานะกล้อง (monitoring), live wall, talk, alerts, user management (requirement §4.3 · DL48) · `TEAM_LEADER` เข้า web ⇒ หน้า "ใช้งานผ่านแอปมือถือ" ไม่มีเมนู
 - ไม่มีคิวตรวจสอบ / link / จัดประเภท session (DL33)
-- Login: Entra SSO ถ้าหัวหน้าทีมมีบัญชี Entra ไม่งั้น username/password แบบ reference (lockout + refresh rotation) — รองรับทั้งคู่ **[Confirmed — DL49]** · บัญชีสร้างโดย `ADMIN` หรือ `COMPANY_ADMIN` (DL51) และผูกพนักงานผ่าน `Employees.UserId`
+- Login: Entra SSO ถ้าหัวหน้าทีมมีบัญชี Entra ไม่งั้น username/password แบบ reference (lockout + refresh rotation) — รองรับทั้งคู่ **[Confirmed — DL49]** · บัญชีสร้างโดย `SUPER_ADMIN` หรือ `ADMIN` (DL51) และอ้างอิงผู้ใช้ผ่าน `TeamMembers.UserId`
 - Check-in/check-out หน้างาน **อยู่ฝั่ง Booking app** — ระบบเรารับเป็นข้อมูลที่ Smart Booking POST มาเท่านั้น
 
 ---

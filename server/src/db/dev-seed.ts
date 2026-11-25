@@ -8,27 +8,13 @@ import { normalizeUsername } from '../common/auth/username';
 
 type Env = Record<string, string | undefined>;
 
-export type SeedUser = { username: string; fullName: string; role: RoleCode };
-export type SeedEmployee = {
-  employeeCode: string;
-  firstName: string;
-  lastName: string;
-  /** links the employee to this seed user */
-  username: string | null;
-  bookingEmployeeRef: string | null;
-};
-
+export type SeedUser = { username: string; firstName: string; lastName: string; role: RoleCode; bookingEmployeeRef?: string };
 export const SEED_USERS: readonly SeedUser[] = [
-  { username: 'admin', fullName: 'ผู้ดูแลระบบ', role: 'ADMIN' },
-  { username: 'companyadmin1', fullName: 'ผู้ดูแลบริษัท ทดสอบ', role: 'COMPANY_ADMIN' },
-  { username: 'operator1', fullName: 'สมชาย ใจดี', role: 'OPERATOR' },
-  { username: 'viewer1', fullName: 'ผู้ดูข้อมูล ทดสอบ', role: 'VIEWER' },
-];
-
-export const SEED_EMPLOYEES: readonly SeedEmployee[] = [
-  { employeeCode: 'E0001', firstName: 'สมชาย', lastName: 'ใจดี', username: 'operator1', bookingEmployeeRef: null },
-  // BookingEmployeeRef is used by the booking-simulator (P3a) as the job's leaderRef.
-  { employeeCode: 'E0002', firstName: 'สมหญิง', lastName: 'รักงาน', username: null, bookingEmployeeRef: 'BK-EMP-0002' },
+  { username: 'admin', firstName: 'ผู้ดูแลระบบ', lastName: '', role: 'SUPER_ADMIN' },
+  { username: 'companyadmin1', firstName: 'ผู้ดูแลบริษัท', lastName: 'ทดสอบ', role: 'ADMIN' },
+  { username: 'operator1', firstName: 'สมชาย', lastName: 'ใจดี', role: 'OPERATOR' },
+  { username: 'viewer1', firstName: 'ผู้ดูข้อมูล', lastName: 'ทดสอบ', role: 'VIEWER' },
+  { username: 'teamleader1', firstName: 'สมหญิง', lastName: 'รักงาน', role: 'TEAM_LEADER', bookingEmployeeRef: 'BK-EMP-0002' },
 ];
 
 export type SeedDepot = { code: string; name: string; lat: number; lng: number; radiusM: number };
@@ -49,19 +35,19 @@ export function assertSeedAllowed(env: Env): void {
 }
 
 export function seedPassword(role: RoleCode, env: Env): string {
-  const value = role === 'ADMIN' ? env.SEED_ADMIN_PASSWORD : env.SEED_DEMO_PASSWORD;
+  const value = role === 'SUPER_ADMIN' ? env.SEED_ADMIN_PASSWORD : env.SEED_DEMO_PASSWORD;
   if (value && value.trim()) return value;
-  return role === 'ADMIN' ? DEFAULT_ADMIN_PASSWORD : DEFAULT_DEMO_PASSWORD;
+  return role === 'SUPER_ADMIN' ? DEFAULT_ADMIN_PASSWORD : DEFAULT_DEMO_PASSWORD;
 }
 
 /**
- * Upserts the demo users and employees in one transaction. Re-running resets the demo
+ * Upserts the demo users in one transaction. Re-running resets the demo
  * accounts (role, password, active, unlocked) so the seed doubles as "reset dev logins".
  */
 export async function runDevSeed(
   sql: Sql,
   env: Env,
-): Promise<{ users: number; employees: number; depots: number }> {
+): Promise<{ users: number; depots: number }> {
   assertSeedAllowed(env);
 
   // Hash outside the transaction: argon2 is slow on purpose.
@@ -82,37 +68,20 @@ export async function runDevSeed(
       throw new Error(`ไม่พบ role ${missing.join(', ')} — รัน npm run db:migrate ก่อน db:seed`);
     }
 
-    const userId = new Map<string, string>();
     for (const u of users) {
       const [existing] = await tx`
         select "Id" from "Users" where lower("Username") = ${u.username} and "IsDeleted" = false`;
-      const [row] = existing
-        ? await tx`
-            update "Users" set
-              "FullName" = ${u.fullName}, "RoleId" = ${roleId.get(u.role)}, "PasswordHash" = ${u.passwordHash},
-              "Status" = 1, "FailedLoginCount" = 0, "LockedUntil" = null, "UpdatedAt" = now()
-            where "Id" = ${existing.Id} returning "Id"`
-        : await tx`
-            insert into "Users" ("Username", "FullName", "RoleId", "PasswordHash", "Status")
-            values (${u.username}, ${u.fullName}, ${roleId.get(u.role)}, ${u.passwordHash}, 1)
-            returning "Id"`;
-      userId.set(u.username, String(row.Id));
-    }
-
-    for (const e of SEED_EMPLOYEES) {
-      const linkedUserId = e.username ? userId.get(normalizeUsername(e.username)) : null;
-      const [existing] = await tx`
-        select "Id" from "Employees" where "EmployeeCode" = ${e.employeeCode} and "IsDeleted" = false`;
       if (existing) {
         await tx`
-          update "Employees" set
-            "FirstName" = ${e.firstName}, "LastName" = ${e.lastName}, "UserId" = ${linkedUserId ?? null},
-            "BookingEmployeeRef" = ${e.bookingEmployeeRef}, "Status" = 1, "UpdatedAt" = now()
+          update "Users" set "FirstName" = ${u.firstName}, "LastName" = ${u.lastName},
+            "BookingEmployeeRef" = ${u.bookingEmployeeRef ?? null},
+            "RoleId" = ${roleId.get(u.role)}, "PasswordHash" = ${u.passwordHash},
+            "Status" = 1, "FailedLoginCount" = 0, "LockedUntil" = null, "UpdatedAt" = now()
           where "Id" = ${existing.Id}`;
       } else {
         await tx`
-          insert into "Employees" ("EmployeeCode", "FirstName", "LastName", "UserId", "BookingEmployeeRef", "Status")
-          values (${e.employeeCode}, ${e.firstName}, ${e.lastName}, ${linkedUserId ?? null}, ${e.bookingEmployeeRef}, 1)`;
+          insert into "Users" ("Username", "FirstName", "LastName", "BookingEmployeeRef", "RoleId", "PasswordHash", "Status")
+          values (${u.username}, ${u.firstName}, ${u.lastName}, ${u.bookingEmployeeRef ?? null}, ${roleId.get(u.role)}, ${u.passwordHash}, 1)`;
       }
     }
 
@@ -133,5 +102,5 @@ export async function runDevSeed(
     }
   });
 
-  return { users: users.length, employees: SEED_EMPLOYEES.length, depots: SEED_DEPOTS.length };
+  return { users: users.length, depots: SEED_DEPOTS.length };
 }

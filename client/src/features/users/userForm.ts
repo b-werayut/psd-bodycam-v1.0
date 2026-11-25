@@ -4,14 +4,17 @@ import type { CreateUserPayload, UpdateUserPayload, UserRow } from './users.api'
 export const USERNAME_MAX = 50;
 /** The server takes usernames of 3–50 characters. */
 const ENTRA_USERNAME_MIN = 3;
-const FULL_NAME_MAX = 150;
+export const NAME_MAX = 200;
+export const PHONE_MAX = 30;
 const EMAIL_MAX = 200;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type UserFormValues = {
   username: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   email: string;
+  phone: string;
   password: string;
   roleCode: string;
   /** Set only for an account created from an Entra row (SSO-only, no password). */
@@ -21,14 +24,16 @@ export type UserFormValues = {
 export type UserFormErrors = Partial<Record<keyof UserFormValues, TranslationKey>>;
 
 export function emptyUserForm(): UserFormValues {
-  return { username: '', fullName: '', email: '', password: '', roleCode: '' };
+  return { username: '', firstName: '', lastName: '', email: '', phone: '', password: '', roleCode: '' };
 }
 
 export function userFormFrom(user: UserRow): UserFormValues {
   return {
     username: user.username,
-    fullName: user.fullName,
+    firstName: user.firstName,
+    lastName: user.lastName,
     email: user.email ?? '',
+    phone: user.phone ?? '',
     password: '',
     roleCode: user.roleCode,
   };
@@ -37,6 +42,10 @@ export function userFormFrom(user: UserRow): UserFormValues {
 export type EntraPrefillSource = {
   upn: string;
   displayName: string | null;
+  givenName?: string | null;
+  surname?: string | null;
+  mobilePhone?: string | null;
+  businessPhones?: string[];
   mail: string | null;
   oid?: string | null;
 };
@@ -58,11 +67,19 @@ export function userFormFromEntra(source: EntraPrefillSource): UserFormValues {
       (value) => value.length <= EMAIL_MAX && EMAIL_RE.test(value),
     ) ?? '';
   const oid = source.oid?.trim();
+  const [fallbackFirstName, ...rest] = (source.displayName?.trim() || localPart).split(/\s+/);
+  const givenName = source.givenName?.trim();
+  const surname = source.surname?.trim();
+  const structured = Boolean(givenName || surname);
   return {
     ...emptyUserForm(),
     username: username.length >= ENTRA_USERNAME_MIN ? username : '',
-    fullName: (source.displayName?.trim() || localPart).slice(0, FULL_NAME_MAX),
+    firstName: (structured ? givenName || localPart : fallbackFirstName).slice(0, NAME_MAX),
+    lastName: (structured ? surname || '' : rest.join(' ')).slice(0, NAME_MAX),
     email,
+    phone: [source.mobilePhone, ...(source.businessPhones ?? [])]
+      .map((value) => value?.trim() ?? '')
+      .find((value) => value.length > 0 && value.length <= PHONE_MAX) ?? '',
     ...(oid ? { azureObjectId: oid } : {}),
   };
 }
@@ -73,7 +90,10 @@ export function validateUserForm(values: UserFormValues): UserFormErrors {
   if (!username) errors.username = 'users.form.errorUsernameRequired';
   else if (username.length > USERNAME_MAX) errors.username = 'users.form.errorUsernameLong';
 
-  if (!values.fullName.trim()) errors.fullName = 'users.form.errorFullNameRequired';
+  if (!values.firstName.trim()) errors.firstName = 'users.form.errorFirstNameRequired';
+  else if (values.firstName.trim().length > NAME_MAX) errors.firstName = 'users.form.errorNameLong';
+  if (values.lastName.trim().length > NAME_MAX) errors.lastName = 'users.form.errorNameLong';
+  if (values.phone.trim().length > PHONE_MAX) errors.phone = 'users.form.errorPhoneLong';
 
   if (!values.roleCode) errors.roleCode = 'users.form.errorRoleRequired';
 
@@ -84,11 +104,14 @@ export function validateUserForm(values: UserFormValues): UserFormErrors {
 
 export function toCreatePayload(values: UserFormValues): CreateUserPayload {
   const email = values.email.trim();
+  const phone = values.phone.trim();
   return {
     username: values.username.trim().toLowerCase(),
-    fullName: values.fullName.trim(),
+    firstName: values.firstName.trim(),
+    lastName: values.lastName.trim(),
     roleCode: values.roleCode,
     ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
     ...(values.password ? { password: values.password } : {}),
     ...(values.azureObjectId ? { azureObjectId: values.azureObjectId } : {}),
   };
@@ -99,9 +122,13 @@ export function toUpdatePayload(
   original: UserFormValues,
 ): UpdateUserPayload {
   const payload: UpdateUserPayload = {};
-  if (values.fullName.trim() !== original.fullName.trim()) payload.fullName = values.fullName.trim();
+  const username = values.username.trim().toLowerCase();
+  if (username !== original.username.trim().toLowerCase()) payload.username = username;
+  if (values.firstName.trim() !== original.firstName.trim()) payload.firstName = values.firstName.trim();
+  if (values.lastName.trim() !== original.lastName.trim()) payload.lastName = values.lastName.trim();
   if (values.roleCode !== original.roleCode) payload.roleCode = values.roleCode;
   if (values.password) payload.password = values.password;
   if (values.email.trim() !== original.email.trim()) payload.email = values.email.trim() || null;
+  if (values.phone.trim() !== original.phone.trim()) payload.phone = values.phone.trim() || null;
   return payload;
 }

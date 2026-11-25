@@ -12,7 +12,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { EntraUserSyncService } from './entra-user-sync.service';
 import { UsersService } from './users.service';
 
-/** ผู้ใช้ระบบ — COMPANY_ADMIN manages every account except ADMIN ones, which it cannot even see (DL51, DL55). */
+/** ผู้ใช้ระบบ — ADMIN manages every account except SUPER_ADMIN ones, which it cannot even see (DL51, DL55). */
 @Controller('users')
 export class UsersController {
   constructor(

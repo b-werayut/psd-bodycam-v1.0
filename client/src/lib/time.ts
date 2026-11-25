@@ -10,7 +10,7 @@ const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** One locale per UI language. en-GB is day-first and 24-hour, like the Thai display. */
-const LOCALE_TAG: Record<Language, string> = { th: 'th-TH', en: 'en-GB' };
+export const LOCALE_TAG: Record<Language, string> = { th: 'th-TH', en: 'en-GB' };
 
 const toDate = (value: string | Date): Date => (typeof value === 'string' ? new Date(value) : value);
 

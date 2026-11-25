@@ -1,9 +1,9 @@
 import { AppException } from '../../common/errors/app-exception';
 
-export const HISTORY_MAX_RANGE_HOURS = 24;
+export const HISTORY_MAX_RANGE_HOURS = 36;
 const FUTURE_SKEW_MS = 5 * 60_000;
 
-/** Route history range: readable ISO dates, end after start, at most 24 h, start not in the future. */
+/** Route history range: readable ISO dates, end after start, at most 36 h (DL77), start not in the future. */
 export function parseHistoryRange(fromRaw: string, toRaw: string, now: Date = new Date()): { from: Date; to: Date } {
   const from = new Date(fromRaw);
   const to = new Date(toRaw);

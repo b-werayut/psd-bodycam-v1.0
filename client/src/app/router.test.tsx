@@ -27,7 +27,7 @@ vi.mock('@/features/auth/auth.api', () => ({
 }));
 
 // The settings page body is never reached by the access tests below (RequirePermission denies
-// first). Only the ADMIN error-boundary test renders it, and that test needs it to throw.
+// first). Only the SUPER_ADMIN error-boundary test renders it, and that test needs it to throw.
 vi.mock('@/features/settings/SettingsPage', () => ({
   SettingsPage: () => {
     throw new Error('render failed');
@@ -40,7 +40,7 @@ function signIn(permissions: string[], roleCode: AuthUser['roleCode'] = 'OPERATO
     user: {
       id: 'u1',
       username: 'op',
-      fullName: 'สมชาย ใจดี',
+      firstName: 'สมชาย', lastName: 'ใจดี',
       email: null,
       roleCode,
       roleName: roleCode,
@@ -78,9 +78,9 @@ describe('router', () => {
     expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument();
   });
 
-  it('removed pages have no route: /departments is a 404 even with org:read', async () => {
+  it.each(['/departments', '/employees'])('removed page %s is a 404 even with org:read', async (path) => {
     signIn(['org:read']);
-    renderAt('/departments');
+    renderAt(path);
     expect(await screen.findByText(t('common.notFound.title'))).toBeInTheDocument();
   });
 
@@ -98,10 +98,10 @@ describe('router', () => {
   });
 
   it('home falls back to the first visible routed item without dashboard:view', async () => {
-    signIn(['org:read']);
+    signIn(['users:read']);
     renderAt('/');
     expect(
-      await screen.findByRole('heading', { name: t('navigation.employees') }),
+      await screen.findByRole('heading', { name: t('navigation.users') }),
     ).toBeInTheDocument();
   });
 
@@ -113,7 +113,7 @@ describe('router', () => {
 
   it('a page that throws shows the route error inside the shell with a single main landmark', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    signIn([], 'ADMIN');
+    signIn([], 'SUPER_ADMIN');
     renderAt('/settings');
 
     const title = await screen.findByText(t('common.routeError.title'));

@@ -1,5 +1,5 @@
 // Per-endpoint quotas. P0 has the auth endpoints only; later phases append names (e.g. booking-inbound).
-export type RateLimitName = 'auth-login' | 'auth-sso' | 'auth-refresh';
+export type RateLimitName = 'auth-login' | 'auth-sso' | 'auth-refresh' | 'booking-inbound';
 
 export type RateLimitSpec = { limit: number; windowSeconds: number };
 
@@ -9,6 +9,7 @@ const SPECS: Record<RateLimitName, (env: NodeJS.ProcessEnv) => RateLimitSpec> = 
   'auth-login': (env) => ({ limit: positiveInt(env.AUTH_LOGIN_RATE_LIMIT_PER_MIN, 60), windowSeconds: MINUTE }),
   'auth-sso': (env) => ({ limit: positiveInt(env.AUTH_SSO_RATE_LIMIT_PER_MIN, 60), windowSeconds: MINUTE }),
   'auth-refresh': (env) => ({ limit: positiveInt(env.AUTH_REFRESH_RATE_LIMIT_PER_MIN, 120), windowSeconds: MINUTE }),
+  'booking-inbound': (env) => ({ limit: positiveInt(env.BOOKING_INBOUND_RATE_LIMIT_PER_MIN, 600), windowSeconds: MINUTE }),
 };
 
 export function rateLimitSpec(name: RateLimitName, env: NodeJS.ProcessEnv): RateLimitSpec {

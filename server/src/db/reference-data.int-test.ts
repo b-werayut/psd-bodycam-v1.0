@@ -11,7 +11,7 @@ import {
 
 const sql = postgres(process.env.DATABASE_URL as string, { max: 1, onnotice: () => {} });
 
-const MIGRATION = join(__dirname, '..', '..', 'drizzle', '0003_reference_data.sql');
+const MIGRATION = join(__dirname, '..', '..', 'drizzle', '0011_standard_role_codes.sql');
 
 const P1_SETTINGS = new Map([
   ['depot.fix-max-age-minutes', '30'],
@@ -43,12 +43,12 @@ const counts = async () =>
              (select count(*) from "Settings")::int as settings`
   )[0];
 
-describe('reference data migration 0003', () => {
+describe('current reference data', () => {
   afterAll(async () => {
     await sql.end();
   });
 
-  it('ships the 4 P0 roles as system roles with Thai names', async () => {
+  it('ships all five roles as system roles with Thai names', async () => {
     const rows = await sql`select "Code", "Name", "IsSystem" from "Roles" order by "Code"`;
     expect(rows.map((r) => r.Code)).toEqual([...ROLE_CODES].sort());
     for (const row of rows) {

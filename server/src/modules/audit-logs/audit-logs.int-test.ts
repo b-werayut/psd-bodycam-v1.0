@@ -5,8 +5,8 @@ import { bootHttpContext, eventually, type HttpContext, type TestSql } from '../
 
 const PASSWORD = 'Test@12345';
 const USERS = [
-  ['t6a_admin', 'ADMIN'],
-  ['t6a_company', 'COMPANY_ADMIN'],
+  ['t6a_admin', 'SUPER_ADMIN'],
+  ['t6a_company', 'ADMIN'],
   ['t6a_viewer', 'VIEWER'],
 ] as const;
 const USERNAMES = USERS.map(([u]) => u);
@@ -28,8 +28,8 @@ beforeAll(async () => {
   await sql`delete from "Users" where "Username" in ${sql(USERNAMES)}`;
   const hash = await hashPassword(PASSWORD);
   for (const [username, role] of USERS) {
-    await sql`insert into "Users" ("Username", "FullName", "RoleId", "PasswordHash")
-              select ${username}, ${'T6A ' + username}, r."Id", ${hash} from "Roles" r where r."Code" = ${role}`;
+    await sql`insert into "Users" ("Username", "FirstName", "LastName", "RoleId", "PasswordHash")
+              select ${username}, 'T6A', ${username}, r."Id", ${hash} from "Roles" r where r."Code" = ${role}`;
   }
 });
 
@@ -60,12 +60,12 @@ describe('login audit trail', () => {
 });
 
 describe('GET /api/audit-logs', () => {
-  it('COMPANY_ADMIN is refused (audit:view is ADMIN-only)', async () => {
+  it('ADMIN is refused (audit:view is SUPER_ADMIN-only)', async () => {
     const token = await tokenOf('t6a_company');
     expect((await http.get('/api/audit-logs').set('Authorization', token)).status).toBe(403);
   });
 
-  it('ADMIN gets the paged envelope, newest first, with client field names', async () => {
+  it('SUPER_ADMIN gets the paged envelope, newest first, with client field names', async () => {
     const token = await tokenOf('t6a_admin');
     const r = await http.get('/api/audit-logs').query({ search: 't6a_', pageSize: 5 }).set('Authorization', token);
     expect(r.status).toBe(200);

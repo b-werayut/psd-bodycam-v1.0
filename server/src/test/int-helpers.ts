@@ -85,8 +85,8 @@ export async function createTestUsers(
   const ids = new Map<string, bigint>();
   for (const u of users) {
     const [row] = await sql`
-      insert into "Users" ("Username", "FullName", "RoleId", "PasswordHash", "Status", "Email")
-      select ${u.username}, ${'Test ' + u.username}, r."Id", ${passwordHash}, ${u.status ?? 1}, ${u.email ?? null}
+      insert into "Users" ("Username", "FirstName", "LastName", "RoleId", "PasswordHash", "Status", "Email")
+      select ${u.username}, 'Test', ${u.username}, r."Id", ${passwordHash}, ${u.status ?? 1}, ${u.email ?? null}
       from "Roles" r where r."Code" = ${u.role}
       returning "Id"`;
     if (!row) throw new Error(`createTestUsers: unknown role ${u.role}`);
@@ -97,7 +97,7 @@ export async function createTestUsers(
 
 /**
  * Hard-deletes test users (any username matching one of `patterns`, SQL LIKE) and every row that
- * points at them, so FKs (CreatedBy / UpdatedBy / DeletedBy, Settings.UpdatedBy, Employees) never block.
+ * points at them, so FKs (CreatedBy / UpdatedBy / DeletedBy, Settings.UpdatedBy, TeamMembers) never block.
  */
 export async function dropTestUsers(sql: TestSql, patterns: string[]): Promise<void> {
   if (!patterns.length) return;
@@ -107,12 +107,10 @@ export async function dropTestUsers(sql: TestSql, patterns: string[]): Promise<v
   }
   if (!ids.length) return;
   await sql`update "Settings" set "UpdatedBy" = null where "UpdatedBy" in ${sql(ids)}`;
-  await sql`update "Employees" set "UserId" = null where "UserId" in ${sql(ids)}`;
-  await sql`update "Employees" set "CreatedBy" = null where "CreatedBy" in ${sql(ids)}`;
-  await sql`update "Employees" set "UpdatedBy" = null where "UpdatedBy" in ${sql(ids)}`;
-  await sql`update "Employees" set "DeletedBy" = null where "DeletedBy" in ${sql(ids)}`;
   await sql`update "Users" set "CreatedBy" = null, "UpdatedBy" = null, "DeletedBy" = null
             where "CreatedBy" in ${sql(ids)} or "UpdatedBy" in ${sql(ids)} or "DeletedBy" in ${sql(ids)}`;
+  await sql`delete from "TeamMembers" where "UserId" in ${sql(ids)}`;
+  await sql`update "TeamMembers" set "AssignedBy" = null where "AssignedBy" in ${sql(ids)}`;
   await sql`delete from "PushTokens" where "UserId" in ${sql(ids)}`;
   await sql`delete from "RefreshTokens" where "UserId" in ${sql(ids)}`;
   await sql`delete from "UserDevices" where "UserId" in ${sql(ids)}`;

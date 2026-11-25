@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { accessForPath, canEnter, ROUTE_ACCESS } from './routeAccess';
 
 describe('ROUTE_ACCESS', () => {
-  it('lists only the routes of the 12-item menu plus the work-order detail', () => {
+  it('lists only the routes of the 11-item menu plus the work-order detail', () => {
     expect(Object.keys(ROUTE_ACCESS).sort()).toEqual(
       [
         '',
@@ -13,7 +13,6 @@ describe('ROUTE_ACCESS', () => {
         'work-orders',
         'work-orders/:id',
         'evidence',
-        'employees',
         'users',
         'entra-users',
         'notifications',
@@ -45,8 +44,8 @@ describe('ROUTE_ACCESS', () => {
     });
   });
 
-  it('people routes: employees org:read, users users:read, Entra users users:manage', () => {
-    expect(ROUTE_ACCESS['employees']).toEqual({ anyOf: ['org:read'] });
+  it('people routes: users users:read, Entra users users:manage', () => {
+    expect(ROUTE_ACCESS).not.toHaveProperty('employees');
     expect(ROUTE_ACCESS['users']).toEqual({ anyOf: ['users:read'] });
     expect(ROUTE_ACCESS['entra-users']).toEqual({ anyOf: ['users:manage'] });
   });
@@ -90,8 +89,8 @@ describe('canEnter', () => {
     expect(canEnter(ROUTE_ACCESS['settings'], ['org:read'], 'OPERATOR')).toBe(false);
   });
 
-  it('allows ADMIN regardless of permissions', () => {
-    expect(canEnter(ROUTE_ACCESS['settings'], [], 'ADMIN')).toBe(true);
+  it('allows SUPER_ADMIN regardless of permissions', () => {
+    expect(canEnter(ROUTE_ACCESS['settings'], [], 'SUPER_ADMIN')).toBe(true);
   });
 
   it('requires every allOf permission', () => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, TriangleAlert } from 'lucide-react';
 
 import { actionToast } from '@/components/ui/action-toast';
@@ -15,9 +15,12 @@ import {
 } from '@/components/ui/dialog';
 import { FormField, FormRequirementNote } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Select } from '@/components/ui/select';
 import { useLanguage } from '@/i18n/useLanguage';
 import { apiErrorOf } from '@/lib/apiError';
+import { useAuthStore } from '@/stores/authStore';
+import { useAssignableRoles } from '../useAssignableRoles';
 import {
   emptyUserForm,
   toCreatePayload,
@@ -25,15 +28,19 @@ import {
   userFormFrom,
   validateUserForm,
   USERNAME_MAX,
+  NAME_MAX,
+  PHONE_MAX,
   type UserFormValues,
 } from '../userForm';
-import { rolesApi, usersApi, type UserRow } from '../users.api';
+import { usersApi, type UserRow } from '../users.api';
 
 const FIELD_ORDER: ReadonlyArray<readonly [keyof UserFormValues, string]> = [
   ['username', 'user-username'],
-  ['fullName', 'user-fullname'],
+  ['firstName', 'user-firstname'],
+  ['lastName', 'user-lastname'],
   ['roleCode', 'user-role'],
   ['email', 'user-email'],
+  ['phone', 'user-phone'],
 ];
 
 export function UserFormDialog({
@@ -54,13 +61,15 @@ export function UserFormDialog({
   );
   // An account created from Entra signs in with Microsoft only: no password, name/email from Entra.
   const ssoOnly = !user && Boolean(original.azureObjectId);
-  const entraHint = ssoOnly ? t('users.form.fromEntraHint') : undefined;
+  const microsoftLinked = Boolean(original.azureObjectId || user?.azureLinked);
+  const microsoftProfile = Boolean(original.email.trim() || original.azureObjectId || user?.azureLinked);
+  const entraHint = microsoftProfile ? t('users.form.fromEntraHint') : undefined;
   const [values, setValues] = useState<UserFormValues>(original);
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usernameTaken, setUsernameTaken] = useState<string | null>(null);
 
-  const roles = useQuery({ queryKey: ['roles'], queryFn: rolesApi.list });
+  const roles = useAssignableRoles();
 
   const errors = validateUserForm(values);
   const hasErrors = Object.keys(errors).length > 0;
@@ -75,7 +84,11 @@ export function UserFormDialog({
       user
         ? usersApi.update(user.id, toUpdatePayload(values, original))
         : usersApi.create(toCreatePayload(values)),
-    onSuccess: () => {
+    onSuccess: (savedUser) => {
+      const current = useAuthStore.getState().user;
+      if (current && current.id === savedUser.id) {
+        useAuthStore.setState({ user: { ...current, username: savedUser.username } });
+      }
       void qc.invalidateQueries({ queryKey: ['users'] });
       actionToast.success(
         t(user ? 'users.form.savedToast' : 'users.form.createdToast'),
@@ -124,7 +137,7 @@ export function UserFormDialog({
           <FormField
             id="user-username"
             label={t('users.form.username')}
-            hint={user ? t('users.form.usernameLocked') : undefined}
+            hint={microsoftLinked ? t('users.form.usernameLocked') : undefined}
             error={usernameTaken ?? errorOf('username')}
           >
             <Input
@@ -136,22 +149,38 @@ export function UserFormDialog({
               }}
               maxLength={USERNAME_MAX + 10}
               autoComplete="off"
-              disabled={Boolean(user)}
+              disabled={microsoftLinked}
               className="min-h-11"
             />
           </FormField>
           <FormField
-            id="user-fullname"
-            label={t('users.form.fullName')}
+            id="user-firstname"
+            label={t('users.form.firstName')}
             hint={entraHint}
-            error={errorOf('fullName')}
+            error={errorOf('firstName')}
           >
             <Input
-              id="user-fullname"
-              value={values.fullName}
-              onChange={(e) => set('fullName', e.target.value)}
-              maxLength={150}
-              readOnly={ssoOnly}
+              id="user-firstname"
+              value={values.firstName}
+              onChange={(e) => set('firstName', e.target.value)}
+              maxLength={NAME_MAX}
+              disabled={microsoftProfile}
+              className="min-h-11"
+            />
+          </FormField>
+          <FormField
+            id="user-lastname"
+            label={t('users.form.lastName')}
+            optionalText={t('common.optional')}
+            hint={entraHint}
+            error={errorOf('lastName')}
+          >
+            <Input
+              id="user-lastname"
+              value={values.lastName}
+              onChange={(e) => set('lastName', e.target.value)}
+              maxLength={NAME_MAX}
+              disabled={microsoftProfile}
               className="min-h-11"
             />
           </FormField>
@@ -167,7 +196,7 @@ export function UserFormDialog({
               disabled={roles.isPending}
             >
               <option value="">{t('users.form.select')}</option>
-              {(roles.data?.roles ?? []).map((role) => (
+              {roles.roles.map((role) => (
                 <option key={role.id} value={role.code}>
                   {role.name}
                 </option>
@@ -187,7 +216,23 @@ export function UserFormDialog({
               value={values.email}
               onChange={(e) => set('email', e.target.value)}
               maxLength={255}
-              readOnly={ssoOnly}
+              disabled={microsoftProfile}
+              className="min-h-11"
+            />
+          </FormField>
+          <FormField
+            id="user-phone"
+            label={t('users.form.phone')}
+            optionalText={t('common.optional')}
+            error={errorOf('phone')}
+          >
+            <Input
+              id="user-phone"
+              type="tel"
+              autoComplete="tel"
+              value={values.phone}
+              onChange={(e) => set('phone', e.target.value)}
+              maxLength={PHONE_MAX}
               className="min-h-11"
             />
           </FormField>
@@ -198,9 +243,10 @@ export function UserFormDialog({
               optionalText={t('common.optional')}
               hint={t(user ? 'users.form.passwordHintEdit' : 'users.form.passwordHint')}
             >
-              <Input
+              <PasswordInput
                 id="user-password"
-                type="password"
+                showLabel={t('auth.showPassword')}
+                hideLabel={t('auth.hidePassword')}
                 value={values.password}
                 onChange={(e) => set('password', e.target.value)}
                 maxLength={200}

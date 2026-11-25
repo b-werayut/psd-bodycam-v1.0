@@ -3,6 +3,9 @@ dist
 .env
 .env.*
 !.env.example
+!.env.production.example
+# build-time values for the production image (public: Vite puts VITE_* into the JS bundle — no secrets)
+!.env.production
 coverage
 *.tsbuildinfo
 *.log

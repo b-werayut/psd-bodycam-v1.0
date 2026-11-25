@@ -45,7 +45,7 @@ describe('resolveLoginDestination', () => {
   });
 
   it('admin is never blocked', () => {
-    expect(resolveLoginDestination('/settings', [], 'ADMIN')).toEqual({
+    expect(resolveLoginDestination('/settings', [], 'SUPER_ADMIN')).toEqual({
       to: '/settings',
       blocked: false,
     });

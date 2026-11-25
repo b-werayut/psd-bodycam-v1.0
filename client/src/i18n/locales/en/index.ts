@@ -1,5 +1,4 @@
 import { common } from './common';
-import { employees } from './employees';
 import { app } from './app';
 import { audit } from './audit';
 import { auth } from './auth';
@@ -16,7 +15,6 @@ export const en = {
   ...auth,
   ...navigation,
   ...permission,
-  ...employees,
   ...settings,
   ...audit,
   ...users,

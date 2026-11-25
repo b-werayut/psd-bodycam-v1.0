@@ -11,7 +11,7 @@ import { PERMISSIONS_KEY } from './require-permission.decorator';
 
 /**
  * Last global guard. Secure by default: a handler without @Public / @LoginOnly / @RequirePermission
- * is refused. ADMIN bypasses permission checks (still audited by the interceptor).
+ * is refused. SUPER_ADMIN bypasses permission checks (still audited by the interceptor).
  * Every refusal leaves an ACCESS_DENIED row (Result 2).
  */
 @Injectable()
@@ -34,7 +34,7 @@ export class PermissionsGuard implements CanActivate {
 
     const required = this.reflector.getAllAndOverride<PermissionCode[] | undefined>(PERMISSIONS_KEY, targets);
     if (!required?.length) return this.deny(user, req, 'no-permission-decorator');
-    if (user.roleCode === 'ADMIN') return true;
+    if (user.roleCode === 'SUPER_ADMIN') return true;
 
     const missing = required.filter((p) => !user.permissions.includes(p));
     if (missing.length) return this.deny(user, req, missing);

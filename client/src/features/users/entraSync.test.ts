@@ -99,11 +99,12 @@ describe('fieldLabelKey', () => {
   it('ชื่อช่องที่ server เติม/คงค่า แปลงเป็น i18n key', () => {
     expect(fieldLabelKey('AzureObjectId')).toBe('users.entraSync.patchField.AzureObjectId');
     expect(fieldLabelKey('Email')).toBe('users.entraSync.patchField.Email');
-    expect(fieldLabelKey('FullName')).toBe('users.entraSync.patchField.FullName');
+    expect(fieldLabelKey('FirstName')).toBe('users.entraSync.patchField.FirstName');
   });
 
-  it('ช่องที่ไม่รู้จัก (ระบบนี้ไม่มี Phone) = null ให้หน้าจอแสดงชื่อดิบ', () => {
-    expect(fieldLabelKey('Phone')).toBeNull();
+  it('ช่องที่ไม่รู้จัก = null ให้หน้าจอแสดงชื่อดิบ', () => {
+    expect(fieldLabelKey('Phone')).toBe('users.entraSync.patchField.Phone');
+    expect(fieldLabelKey('UnknownField')).toBeNull();
   });
 });
 
@@ -214,11 +215,11 @@ describe('entraDirectoryRows', () => {
           entraUser({ userPrincipalName: 'kept@psd.co.th' }),
           entraUser({ userPrincipalName: 'clean@psd.co.th' }),
         ],
-        updates: [update({ upn: 'kept@psd.co.th', patch: {}, keptLocal: ['Email', 'FullName'] })],
+        updates: [update({ upn: 'kept@psd.co.th', patch: {}, keptLocal: ['Email', 'FirstName'] })],
       }),
     );
 
-    expect(rows[0]).toMatchObject({ status: 'keptLocal', keptLocalFields: ['Email', 'FullName'] });
+    expect(rows[0]).toMatchObject({ status: 'keptLocal', keptLocalFields: ['Email', 'FirstName'] });
     expect(rows[1].keptLocalFields).toEqual([]);
   });
 

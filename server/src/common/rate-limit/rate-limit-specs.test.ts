@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { rateLimitKey, rateLimitSpec, type RateLimitName } from './rate-limit-specs';
 
 describe('rate limit specs (P0: auth only)', () => {
-  it('defaults: login 60, sso 60, refresh 120 per minute, keyed by IP', () => {
-    const expected: Record<RateLimitName, number> = { 'auth-login': 60, 'auth-sso': 60, 'auth-refresh': 120 };
+  it('defaults: login 60, sso 60, refresh 120, booking-inbound 600 per minute, keyed by IP', () => {
+    const expected: Record<RateLimitName, number> = { 'auth-login': 60, 'auth-sso': 60, 'auth-refresh': 120, 'booking-inbound': 600 };
     for (const [name, limit] of Object.entries(expected) as [RateLimitName, number][]) {
       expect(rateLimitSpec(name, {})).toEqual({ limit, windowSeconds: 60 });
     }

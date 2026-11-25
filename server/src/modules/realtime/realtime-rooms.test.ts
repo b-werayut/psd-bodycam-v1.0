@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { ALERTS_ROOM, ORG_ROOM, roomsForClient, TRACKING_ROOM, userRoom } from './realtime-rooms';
 
 describe('realtime rooms', () => {
+  it('keeps TEAM_LEADER out of organization-wide rooms', () => {
+    expect(roomsForClient({ sub: '7', roleCode: 'TEAM_LEADER', permissions: ['streaming:view-live'] })).toEqual(['user:7']);
+  });
   it('every client joins org and its own user room', () => {
     expect(roomsForClient({ sub: '7', roleCode: 'VIEWER', permissions: [] })).toEqual(['org', 'user:7']);
   });
@@ -17,8 +20,8 @@ describe('realtime rooms', () => {
     ]);
   });
 
-  it('ADMIN joins both whatever its permission list says', () => {
-    expect(roomsForClient({ sub: '1', roleCode: 'ADMIN', permissions: [] })).toEqual([
+  it('SUPER_ADMIN joins both whatever its permission list says', () => {
+    expect(roomsForClient({ sub: '1', roleCode: 'SUPER_ADMIN', permissions: [] })).toEqual([
       'org',
       'user:1',
       'tracking',

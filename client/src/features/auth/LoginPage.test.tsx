@@ -38,9 +38,9 @@ const SSO_ENABLED: AuthConfig = {
 const SESSION_USER = {
   id: 'u1',
   username: 'operator',
-  roleCode: 'ADMIN' as const,
+  roleCode: 'SUPER_ADMIN' as const,
   roleName: 'Admin',
-  fullName: 'Operator',
+  firstName: 'Operator', lastName: '',
   email: null,
   permissions: ['devices:read'],
 };

@@ -21,19 +21,22 @@ export type EntraUser = {
   createdDateTime?: string | null;
 };
 
-// Port of the reference planner. This system's Users has no Phone column, so phone is never planned.
 export type LocalUserRow = {
   Id: bigint;
   Username: string;
   Email: string | null;
-  FullName: string | null;
+  Phone: string | null;
+  FirstName: string | null;
+  LastName: string | null;
   AzureObjectId: string | null;
 };
 
 export type UserPatch = {
   AzureObjectId?: string;
   Email?: string;
-  FullName?: string;
+  FirstName?: string;
+  LastName?: string;
+  Phone?: string;
 };
 
 export type PlannedUpdate = {
@@ -71,13 +74,17 @@ const clean = (value: string | null | undefined): string | null => {
   return trimmed ? trimmed : null;
 };
 
-const MAX = { Email: 200, FullName: 200 } as const;
+const MAX = { Email: 200, FirstName: 200, LastName: 200, Phone: 30 } as const;
 
-function fillable(current: string | null, incoming: string | null, max: number): string | null {
-  if (clean(current)) return null;
-  const value = clean(incoming);
-  if (!value || value.length > max) return null;
-  return value;
+function entraNames(entra: EntraUser): { FirstName: string | null; LastName: string | null } {
+  const givenName = clean(entra.givenName);
+  const surname = clean(entra.surname);
+  if (givenName || surname) {
+    return { FirstName: givenName, LastName: entra.surname === undefined ? null : surname ?? '' };
+  }
+  if (!clean(entra.displayName)) return { FirstName: null, LastName: null };
+  const [firstName, ...rest] = (clean(entra.displayName) ?? '').split(/\s+/);
+  return { FirstName: clean(firstName), LastName: rest.join(' ') };
 }
 
 export type PlanOptions = {
@@ -168,20 +175,25 @@ export function planEntraUserSync(
 
     const patch: UserPatch = {};
     if (!local.AzureObjectId) patch.AzureObjectId = entra.id;
-
-    const email = fillable(local.Email, upn, MAX.Email);
-    if (email) patch.Email = email;
-    const fullName = fillable(local.FullName, entra.displayName, MAX.FullName);
-    if (fullName) patch.FullName = fullName;
+    // Phone remains editable locally; Microsoft only fills it when no phone is stored.
+    if (!clean(local.Phone)) {
+      const phone = [entra.mobilePhone, ...(entra.businessPhones ?? [])]
+        .map(clean).find((value) => value !== null && value.length <= MAX.Phone);
+      if (phone) patch.Phone = phone;
+    }
 
     const keptLocal: string[] = [];
-    if (clean(local.Email) && norm(local.Email) !== key) keptLocal.push('Email');
-    if (
-      clean(local.FullName) &&
-      clean(entra.displayName) &&
-      norm(local.FullName) !== norm(entra.displayName)
-    ) {
-      keptLocal.push('FullName');
+    const profile = { Email: upn, ...entraNames(entra) };
+    for (const field of ['Email', 'FirstName', 'LastName'] as const) {
+      const incoming = profile[field];
+      if (incoming === null) continue;
+      const differs = field === 'Email' ? norm(local[field]) !== norm(incoming) : local[field] !== incoming;
+      if (!differs) continue;
+      if (incoming.length > MAX[field]) {
+        if (clean(local[field])) keptLocal.push(field);
+        continue;
+      }
+      patch[field] = incoming;
     }
 
     if (Object.keys(patch).length === 0 && keptLocal.length === 0) {

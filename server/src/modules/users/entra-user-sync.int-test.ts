@@ -64,7 +64,7 @@ function stubMicrosoft() {
 }
 
 const userRow = (username: string) =>
-  sql`select "Email", "FullName", "AzureObjectId" from "Users" where "Username" = ${username}`.then(([r]) => r);
+  sql`select "Email", "FirstName", "LastName", "AzureObjectId" from "Users" where "Username" = ${username}`.then(([r]) => r);
 
 beforeAll(async () => {
   ctx = await bootHttpContext();
@@ -77,8 +77,8 @@ beforeEach(async () => {
   await createTestUsers(
     sql,
     [
-      { username: `${PREFIX}admin`, role: 'ADMIN', email: `${PREFIX}admin@example.test` },
-      { username: `${PREFIX}company`, role: 'COMPANY_ADMIN' },
+      { username: `${PREFIX}admin`, role: 'SUPER_ADMIN', email: `${PREFIX}admin@example.test` },
+      { username: `${PREFIX}company`, role: 'ADMIN' },
       { username: `${PREFIX}viewer`, role: 'VIEWER' },
       { username: `${PREFIX}linkme`, role: 'VIEWER', email: `${PREFIX}linkme@example.test` },
       { username: `${PREFIX}noemail`, role: 'VIEWER' },
@@ -109,7 +109,11 @@ describe('Entra directory (dry run)', () => {
     expect(r.body).toMatchObject({ dryRun: true, applied: 0, entraTotal: 4, entraFetched: 4 });
 
     const link = r.body.updates.find((u: { upn: string }) => u.upn === `${PREFIX}linkme@example.test`);
-    expect(link).toMatchObject({ username: `${PREFIX}linkme`, patch: { AzureObjectId: OID.linkme }, keptLocal: ['FullName'] });
+    expect(link).toMatchObject({
+      username: `${PREFIX}linkme`,
+      patch: { AzureObjectId: OID.linkme, FirstName: 'Link', LastName: 'Me From Entra' },
+      keptLocal: [],
+    });
     expect(typeof link.userId).toBe('string');
     expect(r.body.missingInSystem.map((m: { upn: string }) => m.upn)).toContain(`${PREFIX}newbie@example.test`);
     expect(r.body.entraFields).toContain('userPrincipalName');
@@ -142,7 +146,7 @@ describe('POST /users/sync-entra', () => {
     expect((await userRow(`${PREFIX}linkme`)).AzureObjectId).toBeNull();
   });
 
-  it('ADMIN applies: links oids, fills only empty fields, matches by username when asked', async () => {
+  it('SUPER_ADMIN applies Microsoft profiles and matches by username when asked', async () => {
     const admin = await bearerFor(http, `${PREFIX}admin`, PASSWORD);
     const r = await http
       .post('/api/users/sync-entra')
@@ -154,7 +158,7 @@ describe('POST /users/sync-entra', () => {
 
     expect(await userRow(`${PREFIX}linkme`)).toEqual({
       Email: `${PREFIX}linkme@example.test`,
-      FullName: `Test ${PREFIX}linkme`,
+      FirstName: 'Link', LastName: 'Me From Entra',
       AzureObjectId: OID.linkme,
     });
     expect(await userRow(`${PREFIX}noemail`)).toMatchObject({
@@ -172,7 +176,7 @@ describe('POST /users/sync-entra', () => {
     expect(audit.Result).toBe(1);
   });
 
-  it('COMPANY_ADMIN never sees or touches an ADMIN account through the sync', async () => {
+  it('ADMIN never sees or touches an SUPER_ADMIN account through the sync', async () => {
     const company = await bearerFor(http, `${PREFIX}company`, PASSWORD);
     const r = await http.post('/api/users/sync-entra').set('Authorization', company).send({ dryRun: false });
     expect(r.status).toBe(200);

@@ -16,8 +16,8 @@
 | D5 | เก็บข้อมูล Booking **เท่าที่ต้องใช้ match + แสดงผล** + `Raw jsonb` สำหรับ audit/debug | หลีกเลี่ยง duplicate ข้อมูล Booking โดยไม่จำเป็น · ลด PDPA exposure |
 | D6 | **Invariant บังคับที่ DB**: partial unique, exclusion constraint (`btree_gist`), CHECK | race condition ระหว่าง API/worker ไม่สามารถสร้างข้อมูลผิด invariant ได้ แม้ logic มี bug |
 | D7 | Hot state แยกตาราง: `DeviceState` (อัปเดตทุก poll) ออกจาก `Devices` (master) | ลด row churn / lock contention บน master |
-| D8 | Soft delete เฉพาะ **master data** (Users, Employees, Teams, Devices) · fact/log tables **ไม่มี soft delete** (ใช้ status เช่น `Cancelled`) | ประวัติหลักฐานต้องไม่หาย |
-| D9 | ไม่มี `CompanyId` (บริษัทเดียว) และ**ไม่มีแผนก** (ระบบใช้กับฝ่าย จป. ฝ่ายเดียว — DL53 ตัด `Departments` และคอลัมน์ `DepartmentId` ทุกตาราง) · scope มี 2 ระดับ: `all` (ทุก role web) และ `team` (`TEAM_LEADER` บนแอปมือถือ = ทีมที่ตนเป็นหัวหน้า active ผ่าน `Employees.UserId` → `TeamMembers` — DL47) | ตัดปัญหา `CompanyId = null` 3 ความหมายของ reference · scope `team` คำนวณจากข้อมูลที่มีอยู่ ไม่ต้องเพิ่มคอลัมน์ |
+| D8 | Soft delete เฉพาะ **master data** (Users, Teams, Devices) · fact/log tables **ไม่มี soft delete** (ใช้ status เช่น `Cancelled`) | ประวัติหลักฐานต้องไม่หาย |
+| D9 | ไม่มี `CompanyId` (บริษัทเดียว) และ**ไม่มีแผนก** (ระบบใช้กับฝ่าย จป. ฝ่ายเดียว — DL53 ตัด `Departments` และคอลัมน์ `DepartmentId` ทุกตาราง) · scope มี 2 ระดับ: `all` (ทุก role web) และ `team` (`TEAM_LEADER` บนแอปมือถือ = ทีมที่ตนเป็นหัวหน้า active ผ่าน `TeamMembers.UserId` → `TeamMembers` — DL47) | ตัดปัญหา `CompanyId = null` 3 ความหมายของ reference · scope `team` คำนวณจากข้อมูลที่มีอยู่ ไม่ต้องเพิ่มคอลัมน์ |
 | D10 | `GpsLocations` และ `AuditLogs` **partition รายเดือน** · retention = `DROP PARTITION` | แทน batched ctid DELETE ของ reference (`retention.service.ts`) |
 | D11 | เลขใบงานจาก **counter table** (`WorkOrderCounters`) แบบ atomic upsert | แทน `SELECT max + 1` + retry ของ reference |
 
@@ -33,7 +33,6 @@ Extensions ที่ต้องมี: `btree_gist` (exclusion constraint) — 
 
 ```mermaid
 erDiagram
-  Users ||--o| Employees : "login of"
   Roles ||--o{ Users : has
   Roles ||--o{ RolePermissions : grants
   Permissions ||--o{ RolePermissions : "granted by"
@@ -41,23 +40,18 @@ erDiagram
   Users ||--o{ RefreshTokens : holds
   Users ||--o{ PushTokens : holds
   Teams ||--o{ TeamMembers : has
-  Employees ||--o{ TeamMembers : "member as"
+  Users ||--o{ TeamMembers : "member as"
   Teams ||--o{ DeviceAssignments : "assigned camera"
   Devices ||--o{ DeviceAssignments : "assignment history"
   Devices ||--|| DeviceState : "hot state"
   Devices ||--o{ DeviceStatusHistory : transitions
 
-  Employees {
-    bigint Id PK
-    varchar EmployeeCode UK
-    bigint UserId FK "nullable, unique"
-    varchar BookingEmployeeRef UK "map to Booking"
-    smallint Status
-  }
   Users {
     bigint Id PK
     varchar Username UK
     varchar AzureObjectId UK
+    varchar Phone
+    varchar BookingEmployeeRef UK
     bigint RoleId FK
     smallint Status
   }
@@ -69,7 +63,7 @@ erDiagram
   TeamMembers {
     bigint Id PK
     bigint TeamId FK
-    bigint EmployeeId FK
+    bigint UserId FK
     smallint Role "1 Leader 2 Member"
     timestamptz ValidFrom
     timestamptz ValidTo "null = active"
@@ -257,13 +251,12 @@ erDiagram
 | ความสัมพันธ์ | Cardinality | บังคับด้วย |
 |---|---|---|
 | Team ↔ Leader (active) | 1 : 1 | `UQ_TeamMembers_ActiveLeader` |
-| Employee ↔ Team (active) | N : 1 (1 คน 1 ทีม ณ เวลาหนึ่ง) | `UQ_TeamMembers_ActiveEmployee` |
+| Employee ↔ Team (active) | N : 1 (1 คน 1 ทีม ณ เวลาหนึ่ง) | `UQ_TeamMembers_ActiveUser` |
 | Team ↔ Primary camera (active) | 1 : 1 | `UQ_DevAsg_TeamActivePrimary` |
 | Device ↔ Team ณ เวลาใด ๆ | N : 1 (ไม่ซ้อนเวลา) | `EX_DevAsg_NoOverlap` |
 | Device ↔ Open session | 1 : 0..1 | `UQ_TS_OpenPerDevice` + `EX_TS_NoOverlap` |
 | WorkOrder ↔ TrackingSession | 1 : N (session ที่ยังไม่มี WO ได้ — รอข้อมูล Booking) | FK `TrackingSessions.WorkOrderId` (nullable) |
 | BookingJob ↔ WorkOrder | 1 : 1 (inbox processor สร้าง WO เมื่อได้รับงานจาก Smart Booking — DL33, DL46) | `BookingJobId` NOT NULL + `UQ_WO_BookingJob` |
-| Employee ↔ User | 0..1 : 0..1 | `UQ_Employees_User` |
 
 ---
 
@@ -272,7 +265,6 @@ erDiagram
 | Enum | ค่า |
 |---|---|
 | `Users.Status` | 1 Active · 2 Inactive (admin ปิด) · 3 Locked (ระบบล็อกชั่วคราว ดู `LockedUntil`) |
-| `Employees.Status` | 1 Active · 2 Suspended · 3 Resigned |
 | `TeamMembers.Role` | 1 Leader · 2 Member |
 | `Devices.Kind` | 1 Primary · 2 Spare |
 | `Devices.Status` | 1 Active · 2 Inactive · 3 Maintenance · 4 Retired |
@@ -310,19 +302,8 @@ erDiagram
 
 ### A. Identity & Access
 
+> ไม่มีตาราง `Employees` แล้ว (DL80 — ใช้ `Users` เป็นทะเบียนบุคคลและ `TeamMembers.UserId` อ้างอิงผู้ใช้โดยตรง)
 > ไม่มีตาราง `Departments` (DL53 — ไม่มีแผนก · migration `0002_drop_departments` ลบตารางเดิมพร้อม `Users.DepartmentId` / `Employees.DepartmentId`)
-
-**Employees** — พนักงาน (จัดการที่หน้า พนักงาน `/employees`)
-| Column | Type | Null | หมายเหตุ |
-|---|---|---|---|
-| Id | bigint identity | PK | |
-| EmployeeCode | varchar(30) | NN | `UQ_Employees_Code` partial |
-| FirstName / LastName | varchar(100) | NN | |
-| Phone | varchar(30) | | |
-| UserId | bigint | | FK → Users · `UQ_Employees_User` WHERE UserId IS NOT NULL AND IsDeleted = false |
-| BookingEmployeeRef | varchar(64) | | รหัสพนักงานใน Booking · `UQ_Employees_BookingRef` partial · ใช้ map `leaderRef` ของใบงานเป็นหัวหน้าทีม (DL53) **[Assumption: Booking มี employee id]** |
-| Status | smallint | NN | default 1 |
-| AUDIT, SOFT | | | |
 
 **Users** — บัญชีเข้าระบบ (port จาก reference ตัด `CompanyId`)
 | Column | Type | Null | หมายเหตุ |
@@ -331,16 +312,19 @@ erDiagram
 | Username | varchar(50) | NN | `UQ_Users_Username` partial |
 | PasswordHash | varchar(255) | | null = SSO-only · argon2 |
 | Email | varchar(200) | | `UQ_Users_Email` on `lower(Email)` partial |
-| FullName | varchar(200) | NN | |
+| Phone | varchar(30) | | เบอร์โทร · กรอกแก้ไขได้ · เติมจาก Microsoft เมื่อยังว่าง · DL80 |
+| BookingEmployeeRef | varchar(64) | | `UQ_Users_BookingEmployeeRef` partial · ใช้ resolve `leaderRef` **[Assumption: Booking มีรหัสอ้างอิงบุคคล]** · DL80 |
+| FirstName | varchar(200) | NN | ชื่อ · DL78 |
+| LastName | varchar(200) | NN | นามสกุล · ค่าว่างได้เมื่อไม่มีนามสกุล · DL78 |
 | AzureObjectId | varchar(64) | | `UQ_Users_AzureObjectId` partial · null = ยังไม่เคย link (ไม่ใช่ "ห้ามเข้า") |
-| RoleId | bigint | NN | FK → Roles · role `TEAM_LEADER` (scope `team`) ต้องผูกพนักงานผ่าน `Employees.UserId` — **บังคับใน service ไม่ใช่ DB** (DL47) |
+| RoleId | bigint | NN | FK → Roles · role `TEAM_LEADER` (scope `team`) ต้องอ้างอิงผู้ใช้ผ่าน `TeamMembers.UserId` — **บังคับใน service ไม่ใช่ DB** (DL47) |
 | Status | smallint | NN | default 1 |
 | FailedLoginCount | smallint | NN | default 0 |
 | LockedUntil | timestamptz | | |
 | LastLoginAt | timestamptz | | |
 | AUDIT, SOFT | | | |
 
-**Roles** (`Id`, `Code varchar(30) UQ`, `Name`, `IsSystem boolean`) — `ADMIN` · `COMPANY_ADMIN` (DL51 — scope `all`, web · เพิ่มด้วย data migration) · `OPERATOR` · `VIEWER` · `TEAM_LEADER` (DL47 — เพิ่มด้วย data migration) · data scope มาจาก `Code` (ไม่มีคอลัมน์ scope — Part 2 §2.8) · permission สงวนของ `ADMIN` (DL51) เป็นค่าคงที่ในโค้ด ไม่ใช่ข้อมูลใน DB · **Permissions** (`Id`, `Code varchar(100) UQ` รูปแบบ `resource:action`, `Resource`, `Action`, `Description`) · **RolePermissions** (`RoleId`, `PermissionId`, PK composite)
+**Roles** (`Id`, `Code varchar(30) UQ`, `Name`, `IsSystem boolean`) — `SUPER_ADMIN` · `ADMIN` (DL51 — scope `all`, web · เพิ่มด้วย data migration) · `OPERATOR` · `VIEWER` · `TEAM_LEADER` (DL47 — เพิ่มด้วย data migration) · data scope มาจาก `Code` (ไม่มีคอลัมน์ scope — Part 2 §2.8) · permission สงวนของ `SUPER_ADMIN` (DL51) เป็นค่าคงที่ในโค้ด ไม่ใช่ข้อมูลใน DB · **Permissions** (`Id`, `Code varchar(100) UQ` รูปแบบ `resource:action`, `Resource`, `Action`, `Description`) · **RolePermissions** (`RoleId`, `PermissionId`, PK composite)
 
 **RefreshTokens** — port ตรงจาก reference: `Id`, `UserId NN`, `TokenHash char(64) UQ`, `ExpiresAt NN`, `RevokedAt`, `ReplacedByTokenId FK self`, `ReplacedAt` (เวลาที่ถูกหมุน — token เก่าที่ถูกใช้ซ้ำภายใน 10 วินาทีหลังหมุน = แท็บแย่งกัน ตอบ `REFRESH_RACE` ไม่ revoke ทั้งหมด · migration `0004_refresh_replaced_at`), `UserDeviceId FK`, `CreatedAt` · IX `(UserId, ExpiresAt)`
 
@@ -378,7 +362,7 @@ erDiagram
 |---|---|---|---|
 | Id | bigint identity | PK | |
 | TeamId | bigint | NN | FK → Teams |
-| EmployeeId | bigint | NN | FK → Employees |
+| UserId | bigint | NN | FK → Users |
 | Role | smallint | NN | 1 Leader · 2 Member |
 | ValidFrom | timestamptz | NN | |
 | ValidTo | timestamptz | | null = ยัง active |
@@ -386,7 +370,7 @@ erDiagram
 | Note | varchar(500) | | |
 | CreatedAt | timestamptz | NN | |
 
-Constraints: `CK_TeamMembers_Window` (`ValidTo IS NULL OR ValidTo > ValidFrom`) · `UQ_TeamMembers_ActiveLeader (TeamId) WHERE Role = 1 AND ValidTo IS NULL` · `UQ_TeamMembers_ActiveEmployee (EmployeeId) WHERE ValidTo IS NULL` · `EX_TeamMembers_LeaderNoOverlap` EXCLUDE gist (`TeamId =`, `tstzrange(ValidFrom, ValidTo) &&`) WHERE Role = 1 · IX `(TeamId, ValidFrom DESC)`
+Constraints: `CK_TeamMembers_Window` (`ValidTo IS NULL OR ValidTo > ValidFrom`) · `UQ_TeamMembers_ActiveLeader (TeamId) WHERE Role = 1 AND ValidTo IS NULL` · `UQ_TeamMembers_ActiveUser (UserId) WHERE ValidTo IS NULL` · `EX_TeamMembers_LeaderNoOverlap` EXCLUDE gist (`TeamId =`, `tstzrange(ValidFrom, ValidTo) &&`) WHERE Role = 1 · IX `(TeamId, ValidFrom DESC)`
 
 ### C. Devices
 
@@ -511,7 +495,7 @@ Constraints: `CK_TS_Window` (`EndedAt IS NULL OR EndedAt > StartedAt`) · `CK_TS
 | CloseReason | smallint | | |
 | BookingJobId | bigint | NN | FK → BookingJobs · `UQ_WO_BookingJob` (1 Booking ↔ 1 WO) |
 | TeamId | bigint | | FK → Teams · ทีมจาก Booking job (`BookingJobs.TeamId`) · ว่างได้เมื่อ ref ทีมยัง map ไม่ได้ (matching ผ่าน `DeviceRefs` ไม่ต้องรู้ทีม) |
-| LeaderEmployeeId | bigint | | FK → Employees (จาก Booking job — `BookingJobs.LeaderEmployeeId`) |
+| LeaderUserId | bigint | | FK → Users (จาก Booking job — `BookingJobs.LeaderUserId`) |
 | OpenedAt | timestamptz | | เวลา check-in ตาม Booking · null ขณะ `Planned` (DL37) · ใช้นับ `workorder.stale-open-hours` / `workorder.force-close-after-hours` |
 | LastActivityAt | timestamptz | | session ล่าสุดใน WO ยังเปิด = now / ปิด = EndedAt (แสดงผล/เรียงลำดับ) · null = ยังไม่มี session |
 | ClosedAt | timestamptz | | ปิดโดยระบบเท่านั้น (Booking check-out/cancel หรือ `SafetyTimeout`) |
@@ -559,7 +543,7 @@ RETURNING "LastValue";
 | BookingTeamRef | varchar(64) | | **matching key** |
 | TeamId | bigint | | FK → Teams · **cache** ที่ resolve จาก `Teams.BookingTeamRef` · ไม่พบทีม ⇒ inbox processor สร้างทีมจาก `teamRef` ก่อน (DL53) |
 | BookingLeaderRef | varchar(64) | | **matching key** |
-| LeaderEmployeeId | bigint | | FK → Employees · **cache** ที่ resolve จาก `Employees.BookingEmployeeRef` |
+| LeaderUserId | bigint | | FK → Users · **cache** ที่ resolve จาก `Users.BookingEmployeeRef` |
 | ScheduledDate | date | | วันที่ของงาน (Asia/Bangkok) — fallback เมื่อไม่มีเวลาตามแผน |
 | PlannedStartAt / PlannedEndAt | timestamptz | | `CK_BookingJobs_Window` |
 | BookingCheckInAt / BookingCheckOutAt | timestamptz | | **เวลา check-in / check-out ใน Booking — กำหนดสถานะใบงาน** **[Assumption ด้านรูปแบบ]** |
@@ -646,14 +630,14 @@ Retention ตามที่ผู้ใช้ยืนยัน **[Confirmed �
 
 ## 4.7 Migration Strategy
 
-1. **Baseline** `0000_baseline` จาก `drizzle-kit generate` — ตารางของ P0 ใน `schema.ts` (Roles, Users, Employees, Permissions, RolePermissions, UserDevices, RefreshTokens, PushTokens, Settings + `Departments` เดิม) · **`0002_drop_departments`** (DL53): ลบ FK / index / คอลัมน์ `Users.DepartmentId`, `Employees.DepartmentId` แล้ว `DROP TABLE "Departments"` (ไม่ใช้ `CASCADE` — มี object อื่นอ้างถึงให้ migration fail แทนการลบเงียบ) · **ช่วง dev (ก่อน go-live production ครั้งแรก) ข้อมูลใน DB ทิ้งได้** — แก้ / รวม / generate migration ใหม่ทั้งชุด และ drop-recreate DB ได้ (DL50) · **หลัง go-live: append-only** ไม่แก้ไฟล์ที่ apply แล้ว เพิ่มไฟล์ใหม่ต่อท้ายเท่านั้น
+1. **Baseline** `0000_baseline` จาก `drizzle-kit generate` — ตารางของ P0 ใน `schema.ts` (Roles, Users, Permissions, RolePermissions, UserDevices, RefreshTokens, PushTokens, Settings + `Departments` เดิม) · **`0002_drop_departments`** (DL53): ลบ FK / index / คอลัมน์ `Users.DepartmentId`, `Employees.DepartmentId` แล้ว `DROP TABLE "Departments"` (ไม่ใช้ `CASCADE` — มี object อื่นอ้างถึงให้ migration fail แทนการลบเงียบ) · **ช่วง dev (ก่อน go-live production ครั้งแรก) ข้อมูลใน DB ทิ้งได้** — แก้ / รวม / generate migration ใหม่ทั้งชุด และ drop-recreate DB ได้ (DL50) · **หลัง go-live: append-only** ไม่แก้ไฟล์ที่ apply แล้ว เพิ่มไฟล์ใหม่ต่อท้ายเท่านั้น
 2. **`0001_extensions_partitions` (custom SQL — P0)**: `CREATE EXTENSION btree_gist` · `AuditLogs` แบบ `PARTITION BY RANGE ("OccurredAt")` (PK `(OccurredAt, Id)`, `Id` ใช้ sequence `AuditLogs_Id_seq`) + partition `AuditLogs_default` + block `DO $$` สร้าง `AuditLogs_YYYYMM` ของเดือนปัจจุบันและ 2 เดือนถัดไป (ขอบเดือน UTC) + index `IX_AuditLogs_Occurred (OccurredAt DESC)`, `IX_AuditLogs_User (UserId, OccurredAt DESC)` บนตารางแม่
 3. **Migration ของ P1 (มีแล้ว)**: `0005_p1_devices` (drizzle-kit generate — `Devices`, `DeviceState`, `DeviceStatusHistory`, `Teams`, `TeamMembers`, `Depots`, `Alerts`) + `0006_p1_tracking_custom` (custom SQL — `GpsLocations` partitioned + BRIN แบบเดียวกับ `AuditLogs`, `EX_TeamMembers_LeaderNoOverlap` และ settings ของ P1 Category `tracking`) · **Custom SQL ของ phase ถัดไป** (ช่วง dev แก้ไฟล์เดิมแล้ว reset DB หรือแยกไฟล์ใหม่ก็ได้ — DL50): exclusion constraints ใส่ใน migration ของ phase ที่สร้างตารางนั้น เพราะ drizzle-kit generate `EXCLUDE` ไม่ได้: `EX_TS_NoOverlap` (P2) · `EX_DevAsg_NoOverlap` (phase ที่สร้าง `DeviceAssignments`) — ตัวอย่างใน §4.9
-4. **Reference data ผ่าน custom data migration** (`npm run db:generate -- --custom`, ทุก statement `ON CONFLICT DO NOTHING`): roles, permissions, role-permissions, settings defaults — ของ P0 คือ **`0003_reference_data`** (4 role, catalog 24 ตัว + สิทธิ์ตั้งต้นของแต่ละ role, `auth.max-failed-logins` / `auth.lockout-minutes`) สร้างจาก `server/src/common/auth/permission-catalog.ts` และมี `reference-data.int-test.ts` กันไม่ให้ SQL กับ catalog เพี้ยนกัน · **seed ใช้เฉพาะ dev** (`npm run db:seed` — ผู้ใช้ทดสอบ 1 บัญชีต่อ role และพนักงาน 2 คน · ปฏิเสธเมื่อ `NODE_ENV=production`) (แก้กับดัก "ห้ามรัน seed ใน production" ของ reference)
+4. **Reference data ผ่าน custom data migration** (`npm run db:generate -- --custom`, ทุก statement `ON CONFLICT DO NOTHING`): roles, permissions, role-permissions, settings defaults — ของ P0 คือ **`0003_reference_data`** (5 role, catalog 24 ตัว + สิทธิ์ตั้งต้นของแต่ละ role, `auth.max-failed-logins` / `auth.lockout-minutes`) สร้างจาก `server/src/common/auth/permission-catalog.ts` และมี `reference-data.int-test.ts` กันไม่ให้ SQL กับ catalog เพี้ยนกัน · **seed ใช้เฉพาะ dev** (`npm run db:seed` — ผู้ใช้ทดสอบ 1 บัญชีต่อ role โดยรหัสอ้างอิงหัวหน้าทีมเก็บใน Users · ปฏิเสธเมื่อ `NODE_ENV=production`) (แก้กับดัก "ห้ามรัน seed ใน production" ของ reference)
 5. **Partitioned tables** ประกาศ `pgTable` ใน `server/src/db/schema.partitioned.ts` ซึ่ง **ไม่อยู่ใน `schema` path ของ `drizzle.config.ts`** ⇒ drizzle-kit ไม่ generate DDL ให้ แต่ query แบบ typed ได้ · มี `AuditLogs` (P0) และ `GpsLocations` (P1)
 6. **Drift gate**: port `guardMigrationsOrExit()` (`server/src/db/migration-status.ts`, `assert-migrations.ts`) + advisory lock ตอน migrate · production รัน migrate เป็น step แยกก่อน deploy (reference ยังไม่มีใน Dockerfile — ต้องทำ)
-7. **ไม่ย้ายข้อมูลจากระบบเดิม** **[Confirmed — Q13]** — เป็นระบบใหม่ทั้งหมด ระบบเดิมใช้เป็น reference เท่านั้น · master data ตั้งใหม่ในระบบนี้: พนักงาน, ผู้ใช้ (รวมสร้างจาก Entra) ตั้งผ่านหน้าจอ · อุปกรณ์ sync จาก DSS อัตโนมัติ · ทีม / หัวหน้าทีมเกิดจากใบงาน Booking · ฐานยังไม่มีหน้าจัดการ (DL53)
-   - **ใช้ database ใหม่ ไม่ migrate ทับ DB ของระบบเดิม** (DL60 — ระบบนี้ deploy ทับระบบเดิม `psd-bwc-web-backend`): ทั้งสองใช้ตาราง `drizzle.__drizzle_migrations` ตัวเดียวกัน (ระบบเดิม apply ไว้แล้ว 0000–0031) และชื่อตารางชนกันครบทุกตารางของ P0 (`Users`, `Roles`, `Employees`, `Settings`, `RefreshTokens` ฯลฯ) ⇒ `0000_baseline` จะล้มกลางทาง · สร้าง database ใหม่บน PostgreSQL เดิม · DB ของระบบเดิมเก็บเป็น backup ไว้ระยะหนึ่ง (ใช้ rollback) แล้ว drop
+7. **ไม่ย้ายข้อมูลจากระบบเดิม** **[Confirmed — Q13]** — เป็นระบบใหม่ทั้งหมด ระบบเดิมใช้เป็น reference เท่านั้น · master data ตั้งใหม่ในระบบนี้: ผู้ใช้ (รวมสร้างจาก Entra) ตั้งผ่านหน้าจอ · อุปกรณ์ sync จาก DSS อัตโนมัติ · ทีม / หัวหน้าทีมเกิดจากใบงาน Booking · ฐานยังไม่มีหน้าจัดการ (DL53)
+   - **ใช้ database ใหม่ ไม่ migrate ทับ DB ของระบบเดิม** (DL60 — ระบบนี้ deploy ทับระบบเดิม `psd-bwc-web-backend`): ทั้งสองใช้ตาราง `drizzle.__drizzle_migrations` ตัวเดียวกัน (ระบบเดิม apply ไว้แล้ว 0000–0031) และชื่อตารางชนกันครบทุกตารางของ P0 (`Users`, `Roles`, `Users`, `Settings`, `RefreshTokens` ฯลฯ) ⇒ `0000_baseline` จะล้มกลางทาง · สร้าง database ใหม่บน PostgreSQL เดิม · DB ของระบบเดิมเก็บเป็น backup ไว้ระยะหนึ่ง (ใช้ rollback) แล้ว drop
 8. **Schema `dss` อยู่นอก drizzle** — `drizzle.config.ts` ไม่ได้ตั้ง `schemaFilter` ⇒ drizzle-kit ดูแค่ `public` จึงไม่ยุ่งกับ `dss."RequestLogs"` · **อย่าเพิ่ม `dss` ใน `schemaFilter`** (drizzle-kit จะเห็นตารางนี้เป็นส่วนเกินและเสนอให้ลบ) · DSS middleware สร้าง schema + ตารางเองตอนเขียนครั้งแรก (`CREATE SCHEMA/TABLE IF NOT EXISTS`) และสร้างใหม่เองถ้าตารางหายระหว่างรัน ⇒ drop-recreate DB ช่วง dev (DL50) ไม่ต้อง restart DSS middleware · ถ้า DB user ไม่มีสิทธิ์ `CREATE` ให้ DBA รัน `deploy/request-logs.sql` ของ `psd-bwc-dss-services` และ GRANT ก่อน
 
 ---
@@ -703,7 +687,7 @@ export const BookingJobs = pgTable('BookingJobs', {
   BookingTeamRef: varchar('BookingTeamRef', { length: 64 }),
   TeamId: ref('TeamId', () => Teams.Id),
   BookingLeaderRef: varchar('BookingLeaderRef', { length: 64 }),
-  LeaderEmployeeId: ref('LeaderEmployeeId', () => Employees.Id),
+  LeaderUserId: ref('LeaderUserId', () => Users.Id),
   ScheduledDate: date('ScheduledDate', { mode: 'string' }),
   PlannedStartAt: tstz('PlannedStartAt'),
   PlannedEndAt: tstz('PlannedEndAt'),
@@ -734,7 +718,7 @@ export const WorkOrders = pgTable('WorkOrders', {
   CloseReason: smallint('CloseReason'),
   BookingJobId: ref('BookingJobId', () => BookingJobs.Id).notNull(),
   TeamId: ref('TeamId', () => Teams.Id),
-  LeaderEmployeeId: ref('LeaderEmployeeId', () => Employees.Id),
+  LeaderUserId: ref('LeaderUserId', () => Users.Id),
   OpenedAt: tstz('OpenedAt'),
   LastActivityAt: tstz('LastActivityAt'),
   ClosedAt: tstz('ClosedAt'),

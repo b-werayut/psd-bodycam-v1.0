@@ -64,9 +64,9 @@ const directory = (over: Partial<EntraSyncResult> = {}): EntraSyncResult => ({
   ...over,
 });
 
-/** The server leaves ADMIN out of GET /roles for a non-ADMIN caller. */
+/** The server leaves SUPER_ADMIN out of GET /roles for a non-SUPER_ADMIN caller. */
 const ROLES = [
-  { id: '2', code: 'COMPANY_ADMIN', name: 'ผู้ดูแลบริษัท', isSystem: true },
+  { id: '2', code: 'ADMIN', name: 'ผู้ดูแลบริษัท', isSystem: true },
   { id: '3', code: 'OPERATOR', name: 'เจ้าหน้าที่ปฏิบัติการ', isSystem: true },
   { id: '4', code: 'VIEWER', name: 'ผู้ดูข้อมูล', isSystem: true },
   { id: '5', code: 'TEAM_LEADER', name: 'หัวหน้าทีม', isSystem: true },
@@ -83,11 +83,11 @@ function mockGets(result: EntraSyncResult = directory()) {
   });
 }
 
-const createdRow = (payload: { username: string; fullName: string; roleCode: string }) => ({
+const createdRow = (payload: { username: string; firstName: string; lastName: string; roleCode: string }) => ({
   data: {
     id: '99',
     username: payload.username,
-    fullName: payload.fullName,
+    firstName: payload.firstName, lastName: payload.lastName,
     email: null,
     roleId: '3',
     roleCode: payload.roleCode,
@@ -116,11 +116,25 @@ beforeEach(() => {
   vi.mocked(api.post).mockReset();
   vi.mocked(api.patch).mockReset();
   mockGets();
-  signIn(['users:read', 'users:manage'], { roleCode: 'COMPANY_ADMIN' });
+  signIn(['users:read', 'users:manage'], { roleCode: 'ADMIN' });
 });
 afterEach(signOut);
 
 describe('EntraUsersPage', () => {
+  it('omits directory scope details while keeping the filtering controls', async () => {
+    mockGets(directory({
+      allowedDomains: ['psdconstruction2011.com'],
+      domainFilteredAtGraph: true,
+    }));
+    renderWithProviders(<EntraUsersPage />);
+    await screen.findByText('somsri@psd.co.th');
+    expect(screen.queryByRole('list', { name: t('users.entraSync.scopeLabel') })).not.toBeInTheDocument();
+    expect(screen.queryByText(t('users.entraSync.scope.activeMembersOnly'))).not.toBeInTheDocument();
+    expect(screen.queryByText(t('users.entraSync.scope.nonHumanWarning'))).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: t('users.entraSync.onlyMissing') })).toBeEnabled();
+    expect(screen.getByRole('checkbox', { name: t('users.entraSync.matchByUsername') })).toBeEnabled();
+  });
+
   it('lists directory rows with their status', async () => {
     renderWithProviders(<EntraUsersPage />);
 
@@ -189,21 +203,21 @@ describe('EntraUsersPage', () => {
     expect(calls.map(([, body]) => body)).toEqual([
       {
         username: 'somchai',
-        fullName: 'ชื่อ somchai',
+        firstName: 'ชื่อ', lastName: 'somchai',
         email: 'somchai@psd.co.th',
         roleCode: 'OPERATOR',
         azureObjectId: 'oid-somchai',
       },
       {
         username: 'somkid',
-        fullName: 'ชื่อ somkid',
+        firstName: 'ชื่อ', lastName: 'somkid',
         email: 'somkid@psd.co.th',
         roleCode: 'OPERATOR',
         azureObjectId: 'oid-somkid',
       },
       {
         username: 'somying',
-        fullName: 'ชื่อ somying',
+        firstName: 'ชื่อ', lastName: 'somying',
         email: 'somying@psd.co.th',
         roleCode: 'OPERATOR',
         azureObjectId: 'oid-somying',
@@ -248,8 +262,8 @@ describe('EntraUsersPage', () => {
     const values = within(select)
       .getAllByRole('option')
       .map((option) => (option as HTMLOptionElement).value);
-    expect(values).toEqual(['', 'COMPANY_ADMIN', 'OPERATOR', 'VIEWER', 'TEAM_LEADER']);
-    expect(values).not.toContain('ADMIN');
+    expect(values).toEqual(['', 'ADMIN', 'OPERATOR', 'VIEWER', 'TEAM_LEADER']);
+    expect(values).not.toContain('SUPER_ADMIN');
   });
 
   it('keeps the bulk confirm disabled until a role is picked', async () => {
@@ -299,9 +313,12 @@ describe('EntraUsersPage', () => {
     const dialog = screen.getByRole('dialog', { name: t('users.form.createTitle') });
     expect(within(dialog).getByText(t('users.form.entraDescription'))).toBeInTheDocument();
     expect(within(dialog).getByLabelText(t('users.form.username'))).toHaveValue('somchai');
-    expect(within(dialog).getByLabelText(t('users.form.fullName'))).toHaveValue('ชื่อ somchai');
-    expect(within(dialog).getByLabelText(t('users.form.fullName'))).toHaveAttribute('readonly');
+    expect(within(dialog).getByLabelText(t('users.form.firstName'))).toHaveValue('ชื่อ');
+    expect(within(dialog).getByLabelText(t('users.form.firstName'))).toBeDisabled();
+    expect(within(dialog).getByLabelText(t('users.form.lastName'), { exact: false })).toHaveValue('somchai');
+    expect(within(dialog).getByLabelText(t('users.form.lastName'), { exact: false })).toBeDisabled();
     expect(within(dialog).getByLabelText(/อีเมล/)).toHaveValue('somchai@psd.co.th');
+    expect(within(dialog).getByLabelText(/อีเมล/)).toBeDisabled();
     expect(within(dialog).queryByLabelText(/รหัสผ่าน/)).not.toBeInTheDocument();
 
     await waitFor(() =>
@@ -313,7 +330,7 @@ describe('EntraUsersPage', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
     expect(api.post).toHaveBeenCalledWith('/users', {
       username: 'somchai',
-      fullName: 'ชื่อ somchai',
+      firstName: 'ชื่อ', lastName: 'somchai',
       email: 'somchai@psd.co.th',
       roleCode: 'VIEWER',
       azureObjectId: 'oid-somchai',
@@ -391,7 +408,7 @@ describe('EntraUsersPage', () => {
           userId: '25',
           username: 'devmeen',
           upn: 'somsri@psd.co.th',
-          patch: { AzureObjectId: 'oid-somsri', FullName: 'ชื่อ somsri' },
+          patch: { AzureObjectId: 'oid-somsri', FirstName: 'ชื่อ', LastName: 'somsri' },
           keptLocal: [],
         },
       ],

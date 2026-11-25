@@ -4,6 +4,8 @@ coverage
 .env
 .env.*
 !.env.example
+# read by `vite build` (mode production): the tile server etc. — public values only
+!.env.production
 *.log
 .vite
 test-results

@@ -4,7 +4,7 @@ import { RequirePermission } from '../../common/auth/require-permission.decorato
 import { UpdateSettingDto } from './dto/update-setting.dto';
 import { SettingsAdminService } from './settings-admin.service';
 
-/** ตั้งค่าระบบ — settings:manage is reserved for ADMIN (DL51). */
+/** ตั้งค่าระบบ — settings:manage is reserved for SUPER_ADMIN (DL51). */
 @Controller('settings')
 export class SettingsAdminController {
   constructor(private readonly service: SettingsAdminService) {}

@@ -17,7 +17,6 @@ export const ROUTE_ACCESS = {
   'work-orders': { anyOf: ['work-orders:read'] },
   'work-orders/:id': { anyOf: ['work-orders:read'] },
   evidence: { anyOf: ['playback:view'], allOf: ['work-orders:read'] },
-  employees: { anyOf: ['org:read'] },
   users: { anyOf: ['users:read'] },
   'entra-users': { anyOf: ['users:manage'] },
   notifications: { anyOf: ['notifications:read', 'alerts:view'] },
@@ -59,7 +58,7 @@ export function canEnter(
   permissions: readonly string[] | undefined,
   roleCode?: AuthUser['roleCode'],
 ): boolean {
-  if (roleCode === 'ADMIN') return true;
+  if (roleCode === 'SUPER_ADMIN') return true;
   if (!permissions) return false;
   if (access.allOf?.some((p) => !permissions.includes(p))) return false;
   return access.anyOf.some((p) => permissions.includes(p));

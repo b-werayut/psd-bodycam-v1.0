@@ -14,7 +14,7 @@ export function DataToolbar({ label, children, className }: DataToolbarProps) {
       role="toolbar"
       aria-label={label}
       className={cn(
-        'flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center [@media(pointer:fine)]:[&_button]:h-9 [@media(pointer:fine)]:[&_button]:min-h-9 [@media(pointer:fine)]:[&_input]:h-9 [@media(pointer:fine)]:[&_input]:min-h-9 [@media(pointer:fine)]:[&_label]:min-h-9 [@media(pointer:fine)]:[&_select]:h-9 [@media(pointer:fine)]:[&_select]:min-h-9',
+        'flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center [@media(pointer:fine)]:[&_button:not([role=checkbox])]:h-9 [@media(pointer:fine)]:[&_button:not([role=checkbox])]:min-h-9 [@media(pointer:fine)]:[&_input]:h-9 [@media(pointer:fine)]:[&_input]:min-h-9 [@media(pointer:fine)]:[&_label]:min-h-9 [@media(pointer:fine)]:[&_select]:h-9 [@media(pointer:fine)]:[&_select]:min-h-9',
         className,
       )}
     >

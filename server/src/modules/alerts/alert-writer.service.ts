@@ -30,8 +30,8 @@ export type AlertNewEvent = {
 
 /**
  * Writes Alerts. One open alert per DedupeKey (`UQ_Alerts_OpenDedupe`). Call it after the caller's
- * transaction commits: the push goes out at once. P1 alerts are ADMIN-only (alert 13), so the push goes
- * to each active ADMIN's `user:{id}` room; the `alerts` room and Notifications come with P2.
+ * transaction commits: the push goes out at once. P1 alerts are SUPER_ADMIN-only (alert 13), so the push goes
+ * to each active SUPER_ADMIN's `user:{id}` room; the `alerts` room and Notifications come with P2.
  */
 @Injectable()
 export class AlertWriterService {
@@ -90,7 +90,7 @@ export class AlertWriterService {
         .select({ id: Users.Id })
         .from(Users)
         .innerJoin(Roles, eq(Roles.Id, Users.RoleId))
-        .where(and(eq(Roles.Code, 'ADMIN'), eq(Users.Status, 1), eq(Users.IsDeleted, false)));
+        .where(and(eq(Roles.Code, 'SUPER_ADMIN'), eq(Users.Status, 1), eq(Users.IsDeleted, false)));
       for (const admin of admins) bus.to(userRoom(admin.id)).emit('alert:new', event);
     } catch (error) {
       // the alert is in the DB either way; a lost push only delays what the screen shows

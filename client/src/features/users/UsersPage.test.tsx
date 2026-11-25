@@ -19,8 +19,9 @@ const t = (key: TranslationKey, params?: Record<string, string | number>) =>
 const row = (over: Partial<UserRow>): UserRow => ({
   id: '7',
   username: 'field1',
-  fullName: 'ช่างภาคสนาม',
+  firstName: 'ช่างภาคสนาม', lastName: '',
   email: 'field1@psd.test',
+  phone: null,
   roleId: '2',
   roleCode: 'OPERATOR',
   roleName: 'เจ้าหน้าที่',
@@ -32,12 +33,12 @@ const row = (over: Partial<UserRow>): UserRow => ({
 });
 
 const ROWS = [
-  row({}),
+  row({ phone: '0812345678' }),
   row({
     id: '1',
     username: 'admin1',
-    fullName: 'ผู้ดูแล',
-    roleCode: 'ADMIN',
+    firstName: 'ผู้ดูแล', lastName: '',
+    roleCode: 'SUPER_ADMIN',
     roleName: 'ผู้ดูแลระบบ',
     availableActions: ['edit'],
   }),
@@ -46,7 +47,7 @@ const ROWS = [
 const RESERVED = ['audit:view', 'settings:manage', 'roles:manage'];
 
 const ROLES = [
-  { id: '1', code: 'ADMIN', name: 'ผู้ดูแลระบบ', isSystem: true },
+  { id: '1', code: 'SUPER_ADMIN', name: 'ผู้ดูแลระบบ', isSystem: true },
   { id: '2', code: 'OPERATOR', name: 'เจ้าหน้าที่', isSystem: true },
 ];
 
@@ -81,12 +82,14 @@ describe('UsersPage', () => {
     expect(await screen.findByText('field1')).toBeInTheDocument();
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
       t('users.column.username'),
-      t('users.column.fullName'),
+      t('users.column.name'),
       t('users.column.role'),
       t('users.column.email'),
+      t('users.column.phone'),
       t('users.column.azure'),
       t('users.column.statusLastLogin'),
     ]);
+    expect(within(screen.getByText('field1').closest('tr')!).getByText('0812345678')).toBeInTheDocument();
     expect(screen.getByText(t('users.summary', { shown: 2, total: 120 }))).toBeInTheDocument();
 
     await userEvent.click(
@@ -230,7 +233,7 @@ describe('UsersPage', () => {
   });
 
   it('shows the roles tab read-only for users:read without roles:manage', async () => {
-    signIn(['users:read', 'users:manage'], { roleCode: 'COMPANY_ADMIN' });
+    signIn(['users:read', 'users:manage'], { roleCode: 'ADMIN' });
     renderWithProviders(<UsersPage />);
     await userEvent.click(await screen.findByRole('tab', { name: t('users.tab.roles') }));
     expect(await screen.findByText(t('users.permissions.readOnlyHint'))).toBeInTheDocument();
@@ -256,7 +259,7 @@ describe('UsersPage', () => {
     const dialog = await screen.findByRole('dialog');
 
     await userEvent.type(within(dialog).getByLabelText(t('users.form.username')), 'Field1');
-    await userEvent.type(within(dialog).getByLabelText(t('users.form.fullName')), 'ซ้ำ');
+    await userEvent.type(within(dialog).getByLabelText(t('users.form.firstName')), 'ซ้ำ');
     await waitFor(() =>
       expect(within(dialog).getByRole('option', { name: 'เจ้าหน้าที่' })).toBeInTheDocument(),
     );
@@ -266,7 +269,7 @@ describe('UsersPage', () => {
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/users', {
         username: 'field1',
-        fullName: 'ซ้ำ',
+        firstName: 'ซ้ำ', lastName: '',
         roleCode: 'OPERATOR',
       }),
     );

@@ -50,6 +50,48 @@
       "when": 1795424023316,
       "tag": "0006_p1_tracking_custom",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795586768025,
+      "tag": "0007_user_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795589164273,
+      "tag": "0008_user_phone",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795589609035,
+      "tag": "0009_users_replace_employees",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795592075227,
+      "tag": "0010_canonical_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795592891112,
+      "tag": "0011_standard_role_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795596835362,
+      "tag": "0012_p3a_booking",
+      "breakpoints": true
     }
   ]
 }

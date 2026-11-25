@@ -24,12 +24,12 @@ import { PERMISSION_CATALOG, groupPermissions } from '../permissionCatalog';
 import { rolesApi, type RoleRow } from '../users.api';
 
 const GROUPS = groupPermissions();
-const isAdmin = (role: RoleRow) => role.code === 'ADMIN';
+const isSuperAdmin = (role: RoleRow) => role.code === 'SUPER_ADMIN';
 
 /**
- * Permission matrix. The server decides: `readOnly` when the caller lacks roles:manage (COMPANY_ADMIN sees
- * the matrix but cannot change it), and the ADMIN-reserved codes from GET /roles are locked for every
- * role but ADMIN — the server would refuse them anyway (400 PERMISSION_RESERVED_FOR_ADMIN).
+ * Permission matrix. The server decides: `readOnly` when the caller lacks roles:manage (ADMIN sees
+ * the matrix but cannot change it), and the SUPER_ADMIN-reserved codes from GET /roles are locked for every
+ * role but SUPER_ADMIN — the server would refuse them anyway (400 PERMISSION_RESERVED_FOR_SUPER_ADMIN).
  */
 export function RolePermissionsPanel({ readOnly }: { readOnly: boolean }) {
   const { t } = useLanguage();
@@ -40,7 +40,7 @@ export function RolePermissionsPanel({ readOnly }: { readOnly: boolean }) {
   const roles = useQuery({ queryKey: ['roles'], queryFn: rolesApi.list });
   const roleList = roles.data?.roles ?? [];
   const reserved = new Set(roles.data?.reservedPermissions ?? []);
-  const editable = roleList.filter((role) => !isAdmin(role));
+  const editable = roleList.filter((role) => !isSuperAdmin(role));
   const permissionQueries = useQueries({
     queries: editable.map((role) => ({
       queryKey: ['roles', role.id, 'permissions'],
@@ -56,7 +56,7 @@ export function RolePermissionsPanel({ readOnly }: { readOnly: boolean }) {
   const loadError = roles.error ?? permissionQueries.find((q) => q.isError)?.error ?? null;
 
   const checkedOf = (role: RoleRow): ReadonlySet<string> =>
-    isAdmin(role) ? new Set(PERMISSION_CATALOG) : new Set(draft[role.id] ?? serverOf(role.id) ?? []);
+    isSuperAdmin(role) ? new Set(PERMISSION_CATALOG) : new Set(draft[role.id] ?? serverOf(role.id) ?? []);
 
   const dirtyRoles = editable.filter((role) => {
     const edited = draft[role.id];
@@ -177,7 +177,7 @@ export function RolePermissionsPanel({ readOnly }: { readOnly: boolean }) {
                 <TableHead key={role.id} className="text-center align-top">
                   <div className="flex flex-col items-center gap-1">
                     <span>{role.name}</span>
-                    {isAdmin(role) ? (
+                    {isSuperAdmin(role) ? (
                       <span className="max-w-40 text-xs font-normal text-muted-foreground">
                         {t('users.roles.adminReadOnly')}
                       </span>
@@ -215,8 +215,8 @@ export function RolePermissionsPanel({ readOnly }: { readOnly: boolean }) {
                           checked={checkedOf(role).has(code)}
                           disabled={
                             readOnly ||
-                            isAdmin(role) ||
-                            (reserved.has(code) && !isAdmin(role)) ||
+                            isSuperAdmin(role) ||
+                            (reserved.has(code) && !isSuperAdmin(role)) ||
                             save.isPending
                           }
                           onCheckedChange={(next) => toggle(role, code, next === true)}

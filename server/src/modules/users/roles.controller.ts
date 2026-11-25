@@ -23,7 +23,7 @@ export class RolesController {
     return this.roles.permissions(actor, id);
   }
 
-  /** roles:manage is reserved for ADMIN (DL51). Takes effect at each user's next token refresh (≤ 15 min). */
+  /** roles:manage is reserved for SUPER_ADMIN (DL51). Takes effect at each user's next token refresh (≤ 15 min). */
   @Put(':id/permissions')
   @RequirePermission('roles:manage')
   @Audit('SET_ROLE_PERMISSIONS', 'Roles')

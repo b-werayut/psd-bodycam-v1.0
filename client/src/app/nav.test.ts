@@ -5,7 +5,7 @@ import { canSee, isNavItemActive, NAV_GROUPS, NAV_ITEMS, visibleNavItems } from 
 const ROLE_OPERATOR_PERMS = ['dashboard:view', 'org:read', 'work-orders:read', 'tracking:view'];
 
 describe('NAV_ITEMS', () => {
-  it('has exactly 12 items in menu order', () => {
+  it('has exactly 11 items in menu order', () => {
     expect(NAV_ITEMS.map((i) => i.labelKey)).toEqual([
       'navigation.dashboard',
       'navigation.liveWall',
@@ -13,7 +13,6 @@ describe('NAV_ITEMS', () => {
       'navigation.playback',
       'navigation.tracking',
       'navigation.trackingHistory',
-      'navigation.employees',
       'navigation.users',
       'navigation.entraUsers',
       'navigation.notifications',
@@ -35,7 +34,7 @@ describe('NAV_ITEMS', () => {
         'navigation.tracking',
         'navigation.trackingHistory',
       ],
-      people: ['navigation.employees', 'navigation.users', 'navigation.entraUsers'],
+      people: ['navigation.users', 'navigation.entraUsers'],
       system: ['navigation.notifications', 'navigation.audit', 'navigation.settings'],
     });
   });
@@ -45,7 +44,6 @@ describe('NAV_ITEMS', () => {
       '/',
       '/tracking',
       '/tracking/history',
-      '/employees',
       '/users',
       '/entra-users',
       '/audit-logs',
@@ -69,7 +67,6 @@ describe('NAV_ITEMS', () => {
       'navigation.playback': { any: ['playback:view'], all: ['work-orders:read'] },
       'navigation.tracking': { any: ['tracking:view'], all: [] },
       'navigation.trackingHistory': { any: ['tracking:history'], all: [] },
-      'navigation.employees': { any: ['org:read'], all: [] },
       'navigation.users': { any: ['users:read'], all: [] },
       'navigation.entraUsers': { any: ['users:manage'], all: [] },
       'navigation.notifications': { any: ['notifications:read', 'alerts:view'], all: [] },
@@ -97,16 +94,15 @@ describe('visibleNavItems', () => {
       'navigation.dashboard',
       'navigation.workOrders',
       'navigation.tracking',
-      'navigation.employees',
     ]);
   });
 
-  it('shows everything to ADMIN', () => {
-    expect(visibleNavItems([], 'ADMIN')).toHaveLength(NAV_ITEMS.length);
+  it('shows everything to SUPER_ADMIN', () => {
+    expect(visibleNavItems([], 'SUPER_ADMIN')).toHaveLength(NAV_ITEMS.length);
   });
 
-  it('does not bypass for COMPANY_ADMIN: it sees only what its permissions allow', () => {
-    expect(visibleNavItems(['users:read'], 'COMPANY_ADMIN').map((i) => i.labelKey)).toEqual([
+  it('does not bypass for ADMIN: it sees only what its permissions allow', () => {
+    expect(visibleNavItems(['users:read'], 'ADMIN').map((i) => i.labelKey)).toEqual([
       'navigation.users',
     ]);
   });

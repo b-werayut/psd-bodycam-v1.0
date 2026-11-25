@@ -118,7 +118,9 @@ describe('GET /api/tracking/devices/:id/history', () => {
     });
     expect(r.body.start).toMatchObject({ lat: 13.75, at: iso(t0) });
     expect(r.body.segments.length).toBeGreaterThan(0);
-    expect(r.body.timeline[0]).toMatchObject({ kind: 'stop', index: 1 });
+    expect(r.body.timeline[0]).toMatchObject({ kind: 'stop', index: 1, distanceFromPrevM: expect.any(Number) });
+    expect(r.body.totalDistanceM).toEqual(expect.any(Number));
+    expect(r.body.totalDistanceApprox).toEqual(expect.any(Boolean));
 
     const row = await eventually(async () => {
       const [found] = await ctx.sql`select "Action", "ResourceType", "ResourceId" from "AuditLogs"
@@ -129,7 +131,7 @@ describe('GET /api/tracking/devices/:id/history', () => {
   });
 
   it('INVALID_RANGE for a bad range; 404 for an unknown camera; 403 without tracking:history', async () => {
-    const bad = await history(sim1, iso(t0), iso(t0 + 25 * 3_600_000));
+    const bad = await history(sim1, iso(t0), iso(t0 + 37 * 3_600_000));
     expect(bad.status).toBe(400);
     expect(bad.body.code).toBe('INVALID_RANGE');
     expect((await history(sim1, 'not-a-date', iso(t0))).body.code).toBe('INVALID_RANGE');

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Loader2, TriangleAlert } from 'lucide-react';
 
 import { StatusBadge } from '@/components/command-center';
@@ -28,7 +28,8 @@ import {
   type BulkOutcome,
 } from '../entraBulk';
 import type { EntraDirectoryRow } from '../entraSync';
-import { rolesApi, usersApi } from '../users.api';
+import { usersApi } from '../users.api';
+import { useAssignableRoles } from '../useAssignableRoles';
 
 const listClassName =
   'flex max-h-56 flex-col gap-1 overflow-y-auto rounded-md border border-border px-3 py-2 text-sm';
@@ -53,8 +54,7 @@ export function EntraBulkCreateDialog({
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState<BulkOutcome[] | null>(null);
 
-  // GET /roles already leaves out ADMIN for callers who are not ADMIN.
-  const roles = useQuery({ queryKey: ['roles'], queryFn: rolesApi.list });
+  const roles = useAssignableRoles();
 
   const creatable = bulkCreatable(plan);
   const skipped = plan.filter((candidate) => candidate.skip);
@@ -137,7 +137,7 @@ export function EntraBulkCreateDialog({
                   disabled={roles.isPending || running}
                 >
                   <option value="">{t('users.form.select')}</option>
-                  {(roles.data?.roles ?? []).map((role) => (
+                  {roles.roles.map((role) => (
                     <option key={role.id} value={role.code}>
                       {role.name}
                     </option>

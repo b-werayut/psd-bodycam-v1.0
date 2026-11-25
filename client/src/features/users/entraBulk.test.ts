@@ -31,7 +31,8 @@ describe('planBulkCreate', () => {
     const [candidate] = planBulkCreate([row()]);
 
     expect(candidate.values.username).toBe('somchai');
-    expect(candidate.values.fullName).toBe('สมชาย ทดสอบ');
+    expect(candidate.values.firstName).toBe('สมชาย');
+    expect(candidate.values.lastName).toBe('ทดสอบ');
     expect(candidate.values.email).toBe('somchai@psd.co.th');
     expect(candidate.values.azureObjectId).toBe('oid-1');
     expect(candidate.values.roleCode).toBe('');
@@ -75,7 +76,7 @@ describe('bulkPayload', () => {
 
     expect(payload).toEqual({
       username: 'somchai',
-      fullName: 'สมชาย ทดสอบ',
+      firstName: 'สมชาย', lastName: 'ทดสอบ',
       email: 'somchai@psd.co.th',
       roleCode: 'OPERATOR',
       azureObjectId: 'oid-1',
