@@ -32,11 +32,19 @@ export function RouteLayers({ route, focus }: { route: RouteHistory; focus: [num
   }, [route]);
 
   useEffect(() => {
-    if (bounds) map.fitBounds(bounds, { padding: [32, 32], maxZoom: 17 });
+    if (bounds) map.fitBounds(bounds, {
+      paddingTopLeft: window.matchMedia('(min-width: 1024px)').matches ? [420, 32] : [32, 230],
+      paddingBottomRight: [32, 32],
+      maxZoom: 17,
+    });
   }, [map, bounds]);
 
   useEffect(() => {
-    if (focus) map.setView(focus, Math.max(map.getZoom(), 16));
+    if (focus) map.fitBounds(L.latLngBounds([focus, focus]), {
+      paddingTopLeft: window.matchMedia('(min-width: 1024px)').matches ? [420, 32] : [32, 230],
+      paddingBottomRight: [32, 32],
+      maxZoom: Math.max(map.getZoom(), 16),
+    });
   }, [map, focus]);
 
   const stops = route.timeline.filter((item) => item.kind === 'stop');

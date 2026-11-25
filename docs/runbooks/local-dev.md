@@ -79,6 +79,27 @@ npm run db:prepare:test
 
 ## 6. รันระบบ
 
+### ภาพสดหลายจอ (`/live-wall`)
+
+รัน migration ให้ครบ `0013_p4_live_streaming` ก่อนเปิด API: `npm run db:migrate:apply`
+ใช้ `DSS_DRIVER=dss`, `DSS_BASE_URL` และ `DSS_API_KEY` ชุดเดียวกับรายการกล้อง / GPS
+ระบบขอภาพที่ `POST /api/v1/stream` โดยใช้ `VendorDeviceId` และ channel 1
+หาก endpoint แยกออกไป ให้ตั้ง `STREAM_API_URL`
+
+Media host ต้องอยู่ใน `STREAM_ALLOWED_HOSTS` (hostname คั่นด้วย comma)
+ถ้าไม่ตั้งจะอนุญาตเฉพาะ host ของ DSS / stream API ที่ตั้งค่าไว้เท่านั้น
+URL ของ vendor ถูกเข้ารหัสและผูกกับ session ก่อนส่งให้ browser ผ่าน HLS proxy ของระบบ
+API ทุก replica ต้องใช้ `STREAM_URL_SECRET` เดียวกัน (ไม่ตั้ง = ใช้ `JWT_ACCESS_SECRET`)
+โหมด `mock` ไม่มีวิดีโอจำลอง: การตรวจภาพจริงต้องเชื่อม DSS
+
+เปิดหน้าเว็บด้วย SUPER_ADMIN, ADMIN หรือ OPERATOR ที่มีทั้ง `streaming:view-live` และ
+`streaming:live-wall` พร้อม `devices:read` เพื่อแสดงรายการกล้อง
+ตั้งค่าจำนวนจอได้ที่ `streaming.max-concurrent-per-user` (เริ่มต้น 16)
+ปิดการดูสดทั้งหมดด้วย `streaming.enabled` และตั้งเวลาปิดจอที่หยุดเล่นด้วย
+`streaming.url-ttl-seconds` (เริ่มต้น 180 วินาที) การเปิดและปิดจอมี audit log
+
+### โปรเซสสำหรับพัฒนา
+
 เปิด 3 terminal:
 
 ```powershell

@@ -363,6 +363,19 @@ All interactive components provide relevant default, hover, focus, active, selec
 
 The fleet/GPS workspace expresses the hierarchy of a precision register using the production aggregate contract. It may summarize fleet health, show GPS activity, and expose an accessible data table, but it must not invent device-level records, API fields, or implied drill-down behavior to mimic a reference image.
 
+### Live camera wall
+
+The live wall reuses Internal-BodyCam's camera rail and screen composition: a 320px camera list
+beside a full-height grid, compact screen headers and 1/4/6/9/16 layouts. On narrow screens,
+the camera list sits above the controls and video screens keep their 16:9 aspect ratio.
+
+Video stages stay dark in both themes to preserve image contrast. The reference's restrained
+neutral vignette is intentional here: stage `oklch(0.19 0.025 258)` to `oklch(0.075 0.015 258)`,
+foreground `oklch(0.8 0.015 255)`, icon `oklch(0.52 0.02 258)`, title `oklch(0.86 0.012 255)`
+and hint `oklch(0.7 0.02 258)`. Stage actions use `oklch(0.22 0.02 258)`, hover
+`oklch(0.28 0.02 258)` and border `oklch(0.42 0.02 258)`. These fixed media colors do not
+replace semantic colors on the camera list, controls or screen headers.
+
 ### Operational Data Tables
 
 - Use a 40px header and 8px vertical/12px horizontal cell padding. A typical two-line row is 52–60px tall; one-line utility tables may be denser only when targets and readability remain intact.

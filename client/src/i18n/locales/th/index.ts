@@ -6,6 +6,7 @@ import { navigation } from './navigation';
 import { permission } from './permission';
 import { settings } from './settings';
 import { tracking } from './tracking';
+import { streaming } from './streaming';
 import { users } from './users';
 
 export const th = {
@@ -18,6 +19,7 @@ export const th = {
   ...audit,
   ...users,
   ...tracking,
+  ...streaming,
 } as const;
 
 export type TranslationKey = keyof typeof th;

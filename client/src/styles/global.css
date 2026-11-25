@@ -348,6 +348,21 @@ body {
   }
 }
 
+.stream-stage {
+  background: radial-gradient(circle at 50% 44%, oklch(0.19 0.025 258), oklch(0.075 0.015 258) 64%);
+  color: oklch(0.8 0.015 255);
+}
+
+.stream-stage__icon { color: oklch(0.52 0.02 258); }
+.stream-stage__title { color: oklch(0.86 0.012 255); }
+.stream-stage__hint { color: oklch(0.7 0.02 258); }
+.stream-stage__action {
+  border: 1px solid oklch(0.42 0.02 258);
+  background: oklch(0.22 0.02 258);
+  color: oklch(0.86 0.012 255);
+}
+.stream-stage__action:hover:not(:disabled) { background: oklch(0.28 0.02 258); }
+
 .route-line {
   stroke: oklch(var(--primary));
 }

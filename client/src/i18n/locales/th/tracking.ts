@@ -1,6 +1,6 @@
 export const tracking = {
-  'tracking.view.label': 'มุมมองแผนที่',
-  'tracking.view.live': 'ตำแหน่งปัจจุบัน',
+  'tracking.history.openPanel': 'ตัวเลือกและลำดับเส้นทาง',
+  'tracking.history.closePanel': 'ปิดตัวเลือกเส้นทาง',
   'tracking.summary.total': 'อุปกรณ์',
   'tracking.filter.unknown': 'ไม่ทราบ',
   'tracking.list.open': 'รายการกล้องและตัวกรอง',
@@ -40,7 +40,7 @@ export const tracking = {
   'tracking.age.days': '{n} วันที่แล้ว',
   'tracking.loadFailed': 'โหลดตำแหน่งกล้องไม่สำเร็จ',
   'tracking.retry': 'ลองใหม่',
-  'tracking.history.description': 'เส้นทางของกล้องตามช่วงเวลาที่เลือก (ครั้งละไม่เกิน 36 ชั่วโมง ข้ามวันได้) — ทุกครั้งที่เปิดดูระบบบันทึกไว้',
+  'tracking.history.description': 'ดูว่ากล้องไปที่ไหนมาบ้างในช่วงที่เลือก (ครั้งละไม่เกิน 36 ชั่วโมง)',
   'tracking.history.camera': 'กล้อง',
   'tracking.history.cameraPlaceholder': 'เลือกกล้อง',
   'tracking.history.rangeStart': 'เริ่ม',

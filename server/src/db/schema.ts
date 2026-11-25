@@ -555,3 +555,30 @@ export const WorkOrderCounters = pgTable('WorkOrderCounters', {
   Period: char('Period', { length: 6 }).primaryKey(),
   LastValue: integer('LastValue').notNull(),
 });
+
+// Live and playback share the canonical session ledger; only live is exposed by this module today.
+export const StreamingSessions = pgTable('StreamingSessions', {
+  Id: pkId(),
+  DeviceId: ref('DeviceId', () => Devices.Id).notNull(),
+  Channel: smallint('Channel').notNull().default(1),
+  UserId: ref('UserId', () => Users.Id).notNull(),
+  SessionToken: varchar('SessionToken', { length: 64 }).notNull().unique('UQ_Stream_Token'),
+  Protocol: smallint('Protocol'),
+  SessionType: smallint('SessionType').notNull().default(1),
+  PlaybackStartAt: tstz('PlaybackStartAt'),
+  PlaybackEndAt: tstz('PlaybackEndAt'),
+  Status: smallint('Status').notNull().default(1),
+  VendorSessionId: varchar('VendorSessionId', { length: 64 }),
+  RequestedAt: tstz('RequestedAt').notNull().defaultNow(),
+  StartedAt: tstz('StartedAt'),
+  LastAccessAt: tstz('LastAccessAt'),
+  EndedAt: tstz('EndedAt'),
+  DurationSeconds: integer('DurationSeconds'),
+  EndReason: smallint('EndReason'),
+  ErrorMessage: varchar('ErrorMessage', { length: 500 }),
+  CreatedAt: createdAt(),
+}, (t) => [
+  index('IX_Stream_User_Status').on(t.UserId, t.Status),
+  index('IX_Stream_Device_Started').on(t.DeviceId, t.StartedAt),
+  index('IX_Stream_Status').on(t.Status),
+]);

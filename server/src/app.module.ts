@@ -25,6 +25,7 @@ import { TrackingModule } from './modules/tracking/tracking.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SettingsAdminModule } from './modules/settings/settings-admin.module';
 import { UsersModule } from './modules/users/users.module';
+import { StreamingModule } from './modules/streaming/streaming.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { UsersModule } from './modules/users/users.module';
     SettingsAdminModule,
     AuditLogsModule,
     UsersModule,
+    StreamingModule,
     BookingIntegrationModule,
   ],
   controllers: [AppController],

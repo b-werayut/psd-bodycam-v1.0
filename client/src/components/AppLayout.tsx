@@ -16,7 +16,7 @@ import {
 } from './ui/dialog';
 
 /** Map workspaces own the entire area below the application header. */
-const FULL_BLEED_ROUTES = new Set(['/tracking']);
+const FULL_BLEED_ROUTES = new Set(['/tracking', '/tracking/history', '/live-wall']);
 
 function AppLayoutContent() {
   const [collapsed, setCollapsed] = useState(false);

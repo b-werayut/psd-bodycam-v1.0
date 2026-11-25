@@ -13,7 +13,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useLanguage } from '@/i18n/useLanguage';
 import { CameraListPanel, type StateFilter } from './components/CameraListPanel';
 import { LiveMapViewport } from './components/LiveMapViewport';
-import { TrackingViewSwitch } from './components/TrackingViewSwitch';
 import { isStaleFix } from './positionAge';
 import { useLivePositions } from './useLivePositions';
 
@@ -114,7 +113,6 @@ export function LiveMapPage() {
             <p className="text-lg font-semibold">{t('navigation.tracking')}</p>
             <p className="text-xs text-muted-foreground">{t('tracking.list.count', { shown: filtered.length, total: devices.length })}</p>
           </div>
-          <TrackingViewSwitch />
           <DialogTrigger asChild><Button type="button" className="w-full"><ListFilter aria-hidden="true" />{t('tracking.list.open')}</Button></DialogTrigger>
         </div>
         {isError ? (

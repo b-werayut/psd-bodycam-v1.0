@@ -12,6 +12,9 @@ export const SETTING_DEFAULTS = {
   'depot.fix-max-age-minutes': 30,
   'tracking.stop-min-minutes': 5,
   'tracking.stop-radius-meters': 50,
+  'streaming.enabled': true,
+  'streaming.max-concurrent-per-user': 16,
+  'streaming.url-ttl-seconds': 180,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
@@ -27,6 +30,9 @@ export const SETTING_BOUNDS: Record<SettingKey, SettingBound> = {
   'depot.fix-max-age-minutes': { min: 5, max: 240 },
   'tracking.stop-min-minutes': { min: 1, max: 120 },
   'tracking.stop-radius-meters': { min: 10, max: 500 },
+  'streaming.enabled': { min: 0, max: 1 },
+  'streaming.max-concurrent-per-user': { min: 1, max: 50 },
+  'streaming.url-ttl-seconds': { min: 30, max: 3600 },
 };
 
 /** `atLeast` must be ≥ `factor` × `of` (Part 3 §3.11: unknown-after ≥ 2 × poll). */

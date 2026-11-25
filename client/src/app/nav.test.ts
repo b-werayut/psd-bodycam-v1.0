@@ -42,6 +42,7 @@ describe('NAV_ITEMS', () => {
   it('only items with a built page have a route; the rest stay placeholders', () => {
     expect(NAV_ITEMS.filter((i) => i.to).map((i) => i.to)).toEqual([
       '/',
+      '/live-wall',
       '/tracking',
       '/tracking/history',
       '/users',

@@ -14,7 +14,9 @@ vi.mock('@/components/map/MapCanvas', () => ({
   MapCanvas: ({ children }: { children: ReactNode }) => <div data-testid="map">{children}</div>,
 }));
 vi.mock('./components/RouteLayers', () => ({
-  RouteLayers: ({ route }: { route: RouteHistory }) => <div data-testid="route">{route.segments.length} segments</div>,
+  RouteLayers: ({ route, focus }: { route: RouteHistory; focus: [number, number] | null }) => (
+    <div data-testid="route" data-focus={JSON.stringify(focus)}>{route.segments.length} segments</div>
+  ),
 }));
 vi.mock('./history.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./history.api')>();
@@ -124,13 +126,46 @@ describe('HistoryPage', () => {
     expect(screen.getByTestId('location').textContent).toBe(q(today));
   });
 
+  it('enables range controls only after selecting a camera and disables them again when cleared', async () => {
+    const user = userEvent.setup();
+    renderAt(q(yesterday, ''));
+    const fields = ['วันที่เริ่ม', 'เวลาเริ่ม', 'วันที่สิ้นสุด', 'เวลาสิ้นสุด'].map((label) => screen.getByLabelText(label));
+    const actions = ['ดูเส้นทาง', 'ทั้งวัน', 'วันก่อนหน้า', 'วันถัดไป'].map((name) => screen.getByRole('button', { name }));
+    for (const control of [...fields, ...actions]) expect(control).toBeDisabled();
+    expect(historyApi.history).not.toHaveBeenCalled();
+
+    const camera = screen.getByLabelText('กล้อง');
+    await waitFor(() => expect(within(camera).getAllByRole('option')).toHaveLength(3));
+    expect(camera).toBeEnabled();
+    await user.selectOptions(camera, '1');
+    for (const control of [...fields, ...actions]) expect(control).toBeEnabled();
+    await waitFor(() => expect(historyApi.history).toHaveBeenCalledTimes(1));
+
+    await user.selectOptions(camera, '');
+    for (const control of [...fields, ...actions]) expect(control).toBeDisabled();
+    expect(historyApi.history).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the summary, the route and the timeline of the chosen day', async () => {
     renderAt(q(today));
     expect(await screen.findByTestId('route')).toHaveTextContent('1 segments');
-    expect(screen.getByText(/41 จุด/)).toBeInTheDocument();
+    expect(within(screen.getByRole('complementary')).getByText(/41 จุด/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /จุดแวะที่ 1/ })).toBeInTheDocument();
     expect(screen.getByText(/^ระยะทางรวม 12\.4\sกม\.$/)).toBeInTheDocument();
     expect(screen.queryByText('ช่วงไม่มีสัญญาณนับเป็นระยะเส้นตรง')).not.toBeInTheDocument();
+    expect(historyApi.history).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the mobile route panel and closes it when focusing a timeline stop', async () => {
+    const user = userEvent.setup();
+    renderAt(q(today));
+    await screen.findByTestId('route');
+    await user.click(screen.getByRole('button', { name: 'ตัวเลือกและลำดับเส้นทาง' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByLabelText('เวลาเริ่ม')).toHaveValue('00:00');
+    await user.click(within(dialog).getByRole('button', { name: /จุดแวะที่ 1/ }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByTestId('route')).toHaveAttribute('data-focus', '[13.75,100.5]');
     expect(historyApi.history).toHaveBeenCalledTimes(1);
   });
 

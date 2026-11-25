@@ -1,6 +1,6 @@
 export const tracking = {
-  'tracking.view.label': 'Map view',
-  'tracking.view.live': 'Current positions',
+  'tracking.history.openPanel': 'Route options and timeline',
+  'tracking.history.closePanel': 'Close route options',
   'tracking.summary.total': 'Devices',
   'tracking.filter.unknown': 'Unknown',
   'tracking.list.open': 'Cameras and filters',
@@ -40,7 +40,7 @@ export const tracking = {
   'tracking.age.days': '{n} days ago',
   'tracking.loadFailed': 'Could not load camera positions',
   'tracking.retry': 'Retry',
-  'tracking.history.description': 'Route of one camera over the chosen range (36 hours at most, across days) — every view is logged',
+  'tracking.history.description': 'See where the camera went during the selected period (up to 36 hours)',
   'tracking.history.camera': 'Camera',
   'tracking.history.cameraPlaceholder': 'Choose a camera',
   'tracking.history.rangeStart': 'Start',

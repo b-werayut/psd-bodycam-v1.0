@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ListFilter, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { PageHeader } from '@/components/command-center';
+import { LoadingSkeleton } from '@/components/command-center/LoadingSkeleton';
 import { MapCanvas } from '@/components/map/MapCanvas';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import type { TranslationKey } from '@/i18n/locales/th';
@@ -48,8 +49,10 @@ export function HistoryPage() {
   const { t, language } = useLanguage();
   const [params, setParams] = useSearchParams();
   const query = useMemo(() => parseHistoryQuery(params), [params]);
+  const hasCamera = Boolean(query.deviceId);
   const today = bangkokDateOf(new Date());
   const [focus, setFocus] = useState<[number, number] | null>(null);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [draft, setDraft] = useState<RangeFields>(() => rangeFieldsOf(query));
   // back / forward or a link changes the loaded window: the fields follow it
   useEffect(() => setDraft(rangeFieldsOf({ from: query.from, to: query.to })), [query.from, query.to]);
@@ -66,7 +69,7 @@ export function HistoryPage() {
   const history = useQuery({
     queryKey: ['tracking', 'history', query.deviceId, query.from, query.to],
     queryFn: () => historyApi.history(query.deviceId!, query.from, query.to),
-    enabled: Boolean(query.deviceId),
+    enabled: hasCamera,
     // every request writes an audit row: never refetch on its own
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -85,7 +88,7 @@ export function HistoryPage() {
   const pending =
     problem === null && draftWindow !== null && (draftWindow.from !== query.from || draftWindow.to !== query.to);
   const show = () => {
-    if (!draftWindow) return;
+    if (!hasCamera || !draftWindow) return;
     if (pending) return go({ window: draftWindow });
     // same range again = an explicit retry / refresh (e.g. today so far) — a user action, audited like any load
     setFocus(null);
@@ -99,17 +102,22 @@ export function HistoryPage() {
   const filtered = route ? route.suspectCount + route.staleStartCount + route.spikeCount : 0;
   const withDate = spansDays(query);
 
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <PageHeader title={t('navigation.trackingHistory')} description={t('tracking.history.description')} />
-
-      <div className="mb-4 space-y-3">
-        <div className="max-w-[18rem]">
-          <label htmlFor="history-camera" className="mb-1 block text-sm font-medium">
+  const renderPanel = (idPrefix: string) => (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
+      <div className="flex shrink-0 flex-col gap-2.5 border-b border-border p-4">
+        <div>
+          <p aria-hidden="true" className="text-lg font-semibold tracking-tight">{t('navigation.trackingHistory')}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('tracking.history.description')}</p>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
+      <div className="flex flex-col gap-3">
+        <div>
+          <label htmlFor={`${idPrefix}-camera`} className="mb-1 block text-sm font-medium">
             {t('tracking.history.camera')}
           </label>
           <Select
-            id="history-camera"
+            id={`${idPrefix}-camera`}
             value={query.deviceId ?? ''}
             // the fields' range when valid (what the screen shows is what loads), else the loaded one
             onChange={(e) => go({ deviceId: e.target.value || null, window: problem ? undefined : draftWindow! })}
@@ -123,65 +131,69 @@ export function HistoryPage() {
             ))}
           </Select>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div role="group" aria-labelledby="history-range-start">
-            <span id="history-range-start" className="mb-1 block text-sm font-medium">
+        <div className="flex flex-col gap-3">
+          <div role="group" aria-labelledby={`${idPrefix}-range-start`}>
+            <span id={`${idPrefix}-range-start`} className="mb-1 block text-sm font-medium">
               {t('tracking.history.rangeStart')}
             </span>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
               <Input
                 type="date"
                 aria-label={t('tracking.history.startDate')}
+                disabled={!hasCamera}
                 value={draft.startDate}
                 max={today}
                 onChange={edit('startDate')}
-                className="min-h-11"
+                className="min-w-0"
               />
               <Input
                 type="time"
                 aria-label={t('tracking.history.startTime')}
+                disabled={!hasCamera}
                 value={draft.startTime}
                 onChange={edit('startTime')}
-                className="min-h-11 w-32"
+                className="min-w-0"
               />
             </div>
           </div>
-          <div role="group" aria-labelledby="history-range-end">
-            <span id="history-range-end" className="mb-1 block text-sm font-medium">
+          <div role="group" aria-labelledby={`${idPrefix}-range-end`}>
+            <span id={`${idPrefix}-range-end`} className="mb-1 block text-sm font-medium">
               {t('tracking.history.rangeEnd')}
             </span>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
               <Input
                 type="date"
                 aria-label={t('tracking.history.endDate')}
+                disabled={!hasCamera}
                 value={draft.endDate}
                 onChange={edit('endDate')}
-                className="min-h-11"
+                className="min-w-0"
               />
               <Input
                 type="time"
                 aria-label={t('tracking.history.endTime')}
+                disabled={!hasCamera}
                 value={draft.endTime}
                 onChange={edit('endTime')}
-                className="min-h-11 w-32"
+                className="min-w-0"
               />
             </div>
           </div>
           <Button
             type="button"
             className="min-h-11"
-            disabled={problem !== null}
+            disabled={!hasCamera || problem !== null}
             onClick={show}
           >
             {t('tracking.history.show')}
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
           <Button
             type="button"
             variant="outline"
             className="min-h-11"
-            disabled={!wholeDayOk}
+            disabled={!hasCamera || !wholeDayOk}
             onClick={() => go({ window: dayWindowOf(draft.startDate) })}
           >
             {t('tracking.history.wholeDay')}
@@ -191,6 +203,7 @@ export function HistoryPage() {
             variant="outline"
             className="min-h-11 px-3"
             aria-label={t('tracking.history.prevDay')}
+            disabled={!hasCamera}
             onClick={() => go({ window: prevWindow })}
           >
             <ChevronLeft aria-hidden="true" className="size-4" />
@@ -200,7 +213,7 @@ export function HistoryPage() {
             variant="outline"
             className="min-h-11 px-3"
             aria-label={t('tracking.history.nextDay')}
-            disabled={Date.parse(nextWindow.from) > Date.now()}
+            disabled={!hasCamera || Date.parse(nextWindow.from) > Date.now()}
             onClick={() => go({ window: nextWindow })}
           >
             <ChevronRight aria-hidden="true" className="size-4" />
@@ -211,7 +224,7 @@ export function HistoryPage() {
             {t(PROBLEM_KEY[problem], { hours: HISTORY_MAX_HOURS })}
           </p>
         ) : null}
-        {pending ? <p className="text-sm font-medium text-warning">{t('tracking.history.notLoaded')}</p> : null}
+        {pending ? <p className="text-sm font-medium text-warning-foreground">{t('tracking.history.notLoaded')}</p> : null}
         {query.deviceId ? (
           <p className="text-sm text-muted-foreground">
             {t('tracking.history.loadedRange', { from: clockOf(query.from), to: clockOf(query.to) })}
@@ -220,7 +233,7 @@ export function HistoryPage() {
       </div>
 
       {error ? (
-        <Alert variant="destructive" className="mb-3">
+        <Alert variant="destructive">
           <TriangleAlert aria-hidden="true" />
           <div>
             <AlertTitle>{t('tracking.history.loadFailed')}</AlertTitle>
@@ -229,7 +242,7 @@ export function HistoryPage() {
         </Alert>
       ) : null}
       {route?.truncated ? (
-        <Alert className="mb-3">
+        <Alert>
           <TriangleAlert aria-hidden="true" />
           <div>
             <AlertTitle>{t('tracking.history.truncatedTitle')}</AlertTitle>
@@ -238,15 +251,13 @@ export function HistoryPage() {
         </Alert>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="h-[60vh] min-h-[360px] overflow-hidden rounded-xl border border-border lg:h-auto">
-          <MapCanvas>{route && route.pointCount > 0 ? <RouteLayers route={route} focus={focus} /> : null}</MapCanvas>
-        </div>
-        <aside className="flex min-h-0 flex-col gap-3" aria-busy={history.isFetching}>
+        <div className="flex flex-col gap-3 border-t border-border pt-4" aria-busy={history.isFetching}>
           {!query.deviceId ? (
             <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
               {t('tracking.history.pickCamera')}
             </p>
+          ) : history.isFetching && !route ? (
+            <LoadingSkeleton loadingLabel={t('common.loading')} />
           ) : route && route.pointCount === 0 ? (
             <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
               {t('tracking.history.empty')}
@@ -270,14 +281,14 @@ export function HistoryPage() {
                 ) : null}
               </p>
               <h2 className="text-sm font-semibold">{t('tracking.history.timeline')}</h2>
-              <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+              <ol className="flex flex-col gap-1">
                 {route.timeline.map((item) => {
                   const view = timelineView(item, language, withDate);
                   return (
                     <li key={view.key}>
                       <button
                         type="button"
-                        onClick={() => setFocus(view.focus)}
+                        onClick={() => { setFocus(view.focus); setMobilePanelOpen(false); }}
                         className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <span className={view.kind === 'gap' ? 'text-muted-foreground' : undefined}>
@@ -296,8 +307,40 @@ export function HistoryPage() {
               </ol>
             </>
           ) : null}
-        </aside>
+        </div>
       </div>
     </div>
+  );
+
+  return (
+    <Dialog open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
+      <section aria-labelledby="tracking-history-title" className="relative isolate min-h-0 flex-1 overflow-hidden bg-muted">
+        <h1 id="tracking-history-title" className="sr-only">{t('navigation.trackingHistory')}</h1>
+        <div className="absolute inset-0 z-0">
+          <MapCanvas zoomControlPosition="topright" className="tracking-live-map">
+            {route && route.pointCount > 0 ? <RouteLayers route={route} focus={focus} /> : null}
+          </MapCanvas>
+        </div>
+        <aside className="absolute bottom-5 left-5 top-5 z-[500] hidden w-[380px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:flex">
+          {renderPanel('history')}
+        </aside>
+        <div className="absolute inset-x-3 top-3 z-[500] flex flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-sm lg:hidden">
+          <div>
+            <p className="text-lg font-semibold">{t('navigation.trackingHistory')}</p>
+            {route ? <p className="text-xs text-muted-foreground">{t('tracking.history.summary', { points: route.pointCount, stops })}</p> : null}
+          </div>
+          <DialogTrigger asChild>
+            <Button type="button" className="w-full"><ListFilter aria-hidden="true" />{t('tracking.history.openPanel')}</Button>
+          </DialogTrigger>
+        </div>
+      </section>
+      <DialogContent closeLabel={t('tracking.history.closePanel')} className="max-h-[88dvh] overflow-hidden p-0 lg:hidden">
+        <DialogHeader className="shrink-0 px-4 pt-4">
+          <DialogTitle>{t('navigation.trackingHistory')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('tracking.history.description')}</DialogDescription>
+        </DialogHeader>
+        {renderPanel('history-mobile')}
+      </DialogContent>
+    </Dialog>
   );
 }

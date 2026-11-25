@@ -19,8 +19,8 @@ describe('setting spec', () => {
     for (const [key, value] of Object.entries(SETTING_DEFAULTS)) {
       const bound = SETTING_BOUNDS[key as keyof typeof SETTING_BOUNDS];
       expect(bound, key).toBeDefined();
-      expect(value).toBeGreaterThanOrEqual(bound.min);
-      expect(value).toBeLessThanOrEqual(bound.max);
+      expect(Number(value)).toBeGreaterThanOrEqual(bound.min);
+      expect(Number(value)).toBeLessThanOrEqual(bound.max);
     }
   });
 

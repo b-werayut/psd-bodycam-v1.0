@@ -123,6 +123,11 @@ export function validateInboundBody(body: unknown): InboundValidation {
   for (const key of ['teamRef', 'leaderRef']) c.str(job, key, 'job.', 64);
   c.text(job, 'title', 'job.', 300);
   for (const key of ['plannedStartAt', 'plannedEndAt', 'checkInAt', 'checkOutAt']) c.date(job, key, 'job.');
+  // CK_BookingJobs_Window (end >= start): caught here, a worker could never store the job (it would end Dead)
+  const { plannedStartAt: start, plannedEndAt: end } = job;
+  if (typeof start === 'string' && typeof end === 'string' && isIsoWithOffset(start) && isIsoWithOffset(end)) {
+    if (Date.parse(end) < Date.parse(start)) c.fail('job.plannedEndAt', 'ต้องไม่ก่อน plannedStartAt');
+  }
 
   if (job.scheduledDate !== undefined && job.scheduledDate !== null) {
     if (typeof job.scheduledDate !== 'string' || !isRealDate(job.scheduledDate)) c.fail('job.scheduledDate', 'ต้องเป็นรูปแบบ YYYY-MM-DD');

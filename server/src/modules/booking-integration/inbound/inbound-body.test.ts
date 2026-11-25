@@ -105,6 +105,17 @@ describe('validateInboundBody', () => {
     expect(fields(ok({ version: -1 }))).toContain('job.version');
     expect(fields(ok({ version: 1.5 }))).toContain('job.version');
   });
+
+  it('plannedEndAt before plannedStartAt is rejected (offsets compared as instants)', () => {
+    const r = ok({ plannedStartAt: '2026-11-25T10:00:00+07:00', plannedEndAt: '2026-11-25T02:59:59Z' });
+    expect(r.ok).toBe(false);
+    expect(r.ok ? [] : r.details).toEqual([{ field: 'job.plannedEndAt', issue: expect.any(String) }]);
+    // equal is allowed (CK_BookingJobs_Window is end >= start); 10:00+07:00 = 03:00Z
+    expect(ok({ plannedStartAt: '2026-11-25T10:00:00+07:00', plannedEndAt: '2026-11-25T03:00:00Z' }).ok).toBe(true);
+    // only one of them, or one unreadable: no window check (the date rule reports the bad one)
+    expect(ok({ plannedEndAt: '2026-11-25T03:00:00Z' }).ok).toBe(true);
+    expect(fields(ok({ plannedStartAt: 'soon', plannedEndAt: '2026-11-25T03:00:00Z' }))).toEqual(['job.plannedStartAt']);
+  });
 });
 
 describe('externalEventIdOf', () => {
