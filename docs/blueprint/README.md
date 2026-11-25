@@ -73,7 +73,7 @@
 | **Tracking Session** | ช่วงที่กล้อง 1 ตัวเปิดต่อเนื่อง · ผูก WO ได้ 0..1 ใบ (`MatchState`: Attached / AwaitingMatch / NoTeam / Classified) |
 | **Work Order (WO)** | ใบงานในระบบเรา สร้าง/อัปเดต 1:1 จาก Booking job เท่านั้น (DL33) · `Status` Planned (รอเริ่ม) / Open / Closed / Cancelled ตาม Booking · `NeedsReview` = badge แจ้งข้อมูล ไม่มีคิว |
 | **Booking Job** | ใบงานในระบบ Smart Booking ที่ POST เข้ามา · ระบบเราเก็บ snapshot ล่าสุดเป็น projection (`BookingJobs`) |
-| **Team** | หน่วยปฏิบัติงาน หัวหน้า 1 คน (คนขับ) + ลูกทีม · กล้องหลัก 1 ตัวต่อทีม · ใช้จับคู่และกำหนด scope `team` · หัวหน้าทีมมีบัญชี `TEAM_LEADER` ใช้แอปมือถือ ลูกทีมไม่มีบัญชี (DL47) · ทีมและหัวหน้าทีมสร้าง/อัปเดตจาก `teamRef` / `leaderRef` ของใบงาน ไม่มีหน้าจัดการ (DL53 **[Assumption]**) |
+| **Team** | หน่วยปฏิบัติงาน หัวหน้า 1 คน (คนขับ) + ลูกทีม · กล้องหลัก 1 ตัวต่อทีม · ใช้จับคู่และกำหนด scope `team` · หัวหน้าทีมมีบัญชี `TEAM_LEADER` ใช้แอปมือถือ ลูกทีมไม่มีบัญชี (DL47) · ทีมและหัวหน้าทีมสร้าง/อัปเดตจาก `teamRef` / `leaderRef` ของใบงาน ไม่มีหน้าจัดการ · หัวหน้าเปลี่ยนเฉพาะตอนใบงานอยู่ในสถานะเข้างาน (DL53, DL85 **[Assumption]**) |
 | **DeviceRefs** | กล้องที่ Booking ระบุให้ใบงาน (รวมกล้องสำรอง) — การผูกกล้องมาจาก Booking เท่านั้น |
 | **AwaitingMatch** | session ที่ยังจับคู่ Booking ไม่ได้ (ไม่มีหรือมีหลาย candidate) — รอ Booking แล้ว rematch อัตโนมัติ · ไม่มีการผูกด้วยมือ / คิวตรวจสอบ (DL33) · วิดีโอดูย้อนหลังได้ที่หน้า วิดีโอย้อนหลัง รายกล้อง (DL59) |
 | **ใบงาน (เมนู)** | `/work-orders` = ตารางใบงานจาก Booking (แท็บสถานะ · คอลัมน์กล้อง + ปุ่ม ดูสด เมื่อออนไลน์ · ปุ่ม ดูย้อนหลัง เฉพาะช่วงใบงาน) + `/work-orders/:id` (DL53, DL59) |
@@ -193,9 +193,9 @@ Invariant สำคัญที่ DB บังคับ:
 |---|---|---|
 | P0 Foundation | scaffold, port infra, auth + Entra, RBAC/scope (`all` / `team`), migrations (รวมตัด `Departments`), CI, shell + nav 11 เมนู + design system · ผู้ใช้ระบบ / ผู้ใช้จาก Entra (DL53) | Must |
 | P1 Devices & Tracking | device sync อัตโนมัติจาก DSS (worker), status/GPS ingest, live map, GPS history (Must — DL48), ตาราง `Alerts` + alert 13 (DL66) · simulator `DSS_DRIVER=mock` (DL68) · acceptance ผ่านบน simulator และทดสอบกับ DSS จริงผ่าน VPN แล้ว (2026-11-24) | Must |
-| P2 Sessions & Work Orders | session engine (`AwaitingMatch` / `IdleOrCharging`), หน้า ใบงาน + รายละเอียด (ใบงานจาก `booking-simulator`) | Must |
-| P3 Booking Integration | P3a inbound endpoint `POST /api/integration/booking/jobs` + inbox + mapper `v1` + simulator → projection + ทีม / หัวหน้าทีมจากใบงาน + upsert WO 1:1 · P3b matching อัตโนมัติ + rematch · P3c Smart Booking go-live: ตกลง contract/auth, mapper `smart-booking` ถ้าจำเป็น, read API adapter (optional), pilot (**ติด Booking spec gate**) | Must |
-| P4 Media | ภาพสดหลายจอ + talk (Must — DL48), ดูสด / ดูย้อนหลังจากหน้า ใบงาน (dialog ดูสดทุกจุดมี talk — DL62), วิดีโอย้อนหลัง `/evidence` + MP4 export (Local disk PVC) | Must |
+| P2 Sessions & Work Orders | session engine (`AwaitingMatch` / `IdleOrCharging`), คอลัมน์ / panel จาก session ในหน้า ใบงาน, `NeedsReview` 36 ชม. / `SafetyTimeout`, alert กล้อง + หน้า แจ้งเตือน (API / หน้า ใบงาน อ่านอย่างเดียวทำแล้วใน P3a — DL84) | Must |
+| P3 Booking Integration | P3a inbound endpoint `POST /api/integration/booking/jobs` + inbox + mapper `v1` + simulator → projection + ทีม / หัวหน้าทีมจากใบงาน + upsert WO 1:1 + API / หน้า ใบงาน อ่านอย่างเดียว (DL84) · P3b matching อัตโนมัติ + rematch + settings `booking.*` + alert integration · P3c Smart Booking go-live: ตกลง contract/auth, mapper `smart-booking` ถ้าจำเป็น, read API adapter + breaker + sync `DeviceAssignments` (optional), pilot (**ติด Booking spec gate**) | Must |
+| P4 Media | ภาพสดหลายจอ + talk (Must — DL48), ดูสด / ดูย้อนหลังจากหน้า ใบงาน (dialog ดูสดทุกจุดมี talk — DL62, DL86 · ทำแล้ว: talk + ดูสดจากแผนที่ / ใบงาน), วิดีโอย้อนหลัง `/evidence` + MP4 export (Local disk PVC) | Must |
 | P5 Mobile app (หัวหน้าทีม) API & Notifications | role `TEAM_LEADER` + scope `team`, `/mobile/me`, `/mobile/jobs`, live กล้องของทีม, push "ใบงานใหม่ของทีม" (FCM), device registry (PIN อยู่บนเครื่องเท่านั้น — DL61) (DL47) | Must |
 | P6 Hardening & Go-live | retention 3/12 เดือน, observability, security (รวม inbound endpoint), load test, ตั้ง master data ใหม่, UAT | Must |
 

@@ -10,6 +10,11 @@ import {
 const INT = SETTING_VALUE_TYPE.INT;
 
 describe('setting spec', () => {
+  it('talk max duration default and bounds', () => {
+    expect(SETTING_DEFAULTS['streaming.talk-max-seconds']).toBe(600);
+    expect(SETTING_BOUNDS['streaming.talk-max-seconds']).toEqual({ min: 60, max: 3600 });
+  });
+
   it('lockout defaults: 3 wrong passwords, 15 minutes', () => {
     expect(SETTING_DEFAULTS['auth.max-failed-logins']).toBe(3);
     expect(SETTING_DEFAULTS['auth.lockout-minutes']).toBe(15);

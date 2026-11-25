@@ -250,7 +250,8 @@ describe('HistoryPage', () => {
 
   it('an edited range that is not loaded yet says so until Show route', async () => {
     const user = userEvent.setup();
-    renderAt(q(today));
+    // A completed day keeps 08:00 in the past even when the suite runs before 08:00 Bangkok time.
+    renderAt(q(yesterday));
     await screen.findByTestId('route');
     expect(screen.queryByText('ช่วงในช่องยังไม่ได้โหลด — กด ดูเส้นทาง')).not.toBeInTheDocument();
 

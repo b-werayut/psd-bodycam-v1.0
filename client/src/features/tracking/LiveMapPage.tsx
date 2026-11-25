@@ -10,9 +10,11 @@ import type { DeviceDisplayState } from '@/components/status/deviceStateTone';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { LiveStreamDialog } from '@/features/streaming/components/LiveStreamDialog';
 import { useLanguage } from '@/i18n/useLanguage';
 import { CameraListPanel, type StateFilter } from './components/CameraListPanel';
 import { LiveMapViewport } from './components/LiveMapViewport';
+import type { LiveDevice } from './liveMerge';
 import { isStaleFix } from './positionAge';
 import { useLivePositions } from './useLivePositions';
 
@@ -53,6 +55,7 @@ export function LiveMapPage() {
   const [state, setState] = useState<StateFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [watching, setWatching] = useState<LiveDevice | null>(null);
   // a stopped pipeline sends nothing: markers must still dim as their fix ages (review #7)
   const now = useNow(15_000);
 
@@ -91,11 +94,13 @@ export function LiveMapPage() {
       state={state} onState={(value) => { setState(value); setSelectedId(null); }}
       selectedId={selectedId}
       onSelect={(id) => { setSelectedId(id); setMobilePanelOpen(false); }}
-      onClearSelection={() => setSelectedId(null)} now={now} fixActiveSeconds={fixActiveSeconds} isPending={isPending}
+      onClearSelection={() => setSelectedId(null)}
+      onWatch={(device) => { setWatching(device); setMobilePanelOpen(false); }} now={now} fixActiveSeconds={fixActiveSeconds} isPending={isPending}
     />
   );
 
   return (
+    <>
     <Dialog open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
       <section aria-labelledby="tracking-page-title" className="relative isolate min-h-0 flex-1 overflow-hidden bg-muted">
         <h1 id="tracking-page-title" className="sr-only">{t('navigation.tracking')}</h1>
@@ -135,5 +140,12 @@ export function LiveMapPage() {
         {listPanel}
       </DialogContent>
     </Dialog>
+    {watching ? (
+      <LiveStreamDialog
+        device={{ deviceCode: watching.deviceCode, deviceName: watching.name, onlineStatus: 1 }}
+        onClose={() => setWatching(null)}
+      />
+    ) : null}
+    </>
   );
 }

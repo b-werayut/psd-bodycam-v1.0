@@ -26,6 +26,8 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SettingsAdminModule } from './modules/settings/settings-admin.module';
 import { UsersModule } from './modules/users/users.module';
 import { StreamingModule } from './modules/streaming/streaming.module';
+import { TalkModule } from './modules/talk/talk.module';
+import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
 
 @Module({
   imports: [
@@ -47,7 +49,9 @@ import { StreamingModule } from './modules/streaming/streaming.module';
     AuditLogsModule,
     UsersModule,
     StreamingModule,
+    TalkModule,
     BookingIntegrationModule,
+    WorkOrdersModule,
   ],
   controllers: [AppController],
   providers: [

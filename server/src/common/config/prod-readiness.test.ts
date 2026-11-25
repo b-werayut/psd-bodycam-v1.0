@@ -28,7 +28,27 @@ describe('checkProdEnv', () => {
   it('no BOOKING_INBOUND_SECRETS ⇒ warn', () => {
     expect(level(base, 'BOOKING_INBOUND_SECRETS')).toBe('warn');
     expect(level({ ...base, BOOKING_INBOUND_SECRETS: ',' }, 'BOOKING_INBOUND_SECRETS')).toBe('warn');
-    expect(level({ ...base, BOOKING_INBOUND_SECRETS: 's' }, 'BOOKING_INBOUND_SECRETS')).toBe('pass');
+  });
+
+  it('a weak BOOKING_INBOUND_SECRETS (shorter than 32, or a CHANGE_ME placeholder) ⇒ fail', () => {
+    const check = (secrets: string) =>
+      checkProdEnv({ ...base, BOOKING_INBOUND_SECRETS: secrets }).find((c) => c.id === 'BOOKING_INBOUND_SECRETS');
+    expect(check('s')?.level).toBe('fail');
+    expect(check('s')?.message).toContain('BOOKING_INBOUND_SECRETS');
+    expect(check('CHANGE_ME')?.level).toBe('fail');
+    expect(check(`CHANGE_ME_${'x'.repeat(40)}`)?.level).toBe('fail');
+    expect(check('x'.repeat(31))?.level).toBe('fail');
+    // every secret counts: a strong current one does not hide a weak old one kept for rotation
+    expect(check(`${'a'.repeat(32)},short`)?.level).toBe('fail');
+    // the secret itself never appears in the message
+    expect(check('short-secret')?.message).not.toContain('short-secret');
+  });
+
+  it('BOOKING_INBOUND_SECRETS of 32+ characters ⇒ pass', () => {
+    expect(level({ ...base, BOOKING_INBOUND_SECRETS: 'x'.repeat(32) }, 'BOOKING_INBOUND_SECRETS')).toBe('pass');
+    expect(
+      level({ ...base, BOOKING_INBOUND_SECRETS: `${'a'.repeat(32)},${'b'.repeat(64)}` }, 'BOOKING_INBOUND_SECRETS'),
+    ).toBe('pass');
   });
 
   it('fails a short JWT secret', () => {

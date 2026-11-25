@@ -34,6 +34,7 @@ export const tracking = {
   'tracking.card.statusAt': 'สถานะ ณ {time}',
   'tracking.card.statusFallback': 'สถานะจากข้อมูลล่าสุดในระบบ',
   'tracking.card.history': 'ประวัติเส้นทาง',
+  'tracking.card.watch': 'ดูสด',
   'tracking.age.now': 'เมื่อสักครู่',
   'tracking.age.minutes': '{n} นาทีที่แล้ว',
   'tracking.age.hours': '{n} ชั่วโมงที่แล้ว',

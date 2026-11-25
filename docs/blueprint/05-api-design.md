@@ -123,7 +123,7 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
 
 | Method | Path | Permission |
 |---|---|---|
-| POST | `/streams/live` `{ deviceCode }` | `streaming:view-live` |
+| POST | `/streams/live` `{ deviceCode }` | `streaming:view-live` (อย่างเดียว — ไม่ต้องมี `streaming:live-wall` · หน้า `/live-wall` ฝั่ง client ยังต้องมี `streaming:live-wall` · DL86) |
 | POST | `/streams/playback` `{ deviceCode, startAt, endAt }` (≤ 24 ชม.) | `playback:view` |
 | GET | `/streams/:token/playlist.m3u8`, `/streams/:token/segment` | Public (sealed token) |
 | POST | `/streams/:token/stop` · GET `/streams/sessions` | `streaming:view-live` |
@@ -131,9 +131,12 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
 | GET / PATCH | `/streams/role-access` | `roles:manage` |
 | GET | `/evidence-exports/policy` · POST `/evidence-exports` · GET `/evidence-exports/:id` | `evidence:export` |
 | POST | `/evidence-exports/:id/download-ticket` · GET `/evidence-exports/download?ticket=` | `evidence:download` / Public (ticket) |
-| POST | `/talk/sessions` `{ streamSessionToken }` · WS `/api/talk/ws?ticket=` | `streaming:talk` · ใช้ได้กับทุก live session บน web: ภาพสดหลายจอ และ dialog ดูสดทุกจุด (DL62) |
+| POST | `/talk/sessions` `{ streamSessionToken }` · WS `/api/talk/ws?ticket=` | `streaming:talk` (audit `START_TALK`) · ตอบ `{ talkSessionId, wsUrl, uplinkSampleRate, downlinkSampleRate, frameMs, maxSeconds }` · ใช้ได้กับทุก live session บน web: ภาพสดหลายจอ และ dialog ดูสดทุกจุด (DL62) |
+| POST | `/talk/sessions/:id/stop` | `@LoginOnly` (เจ้าของสายวางสายได้เสมอ แม้ถูกถอน `streaming:talk` แล้ว · audit `STOP_TALK` · สายของคนอื่น ⇒ 404) |
 
 `POST /evidence-exports` ใช้ job เดิมเมื่อ device + channel + start/end ตรงกันพอดีและ job ยัง `Queued` / `Processing` / `Ready` ที่ยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่ (port `evidence-export-rules.ts` · ใช้จาก dialog ดูวิดีโอของใบงาน — DL36, DL53)
+
+**Talk error codes (DL86)**: 403 `FORBIDDEN` · 403 `STREAMING_DISABLED` · 403 `DEVICE_STREAM_DISABLED` · 404 `TALK_LIVE_NOT_FOUND` (live session ไม่พบ / จบแล้ว) · 404 `TALK_NOT_FOUND` · 409 `TALK_DEVICE_BUSY` (ข้อความระบุชื่อผู้ใช้ที่กำลังพูด) · 409 `TALK_ALREADY_STARTING` (สายของตัวเองบนกล้องนี้ยังเชื่อมต่ออยู่) · 409 `TALK_USER_BUSY` (กำลังคุยกับกล้องอื่นอยู่) · 502 `TALK_START_FAILED` (ข้อความไทยเท่านั้น ไม่ส่งข้อความของ middleware) · ตรวจซ้ำทุก 15 วินาทีและวางสายเมื่อ: ผู้ใช้ถูกระงับ/ลบ, role ไม่มี `streaming:talk` หรือเป็น `TEAM_LEADER`, กล้องปิดสตรีม/retire/ลบ, `streaming.enabled` = false, หรือ live ที่ผูกอยู่จบแล้ว (close 4006) · อ่าน DB ไม่ได้ = คุยต่อ รอบหน้าตรวจใหม่ · ปิดสายตามเวลา `streaming.talk-max-seconds`
 
 `TEAM_LEADER` ใช้ได้เฉพาะ `POST /streams/live` (+ `/streams/:token/stop` ของตัวเอง) กับกล้องใน scope `team` — ไม่มี playback / export / talk / live wall (DL47 · §5.4)
 
@@ -167,10 +170,10 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
       "needsReview": false,
       "team": { "id": "7", "code": "TEAM-07", "name": "ทีมติดตั้ง 7" },
       "leader": { "id": "315", "name": "สมชาย ใจดี" },
-      "booking": { "id": "8801", "externalJobNo": "BK-2611-0193", "doNo": "DO-6911-0042", "shNo": "SH-6911-0107", "plannedStartAt": "2026-11-03T02:00:00.000Z", "siteName": "อาคาร B" },
+      "booking": { "id": "8801", "externalJobNo": "BK-2611-0193", "doNo": "DO-6911-0042", "shNo": "SH-6911-0107", "plannedStartAt": "2026-11-03T02:00:00.000Z", "plannedEndAt": "2026-11-03T06:00:00.000Z", "siteName": "อาคาร B", "detail": false },
       "workWindow": { "from": "2026-11-03T01:58:40.000Z", "to": null },
-      "openedAt": "2026-11-03T00:41:12.000Z",
-      "lastActivityAt": "2026-11-03T03:10:00.000Z",
+      "openedAt": "2026-11-03T01:58:40.000Z",
+      "lastActivityAt": null,
       "openSessionCount": 1,
       "cameras": [
         { "deviceId": "31", "deviceCode": "BWC-0031", "platformState": "online", "fromSession": true },
@@ -212,22 +215,26 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
     "deviceRefs": ["BWC-0031", "BWC-0090"],
     "site": { "name": "อาคาร B", "address": "…", "lat": 13.7563, "lng": 100.5018 },
     "lastSyncedAt": "2026-11-03T03:08:00.000Z",
-    "isStale": false
+    "detail": true
   },
   "team": { "id": "7", "code": "TEAM-07", "name": "ทีมติดตั้ง 7" },
   "leader": { "id": "315", "name": "สมชาย ใจดี" },
   "workWindow": { "from": "2026-11-03T01:58:40.000Z", "to": null },
-  "openedAt": "2026-11-03T00:41:12.000Z",
-  "lastActivityAt": "2026-11-03T03:10:00.000Z",
+  "openedAt": "2026-11-03T01:58:40.000Z",
+  "lastActivityAt": null,
   "closedAt": null,
   "needsReview": false,
   "reviewReasons": [],
   "note": null,
   "summary": { "sessionCount": 2, "activeSeconds": 8340, "recordedSeconds": 7210, "devices": ["BWC-0031", "BWC-0090"] },
-  "availableActions": ["editNote", "exportEvidence"],
+  "availableActions": [],
   "rowVersion": 4
 }
 ```
+
+**P3a (โค้ดจริง)**: `openedAt` = เวลา check-in (`BookingCheckInAt` — ใบ Planned เป็น null) · `lastActivityAt` เป็น `null` เสมอจนกว่า P2 (session engine) จะเขียน · `availableActions` เป็น `[]` ไปก่อน (ยังไม่มี `editNote` / `exportEvidence` / `refreshBooking` — มาตามเฟสของแต่ละ action) · `booking.isStale` ยังไม่ส่ง (stale = แถบรวม ไม่ใช่ราย job) · `cameras[]` ในตัวอย่างข้างบนคือรูปปลายทาง — P3a ส่งเฉพาะกล้องจาก `DeviceRefs` (`fromSession: false` ทุกตัว · มี `deviceRef`, `deviceId` (null ถ้าไม่ตรงกล้องใด → `platformState: 'unknown'`), `deviceCode`, `name`, `platformStatusFetchedAt`) · `openSessionCount` และ `summary` (sessions) ยังไม่ส่งจนกว่า P2 · มี `closedAt` ในแถว list ด้วย
+
+`booking` มี 2 ระดับ: **แถวใน list ส่งแบบสรุปเสมอ** (`detail: false` — `id`, `externalJobNo`, `doNo`, `shNo`, `plannedStartAt`, `plannedEndAt`, `siteName`) · **`GET /work-orders/:id` ส่งแบบเต็ม** (`detail: true` ตามตัวอย่าง) **เฉพาะผู้ที่มี `booking:read`** — ไม่มี ⇒ ส่งแบบสรุป (`detail: false`) · `GET /work-orders/:id/events` ตอบ `{ "data": [WorkOrderEvent…] }` (เรียงตามเวลา ไม่มี envelope แบ่งหน้า) · audit: `GET /work-orders/:id` บันทึก `VIEW_WORK_ORDER` (`WorkOrders`) · list และ events ไม่บันทึก (เหมือน `GET /devices`)
 
 `availableActions` คำนวณที่ server (pattern จาก `/my-jobs` ของ reference) — client ไม่เดากติกาเอง · **ไม่มีปุ่มปิด/reopen/link/void** เพราะใบงานและสถานะมาจาก Booking เท่านั้น (DL33 · `closedAt` = เวลา check-out) · `refreshBooking` อยู่ในรายการเฉพาะเมื่อมี read API (`BOOKING_PROVIDER_DRIVER ≠ none`) และผู้ใช้มี `booking:refresh` (DL46)
 
@@ -332,11 +339,14 @@ secret อยู่ใน env `BOOKING_INBOUND_SECRETS` (คั่นด้ว�
 | Status | เมื่อ | Smart Booking ควรทำ |
 |---|---|---|
 | 202 / 200 | เก็บแล้ว / ซ้ำ | จบ |
-| 400 `VALIDATION_FAILED` | ขาด `job.jobId`, `job.status` หรือขาดทั้ง `job.version` และ `job.updatedAt` · วันที่ผิดรูปแบบ | แก้ข้อมูลแล้วส่งใหม่ (ไม่ retry อัตโนมัติ) |
+| 400 `VALIDATION_FAILED` | ขาด `job.jobId`, `job.status` หรือขาดทั้ง `job.version` และ `job.updatedAt` · วันที่ผิดรูปแบบ · **`plannedEndAt` ก่อน `plannedStartAt`** (ตรงกับ `CK_BookingJobs_Window` — ปฏิเสธตั้งแต่รับ ไม่ปล่อยให้ไป `Dead` ทีหลัง) · **JSON พัง / parse ไม่ได้** | แก้ข้อมูลแล้วส่งใหม่ (ไม่ retry อัตโนมัติ) |
 | 401 `INBOUND_AUTH_FAILED` | ลายเซ็น / key / timestamp / IP ไม่ผ่าน | ตรวจ secret / นาฬิกา |
-| 413 / 415 | body > 256 KB / ไม่ใช่ JSON | แก้ฝั่งผู้ส่ง |
+| 413 `PAYLOAD_TOO_LARGE` | body > 256 KB (raw parser เฉพาะ route นี้ — ไม่กระทบ route อื่น) | แก้ฝั่งผู้ส่ง |
+| 415 `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` ไม่ใช่ `application/json` | แก้ฝั่งผู้ส่ง |
 | 429 | เกิน `booking-inbound` 600 req/min (มี `Retry-After`) | retry ตาม `Retry-After` |
 | 503 `SERVICE_UNAVAILABLE` | ฐานข้อมูลของเราไม่พร้อม | retry แบบ exponential backoff |
+
+ทุกกรณีข้างบน (รวม 413, 415 และ JSON พัง) ยังเขียน `IntegrationCallLogs` 1 แถวเสมอ (Part 7 §7.4)
 
 **ขอจาก Smart Booking [Assumption]**: retry เมื่อ timeout / non-2xx แบบ exponential backoff อย่างน้อย 24 ชม. · ส่งตามลำดับต่อใบงานเท่าที่ทำได้ (เรายังกันด้วย version / `updatedAt`) · ส่งใบงานซ้ำตามคำขอได้ (manual resend) ถ้ามี · ทดสอบใน dev ด้วย `booking-simulator` (`npm run booking:simulate -- <scenario>`) ที่ POST payload v1 ที่เซ็นแล้วเข้า endpoint จริง
 
@@ -490,8 +500,8 @@ Catalog มี **24 permission** (DL53) · ทุก role web ใช้ scope `a
 | `users:read` | ✓ | ✓ | | | | ผู้ใช้ระบบ (+ matrix สิทธิ์แบบอ่านอย่างเดียว) |
 | `users:manage` | ✓ | ✓ (ไม่เห็นบัญชี `SUPER_ADMIN` — DL55) | | | | จัดการผู้ใช้ · ผู้ใช้จาก Entra |
 | `roles:manage` | ✓ | ✕ | | | | แก้ matrix สิทธิ์ · `/streams/role-access` |
-| `streaming:view-live` | ✓ | ✓ | ✓ | | ✓ | ปุ่ม ดูสด · ภาพสดหลายจอ · live ในแอป |
-| `streaming:live-wall` | ✓ | ✓ | ✓ | | | ภาพสดหลายจอ |
+| `streaming:view-live` | ✓ | ✓ | ✓ | | ✓ | ปุ่ม ดูสด · `/streams/live` · `/streams/sessions` · `/streams/:token/stop` · live ในแอป |
+| `streaming:live-wall` | ✓ | ✓ | ✓ | | | เมนู / หน้า ภาพสดหลายจอ (ฝั่ง client เท่านั้น — API ไม่ตรวจ) |
 | `streaming:talk` | ✓ | ✓ | ✓ | | | talk ในภาพสดหลายจอ และทุก dialog ดูสดบน web (DL62) |
 | `playback:view` | ✓ | ✓ | ✓ | | | ปุ่ม ดูย้อนหลัง ของใบงาน · วิดีโอย้อนหลัง (รายกล้อง) |
 | `evidence:export` | ✓ | ✓ | ✓ | | | สร้างไฟล์ MP4 |

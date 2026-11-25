@@ -194,15 +194,34 @@ function checkDss(env: NodeJS.ProcessEnv): ReadinessCheck[] {
 }
 
 function checkBookingInbound(env: NodeJS.ProcessEnv): ReadinessCheck {
+  let secrets: string[];
   try {
     // Same parsing as the endpoint itself: "," alone leaves zero usable secrets.
-    if (readBookingInboundConfig(env).secrets.length > 0) {
-      return { id: 'BOOKING_INBOUND_SECRETS', level: 'pass', message: 'ตั้งแล้ว' };
-    }
+    secrets = readBookingInboundConfig(env).secrets;
   } catch (err) {
     return { id: 'BOOKING_INBOUND_SECRETS', level: 'fail', message: (err as Error).message };
   }
-  return { id: 'BOOKING_INBOUND_SECRETS', level: 'warn', message: 'endpoint รับใบงานปิดอยู่ (ตอบ 401 ทุกคำขอ)' };
+  if (secrets.length === 0) {
+    return { id: 'BOOKING_INBOUND_SECRETS', level: 'warn', message: 'endpoint รับใบงานปิดอยู่ (ตอบ 401 ทุกคำขอ)' };
+  }
+  // every secret is accepted by the endpoint (current + the old one kept while rotating), so each must be strong
+  const placeholder = secrets.findIndex((s) => s.toUpperCase().includes('CHANGE_ME'));
+  if (placeholder >= 0) {
+    return {
+      id: 'BOOKING_INBOUND_SECRETS',
+      level: 'fail',
+      message: `BOOKING_INBOUND_SECRETS ค่าที่ ${placeholder + 1} ยังเป็นค่าตัวอย่าง (CHANGE_ME) — ใครก็ส่งใบงานปลอมเข้าระบบได้`,
+    };
+  }
+  const short = secrets.findIndex((s) => s.length < MIN_SECRET_LENGTH);
+  if (short >= 0) {
+    return {
+      id: 'BOOKING_INBOUND_SECRETS',
+      level: 'fail',
+      message: `BOOKING_INBOUND_SECRETS ค่าที่ ${short + 1} ยาว ${secrets[short]!.length} ตัว — ควรอย่างน้อย ${MIN_SECRET_LENGTH} ตัวที่สุ่มมา`,
+    };
+  }
+  return { id: 'BOOKING_INBOUND_SECRETS', level: 'pass', message: `ตั้งแล้ว ${secrets.length} ค่า` };
 }
 
 export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {

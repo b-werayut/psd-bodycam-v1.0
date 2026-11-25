@@ -55,9 +55,11 @@ function SettingRow({ item }: { item: SettingItem }) {
   return (
     <div className="grid min-h-[72px] gap-2 border-b border-border px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-4">
       <div className="min-w-0">
-        <p className="font-mono text-caption font-semibold text-link">{item.key}</p>
+        <label htmlFor={`${baseId}-value`} className="block text-sm font-medium text-foreground">
+          {item.description || item.key}
+        </label>
         {item.description ? (
-          <p className="mt-0.5 text-sm font-medium text-foreground">{item.description}</p>
+          <p className="mt-1 break-all nwl-mono text-caption text-muted-foreground">{item.key}</p>
         ) : null}
       </div>
 
@@ -65,6 +67,7 @@ function SettingRow({ item }: { item: SettingItem }) {
         {isBool ? (
           <label className="flex min-h-11 items-center gap-3">
             <Checkbox
+              id={`${baseId}-value`}
               checked={isTruthySetting(draft)}
               disabled={save.isPending}
               onCheckedChange={(checked) => {
@@ -82,6 +85,7 @@ function SettingRow({ item }: { item: SettingItem }) {
         ) : (
           <div className="flex min-w-0 gap-2">
             <Input
+              id={`${baseId}-value`}
               value={draft}
               onChange={(event) => {
                 setDraft(event.target.value);

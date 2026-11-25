@@ -39,7 +39,7 @@ export const NAV_GROUPS: ReadonlyArray<{ id: NavGroupId; labelKey: TranslationKe
 export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'navigation.dashboard', icon: LayoutDashboard, group: 'overview', to: '/', permissions: ['dashboard:view'], end: true },
   { labelKey: 'navigation.liveWall', icon: MonitorPlay, group: 'operations', to: '/live-wall', permissions: ['streaming:live-wall'], allPermissions: ['streaming:view-live'] },
-  { labelKey: 'navigation.workOrders', icon: ClipboardList, group: 'operations', permissions: ['work-orders:read'] },
+  { labelKey: 'navigation.workOrders', icon: ClipboardList, group: 'operations', to: '/work-orders', permissions: ['work-orders:read'] },
   { labelKey: 'navigation.playback', icon: Video, group: 'operations', permissions: ['playback:view'], allPermissions: ['work-orders:read'] },
   { labelKey: 'navigation.tracking', icon: Map, group: 'operations', to: '/tracking', permissions: ['tracking:view'], end: true },
   { labelKey: 'navigation.trackingHistory', icon: Route, group: 'operations', to: '/tracking/history', permissions: ['tracking:history'] },

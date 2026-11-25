@@ -6,10 +6,10 @@ import { DeviceStateBadge } from './DeviceStateBadge';
 import { deviceStateTone } from './deviceStateTone';
 
 describe('deviceStateTone', () => {
-  it('online success · offline neutral · unknown warning', () => {
+  it('matches reference connectivity tones: online success, offline destructive, unknown neutral', () => {
     expect(deviceStateTone('online')).toBe('success');
-    expect(deviceStateTone('offline')).toBe('neutral');
-    expect(deviceStateTone('unknown')).toBe('warning');
+    expect(deviceStateTone('offline')).toBe('destructive');
+    expect(deviceStateTone('unknown')).toBe('neutral');
   });
 });
 
@@ -21,6 +21,6 @@ describe('DeviceStateBadge', () => {
       </LanguageProvider>,
     );
     const badge = screen.getByText('ไม่ทราบสถานะ');
-    expect(badge.closest('[data-tone]')).toHaveAttribute('data-tone', 'warning');
+    expect(badge.closest('[data-tone]')).toHaveAttribute('data-tone', 'neutral');
   });
 });

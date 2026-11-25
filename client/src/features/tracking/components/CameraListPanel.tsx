@@ -2,21 +2,20 @@ import { CircleHelp, Video, Wifi, WifiOff } from 'lucide-react';
 import { useId } from 'react';
 
 import { LoadingSkeleton } from '@/components/command-center/LoadingSkeleton';
-import type { DeviceDisplayState } from '@/components/status/deviceStateTone';
+import { DeviceStateFilter, type DeviceStateFilterValue } from '@/components/status/DeviceStateFilter';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLanguage } from '@/i18n/useLanguage';
 import { cn } from '@/lib/utils';
 import type { LiveDevice } from '../liveMerge';
 import { CameraCard } from './CameraCard';
 
-export type StateFilter = 'all' | DeviceDisplayState;
+export type StateFilter = DeviceStateFilterValue;
 
 /** The reference tracking rail, adapted to the Bodycam data contract. */
 export function CameraListPanel({
-  devices, allDevices, search, onSearch, state, onState, selectedId, onSelect, onClearSelection,
+  devices, allDevices, search, onSearch, state, onState, selectedId, onSelect, onClearSelection, onWatch,
   now, fixActiveSeconds, isPending = false,
 }: {
   devices: readonly LiveDevice[];
@@ -28,6 +27,7 @@ export function CameraListPanel({
   selectedId: string | null;
   onSelect: (id: string) => void;
   onClearSelection: () => void;
+  onWatch?: (device: LiveDevice) => void;
   now: number;
   fixActiveSeconds: number;
   isPending?: boolean;
@@ -67,19 +67,7 @@ export function CameraListPanel({
             placeholder={t('tracking.list.searchPlaceholder')} disabled={isPending}
             className="bg-card [@media(pointer:fine)]:h-9" />
         </Field>
-        <Tabs value={state} onValueChange={(value) => onState(value as StateFilter)}>
-          <TabsList aria-label={t('tracking.list.status')} className="grid w-full grid-cols-4 gap-0 overflow-hidden rounded-md border border-border bg-card p-0">
-            {([
-              ['all', t('tracking.list.all')], ['online', t('tracking.state.online')],
-              ['offline', t('tracking.state.offline')], ['unknown', t('tracking.filter.unknown')],
-            ] as const).map(([value, label]) => (
-              <TabsTrigger key={value} value={value} disabled={isPending}
-                className="rounded-none px-2 py-1 text-xs shadow-none data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none [&:not(:last-child)]:border-r [@media(pointer:fine)]:min-h-8">
-                {label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <DeviceStateFilter value={state} onValueChange={onState} disabled={isPending} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col p-4">
         <p className="sr-only" aria-live="polite">{t('tracking.list.count', { shown: devices.length, total: allDevices.length })}</p>
@@ -94,7 +82,8 @@ export function CameraListPanel({
           <ul aria-label={t('tracking.list.label')} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-1">
             {devices.map((device) => (
               <li key={device.id}><CameraCard device={device} now={now} fixActiveSeconds={fixActiveSeconds} selected={device.id === selectedId}
-                onSelect={() => onSelect(device.id)} onClose={onClearSelection} /></li>
+                onSelect={() => onSelect(device.id)} onClose={onClearSelection}
+                onWatch={onWatch ? () => onWatch(device) : undefined} /></li>
             ))}
           </ul>
         )}

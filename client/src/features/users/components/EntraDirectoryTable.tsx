@@ -116,7 +116,7 @@ export function EntraDirectoryTable({
                 key={column.field}
                 className={
                   MONO_FIELDS.has(column.field)
-                    ? 'font-mono text-xs'
+                    ? 'nwl-mono text-xs'
                     : column.field === 'displayName'
                       ? 'text-sm font-medium'
                       : 'text-sm'

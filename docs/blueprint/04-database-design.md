@@ -211,7 +211,7 @@ erDiagram
   }
   Devices ||--o{ StreamingSessions : streams
   Users ||--o{ StreamingSessions : opens
-  StreamingSessions ||--o| TalkSessions : "talk over"
+  StreamingSessions ||--o{ TalkSessions : "talk over"
   WorkOrders ||--o{ EvidenceExports : "context of"
   Devices ||--o{ EvidenceExports : "exported from"
   Alerts ||--o{ Notifications : "fan out"
@@ -226,6 +226,8 @@ erDiagram
   TalkSessions {
     bigint Id PK
     bigint StreamingSessionId FK
+    bigint DeviceId FK
+    bigint UserId FK
   }
   EvidenceExports {
     bigint Id PK
@@ -351,13 +353,13 @@ erDiagram
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
-| Code | varchar(30) | NN | `UQ_Teams_Code` partial · ทีมที่ระบบสร้างเองใช้ค่า `teamRef` |
+| Code | varchar(64) | NN | `UQ_Teams_Code` partial · ทีมที่ระบบสร้างเองใช้ค่า `teamRef` |
 | Name | varchar(200) | NN | ทีมที่ระบบสร้างเองใช้ค่า `teamRef` |
 | BookingTeamRef | varchar(64) | | รหัสทีม/รถ/กะใน Booking · `UQ_Teams_BookingRef` partial · ไม่พบแถวที่ตรง ⇒ inbox processor สร้างทีมใหม่ (DL53) **[Assumption]** |
 | IsActive | boolean | NN | default true |
 | AUDIT, SOFT | | | |
 
-**TeamMembers** — ประวัติสมาชิก (ไม่มี DELETE — ปิดด้วย `ValidTo`) · หัวหน้าทีมเปลี่ยนตาม leader ref ของใบงาน: ปิดแถว Leader เดิม + เปิดแถวใหม่ใน transaction เดียว (DL53)
+**TeamMembers** — ประวัติสมาชิก (ไม่มี DELETE — ปิดด้วย `ValidTo`) · หัวหน้าทีมเปลี่ยนตาม leader ref ของใบงาน: ปิดแถว Leader เดิม + เปิดแถวใหม่ใน transaction เดียว (DL53) · **เฉพาะตอนงานอยู่ในสถานะเข้างาน** (DL85) · `ValidTo` ของแถวเดิมและ `ValidFrom` ของแถวใหม่เขียนด้วย `clock_timestamp()` (ไม่ใช่ `now()` — หลังรอ lock แล้ว `now()` ของ transaction อาจเก่ากว่า `ValidFrom` เดิมจน `CK_TeamMembers_Window` ล้ม)
 | Column | Type | Null | หมายเหตุ |
 |---|---|---|---|
 | Id | bigint identity | PK | |
@@ -506,16 +508,16 @@ Constraints: `CK_TS_Window` (`EndedAt IS NULL OR EndedAt > StartedAt`) · `CK_TS
 | CreatedAt / UpdatedAt | timestamptz | NN | |
 
 Constraints:
-- `CK_WO_Closed` — `Status = 1 OR ClosedAt IS NOT NULL`
+- `CK_WO_Closed` — `(Status IN (2,3)) = (ClosedAt IS NOT NULL)` (Closed / Cancelled ต้องมี `ClosedAt` และสถานะอื่นต้องไม่มี — ตรงกับ migration `0012_p3a_booking`)
 - **`UQ_WO_BookingJob (BookingJobId)`** — unique ธรรมดา (ไม่มี `WHERE`) — 1 Booking ↔ 1 WO
-- IX `(Status, OpenedAt DESC)`, `(TeamId, OpenedAt DESC)`
+- IX `IX_WO_Status_Opened (Status, OpenedAt DESC)`, `IX_WO_Team_Opened (TeamId, OpenedAt DESC)` · `UQ_WO_No (WorkOrderNo)`
 
 > ตัดออกตาม DL53 (ยังไม่มีโค้ด): `WorkOrders.DepartmentId` + `IX_WO_Dept_Opened` · `TrackingSessions.DepartmentId` · `Teams.DepartmentId` · `Devices.DepartmentId` · `Depots.DepartmentId` · `BookingJobs.BookingDepartmentRef` / `DepartmentId`
 
 > ตัดออกตาม DL33 (ยังไม่มีโค้ด จึงไม่ต้อง migrate): คอลัมน์ `LinkStatus`, `LinkSource`, `LinkConfidence`, `SuggestedBookingJobId`, `LinkedAt`, `LinkedBy`, `SourceDeviceId`, `ClosedBy`, `CloseNote`, `MergedIntoWorkOrderId`, `ReviewSince`, `ReviewOverdueAlertedAt` · constraint `CK_WO_LinkConsistency`, `CK_WO_Merged`, `CK_WO_LinkedHasTeam`, `UQ_WO_OpenUnlinkedPerTeam`, `UQ_WO_OpenUnlinkedPerDevice` · index `IX_WO_ReviewQueue` · `TrackingSessions.LinkSource`, `TrackingSessions.ClassifiedBy`
 
 **WorkOrderEvents** — timeline/audit ของใบงาน (append-only)
-`Id`, `WorkOrderId NN`, `EventType NN`, `FromStatus`, `ToStatus`, `Source NN`, `ActorUserId`, `TrackingSessionId`, `BookingJobId`, `Reason varchar(500)`, `Detail jsonb`, `OccurredAt NN` · IX `(WorkOrderId, OccurredAt)`
+`Id`, `WorkOrderId NN`, `EventType NN`, `FromStatus`, `ToStatus`, `Source NN`, `ActorUserId`, `TrackingSessionId`, `BookingJobId`, `Reason varchar(500)`, `Detail jsonb`, `OccurredAt NN` · IX `IX_WOEvents_WO_Time (WorkOrderId, OccurredAt)`
 
 **WorkOrderCounters** — `Period char(6) PK` (`YYYYMM` Asia/Bangkok), `LastValue integer NN`
 ```sql
@@ -557,24 +559,24 @@ RETURNING "LastValue";
 | FirstSyncedAt / LastSyncedAt | timestamptz | NN | ครั้งแรก / ครั้งล่าสุดที่ได้รับข้อมูลงานนี้ (POST / reconcile / CSV) · ชื่อคอลัมน์คงเดิม |
 | SourceMissingSince | timestamptz | | หายจาก reconcile ตอนกลางคืน (ไม่ลบ) — ตั้งได้เฉพาะเมื่อมี read API (`BOOKING_PROVIDER_DRIVER` ≠ `none` — DL46) |
 
-IX GIN `(DeviceRefs)`, `(BookingTeamRef, PlannedStartAt)`, `(BookingLeaderRef, PlannedStartAt)`, `(TeamId, PlannedStartAt)`, `(Status, PlannedStartAt)`, `(ScheduledDate)`, `(LastSyncedAt)`, `IX_BookingJobs_DoNo (DoNo) WHERE "DoNo" IS NOT NULL`, `IX_BookingJobs_ShNo (ShNo) WHERE "ShNo" IS NOT NULL` (ค้นหาด้วยเลข DO / SH — DL46), GIN ไม่จำเป็นในเฟสแรก
+IX `IX_BookingJobs_DeviceRefs` GIN `(DeviceRefs)`, `IX_BookingJobs_TeamRef_Start (BookingTeamRef, PlannedStartAt)`, `IX_BookingJobs_LeaderRef_Start (BookingLeaderRef, PlannedStartAt)`, `IX_BookingJobs_Team_Start (TeamId, PlannedStartAt)`, `IX_BookingJobs_Status_Start (Status, PlannedStartAt)`, `IX_BookingJobs_ScheduledDate (ScheduledDate)`, `IX_BookingJobs_LastSyncedAt (LastSyncedAt)`, `IX_BookingJobs_DoNo (DoNo) WHERE "DoNo" IS NOT NULL`, `IX_BookingJobs_ShNo (ShNo) WHERE "ShNo" IS NOT NULL` (ค้นหาด้วยเลข DO / SH — DL46), GIN ไม่จำเป็นในเฟสแรก
 
 **MatchAttempts** — บันทึกการตัดสินใจ matching (เขียนเฉพาะเมื่อ `InputHash` เปลี่ยน)
 `Id`, `TrackingSessionId NN`, `WorkOrderId`, `Trigger NN`, `Result NN`, `Confidence`, `ChosenBookingJobId`, `Candidates jsonb` (`[{bookingJobId, tier, score, reasons[]}]`), `InputHash char(64) NN`, `AlgoVersion smallint NN`, `ProjectionSyncedAt`, `AttemptedAt NN` · IX `(TrackingSessionId, AttemptedAt DESC)`, `(WorkOrderId, AttemptedAt DESC)` · retention 180 วัน
 
 **IntegrationInbox** — ข้อมูลที่ Smart Booking POST เข้ามา + ที่ดึงจาก read API (ถ้ามี) + CSV import (DL46) — dedupe + process แบบ async · process `api` เขียนแถว `Channel = 1 Push` แล้ว enqueue `booking-inbox` หลัง commit · inbox processor (worker `integration`) map + upsert
-`Id`, `Source varchar(30) NN`, `ExternalEventId varchar(200) NN` (body `eventId` ถ้ามี ไม่งั้น `{jobId}:{version ?? updatedAt}`), `EventType varchar(50)` (`job.created` / `job.updated` / `job.checked-in` / `job.checked-out` / `job.cancelled` — ข้อมูลประกอบเท่านั้น), `Channel smallint NN default 1` (1 Push · 2 Reconcile · 3 CsvImport · 4 Refresh — DL46), `Payload jsonb NN` (raw body — field ที่ไม่รู้จักเก็บไว้และไม่ใช้), `ReceivedAt NN`, `Status NN`, `Attempts smallint NN default 0`, `LastError text`, `ProcessedAt` · `UQ_Inbox_Event (Source, ExternalEventId)` · IX `(Status, ReceivedAt) WHERE Status IN (1,3)` (ใช้ทั้ง retry sweep — `Pending` เก่ากว่า 1 นาที + `Failed` — และวัดอายุ backlog สำหรับ `booking.stale-after-minutes`)
+`Id`, `Source varchar(30) NN`, `ExternalEventId varchar(200) NN` (body `eventId` ถ้ามี ไม่งั้น `{jobId}:{version ?? updatedAt}`), `EventType varchar(50)` (`job.created` / `job.updated` / `job.checked-in` / `job.checked-out` / `job.cancelled` — ข้อมูลประกอบเท่านั้น), `Channel smallint NN default 1` (1 Push · 2 Reconcile · 3 CsvImport · 4 Refresh — DL46), `Payload jsonb NN` (raw body — field ที่ไม่รู้จักเก็บไว้และไม่ใช้), `ReceivedAt NN`, `Status NN`, `Attempts smallint NN default 0`, `LastError text`, `ProcessedAt` · `UQ_Inbox_Event (Source, ExternalEventId)` · IX `IX_Inbox_Pending (Status, ReceivedAt) WHERE Status IN (1,3)` (ใช้ทั้ง retry sweep — `Pending` เก่ากว่า 1 นาที + `Failed` — และวัดอายุ backlog สำหรับ `booking.stale-after-minutes`)
 
 **IntegrationSyncState** — สถานะรับข้อมูลขาเข้า + read API (optional) + circuit breaker snapshot
 PK `(Source, Resource)` · `LastReceivedAt` (POST ขาเข้าล่าสุดที่รับได้ — ใช้ alert `BOOKING_INBOUND_SILENT` · DL46), `LastAttemptAt`, `LastSuccessAt` (เรียก read API ล่าสุด — outbound), `LastFullSyncAt` (reconcile ล่าสุด), `LastErrorAt`, `LastError text`, `ConsecutiveFailures integer NN default 0`, `BreakerOpenUntil` · ตัด `Cursor` แล้ว (ไม่มี change feed — DL46 · ยังไม่มีโค้ด จึงลบได้เลย)
 
 **IntegrationCallLogs** — log ทุก request ไป/มาจาก Booking (redacted, ตัดที่ 4 KB) · **ทุก POST ขาเข้าเขียน 1 แถว** `Direction = 2 Inbound`, `Operation = 'inbound.job'` (รวมที่ตอบ 400 / 401 — ใช้นับ inbound failure ใน metrics / dashboard · ไม่มีหน้า Integration — DL53) · ห้ามเก็บ secret / signature / body เต็ม (DL46)
-`Id`, `Source NN`, `Direction smallint NN` (1 Outbound · 2 Inbound), `Operation varchar(50) NN`, `HttpMethod varchar(10)`, `Url varchar(500)` (ไม่มี secret/query token), `HttpStatus smallint`, `LatencyMs integer`, `CorrelationId varchar(64)`, `Outcome NN`, `ErrorMessage varchar(1000)`, `RequestExcerpt text`, `ResponseExcerpt text`, `OccurredAt NN` · IX `(Source, OccurredAt DESC)`, `(Outcome, OccurredAt DESC)` · retention 30 วัน
+`Id`, `Source NN`, `Direction smallint NN` (1 Outbound · 2 Inbound), `Operation varchar(50) NN`, `HttpMethod varchar(10)`, `Url varchar(500)` (ไม่มี secret/query token), `HttpStatus smallint`, `LatencyMs integer`, `CorrelationId varchar(64)`, `Outcome NN`, `ErrorMessage varchar(1000)`, `RequestExcerpt text`, `ResponseExcerpt text`, `OccurredAt NN` · IX `IX_CallLogs_Source_Time (Source, OccurredAt DESC)`, `IX_CallLogs_Outcome_Time (Outcome, OccurredAt DESC)` · retention 30 วัน
 
 ### G. Media (port จาก reference)
 
 - **StreamingSessions** — `Id`, `DeviceId NN`, `Channel`, `UserId NN`, `SessionToken varchar(64) UQ`, `Protocol`, `SessionType`, `PlaybackStartAt`, `PlaybackEndAt`, `Status`, `VendorSessionId`, `StartedAt`, `LastAccessAt`, `EndedAt`, `EndReason` · IX `(UserId, Status)`, `(DeviceId, StartedAt DESC)`
-- **TalkSessions** — คงโครงสร้าง reference: `StreamingSessionId NN`, `DeviceId NN`, `VendorTalkId`, `TicketHash char(64) UQ`, `Status`, `EndReason`, … · `UX_Talk_Device_Open (DeviceId) WHERE Status IN (1,2)`
+- **TalkSessions** — คงโครงสร้าง reference: `StreamingSessionId NN`, `DeviceId NN`, `VendorTalkId`, `TicketHash varchar(64) UQ`, `Status`, `EndReason`, … · สร้างใน migration `0014_p4_talk` · index `IX_Talk_Device`, `IX_Talk_User`, `UX_Talk_Ticket` · `UX_Talk_Device_Open (DeviceId) WHERE Status IN (1,2)` (กล้องหนึ่งตัวมีสายเปิดได้สายเดียว) + `UX_Talk_User_Open (UserId) WHERE Status IN (1,2)` (ผู้ใช้หนึ่งคนมีสายเปิดได้สายเดียว — DL86) · Setting ใหม่ `streaming.talk-max-seconds` (เริ่มต้น 600, ช่วง 60–3600)
 - **EvidenceExports** — reference + `WorkOrderId FK`, `TrackingSessionId FK` (บริบท) · `Status`, `Progress`, `FilePath`, `Checksum char(64)`, `RequestedBy`, `ExpiresAt` · `FilePath` = path บน **Local disk PVC** (`STORAGE_DRIVER=local`) ที่ `worker-media` เขียนและ `api` stream ให้ดาวน์โหลด (DL34) · ไฟล์ลบหลัง 24 ชม. (`EvidenceCleanup`) · แถวเก็บ 12 เดือนเป็นหลักฐานว่าใครดึงอะไร
 
 ### H. Notifications & System
@@ -731,8 +733,9 @@ export const WorkOrders = pgTable('WorkOrders', {
 }, (t) => [
   uniqueIndex('UQ_WO_No').on(t.WorkOrderNo),
   unique('UQ_WO_BookingJob').on(t.BookingJobId),
+  index('IX_WO_Status_Opened').on(t.Status, t.OpenedAt.desc()),
   index('IX_WO_Team_Opened').on(t.TeamId, t.OpenedAt.desc()),
-  check('CK_WO_Closed', sql`"Status" = 1 OR "ClosedAt" IS NOT NULL`),
+  check('CK_WO_Closed', sql`("Status" IN (2, 3)) = ("ClosedAt" IS NOT NULL)`),
 ]);
 
 export const TrackingSessions = pgTable('TrackingSessions', {

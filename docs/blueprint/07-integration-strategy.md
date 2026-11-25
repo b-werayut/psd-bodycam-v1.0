@@ -29,7 +29,7 @@
 | เราไม่ส่งข้อมูลกลับ Booking (ไม่มี write-back / `IntegrationOutbox`) | **[Confirmed]** ผู้ใช้เลือก (DL31 · ส่วนนี้คงเดิม) | Booking เปิดดูหลักฐานผ่าน deep link (§7.9) |
 | Smart Booking มี read API (`GET /jobs/{jobId}`, `GET /jobs?from&to`) | [Assumption] — **optional** | §7.2.3 · ไม่มี ⇒ `BOOKING_PROVIDER_DRIVER=none` (ไม่มีปุ่ม refresh / full reconcile) |
 | Booking job มี identifier ของทีม/หัวหน้าทีม/รถ | [Assumption] — **ความเสี่ยงอันดับ 1** | ถ้าไม่มี matching อัตโนมัติทำไม่ได้ ⇒ session ค้าง `AwaitingMatch` / `NoTeam` (ไม่มี manual link — DL33) |
-| ทีม / หัวหน้าทีมในระบบเรามาจาก `teamRef` + `leaderRef` ของใบงาน (Booking ส่งมากับทุกใบ) | [Assumption] (DL53) | ไม่มีหน้าจัดการทีม · inbox processor สร้าง/อัปเดต `Teams` / `TeamMembers` (§7.5.2) · ไม่ส่ง ⇒ ไม่มีทีม — matching เหลือ `DeviceRefs` อย่างเดียว และหัวหน้าทีมไม่เห็นใบงานในแอป |
+| ทีม / หัวหน้าทีมในระบบเรามาจาก `teamRef` + `leaderRef` ของใบงาน (Booking ส่งมากับทุกใบ) | [Assumption] (DL53 · หัวหน้าเปลี่ยนเฉพาะตอนเข้างาน — DL85) | ไม่มีหน้าจัดการทีม · inbox processor สร้าง/อัปเดต `Teams` / `TeamMembers` (§7.5.2) · ไม่ส่ง ⇒ ไม่มีทีม — matching เหลือ `DeviceRefs` อย่างเดียว และหัวหน้าทีมไม่เห็นใบงานในแอป |
 | Booking job มีเวลาเริ่ม/จบตามแผน | [Assumption] | ไม่มี ⇒ ใช้ทั้งวันของ `ScheduledDate` (confidence ลดเป็น MEDIUM) |
 | หัวหน้าทีมดูใบงานของทีมในแอปมือถือของระบบนี้ | **[Confirmed]** requirement ฉบับ 2026-11-12 (DL47) | scope `team` อาศัย `BookingJobs.TeamId` / `LeaderUserId` ที่ resolve จาก `teamRef` / `leaderRef` ⇒ `leaderRef` ที่ map เป็นพนักงานไม่ได้ (`Users.BookingEmployeeRef`) = ทีมไม่มีหัวหน้า หัวหน้าทีมไม่เห็นใบงานนั้น (`MappingIssues` 2) |
 | Booking app เปิดดูหลักฐานของใบงานผ่าน deep link | [Assumption] (DL31 · คงเดิม) | §7.9 · ผู้เปิดต้องมีบัญชีเว็บ (`SUPER_ADMIN` / `ADMIN` / `OPERATOR` / `VIEWER`) |
@@ -69,9 +69,9 @@ Smart Booking **POST ใบงานทั้งใบเข้ามา** ท�
 | Method / path | `POST /api/integration/booking/jobs` |
 | Process | **`api`** (ไม่ใช่ worker) · เส้นทาง ingress → nginx `web` → api เดิม (DL29) |
 | Auth | ไม่ใช้ JWT: `@Public()` + `BookingInboundAuthGuard` (§7.4) |
-| Rate limit | group `booking-inbound` default 600 req/min · เกิน ⇒ 429 + `Retry-After` |
-| Body | `Content-Type: application/json` · ≤ 256 KB |
-| Audit | `@Audit` เขียน `IntegrationCallLogs` (`Direction = 2 Inbound`, `Operation = 'inbound.job'`) ทุกคำขอ รวมที่ถูกปฏิเสธ (excerpt ที่ redact แล้ว ≤ 4 KB) |
+| Rate limit | group `booking-inbound` default 600 req/min (env `BOOKING_INBOUND_RATE_LIMIT_PER_MIN`) · **ตรวจก่อน auth** (กันคำขอที่ไม่ผ่าน auth ถล่ม) · เกิน ⇒ 429 + `Retry-After` |
+| Body | `Content-Type: application/json` · ≤ 256 KB (raw body parser เฉพาะ route นี้ — ใช้ตรวจ HMAC กับ byte จริง) |
+| Audit | **ไม่ใช้ `@Audit`** (ไม่มีผู้ใช้) — guard / interceptor เขียน `IntegrationCallLogs` (`Direction = 2 Inbound`, `Operation = 'inbound.job'`) ทุกคำขอ รวมที่ถูกปฏิเสธ (401 / 413 / 415 / 400 รวม JSON พัง) · `RequestExcerpt` ≤ **4 KB นับเป็น byte UTF-8** · ไม่เก็บ secret / signature · log error ของ DB ไม่มี payload ติดไปด้วย |
 
 **Headers**
 
@@ -128,9 +128,9 @@ Smart Booking **POST ใบงานทั้งใบเข้ามา** ท�
 |---|---|---|---|
 | 202 | `{ "status": "accepted", "externalJobId", "correlationId" }` | เก็บ event ใหม่ลง inbox แล้ว | จบ (สำเร็จ) |
 | 200 | `{ "status": "duplicate", "externalJobId", "correlationId" }` | `ExternalEventId` นี้เคยเก็บแล้ว | จบ (สำเร็จเหมือน 202 · ไม่ต้อง retry) |
-| 400 | `VALIDATION_FAILED` | ขาด `job.jobId` / `job.status` / ขาดทั้ง `job.version` และ `job.updatedAt` · วันเวลาผิดรูปแบบ | แก้ข้อมูลแล้วส่งใหม่ |
+| 400 | `VALIDATION_FAILED` | ขาด `job.jobId` / `job.status` / ขาดทั้ง `job.version` และ `job.updatedAt` · วันเวลาผิดรูปแบบ · `plannedEndAt < plannedStartAt` · JSON พัง | แก้ข้อมูลแล้วส่งใหม่ |
 | 401 | `INBOUND_AUTH_FAILED` | signature / timestamp / api key / IP ไม่ผ่าน (ไม่บอกว่าผิดข้อไหน) | ตรวจ secret / นาฬิกา |
-| 413 / 415 | — | body > 256 KB / ไม่ใช่ JSON | แก้ฝั่งผู้ส่ง |
+| 413 `PAYLOAD_TOO_LARGE` / 415 `UNSUPPORTED_MEDIA_TYPE` | — | body > 256 KB / `Content-Type` ไม่ใช่ `application/json` | แก้ฝั่งผู้ส่ง |
 | 429 | — + `Retry-After` | เกิน `booking-inbound` | retry ตาม `Retry-After` |
 | 503 | `SERVICE_UNAVAILABLE` | ฐานข้อมูลของเราไม่พร้อม — **ยังไม่ได้เก็บ** | retry แบบ backoff |
 
@@ -269,11 +269,11 @@ export interface BookingProvider {
 
 | ทิศทาง | วิธีที่รองรับ | หมายเหตุ |
 |---|---|---|
-| **Smart Booking → เรา** (ตัวหลัก — DL46) | env `BOOKING_INBOUND_AUTH=hmac\|api-key` (default `hmac`) **[Assumption — ตกลงกับ Booking]** · `hmac`: `X-Booking-Timestamp` + `X-Booking-Signature: sha256=<hex>` = HMAC-SHA256(secret, `{timestamp}.{rawBody}`) คลาดได้ ±300 s · `api-key`: `X-Api-Key` | เทียบแบบ constant-time · secret ใน env `BOOKING_INBOUND_SECRETS` (คั่นด้วย comma, ใช้พร้อมกันได้ 2 ตัว ⇒ rotate ไม่ดับ) จาก Kubernetes Secret · optional `BOOKING_INBOUND_ALLOWED_CIDRS` (IP allowlist — ต้องตั้ง `TRUST_PROXY` ให้ถูก) · ไม่ log secret / signature / body เต็ม |
+| **Smart Booking → เรา** (ตัวหลัก — DL46) | env `BOOKING_INBOUND_AUTH=hmac\|api-key` (default `hmac`) **[Assumption — ตกลงกับ Booking]** · `hmac`: `X-Booking-Timestamp` + `X-Booking-Signature: sha256=<hex>` = HMAC-SHA256(secret, `{timestamp}.{rawBody}`) คลาดได้ ±300 s · `api-key`: `X-Api-Key` (**ไม่ใช้ `X-Booking-Timestamp`** — timestamp ผูกกับ HMAC เพื่อกัน replay ของสตริงที่เซ็น) | เทียบแบบ constant-time · secret ใน env `BOOKING_INBOUND_SECRETS` (คั่นด้วย comma, ใช้พร้อมกันได้ 2 ตัว ⇒ rotate ไม่ดับ) จาก Kubernetes Secret · optional `BOOKING_INBOUND_ALLOWED_CIDRS` (IP allowlist — ต้องตั้ง `TRUST_PROXY` ให้ถูก) · ไม่ log secret / signature / body เต็ม |
 | เรา → Smart Booking (optional — read API เท่านั้น) | OAuth2 client credentials (แนะนำ) · API key header · mTLS **[Assumption]** | ใช้เมื่อ `BOOKING_PROVIDER_DRIVER=http` · token cache ใน memory + refresh ก่อนหมดอายุ 60s · secret ใน Kubernetes Secret · ไม่ log header |
 
 - แนะนำ `hmac` เพราะกันการแก้ body และ replay (timestamp ±300 s) ได้ · `api-key` สำหรับกรณี Booking เซ็นไม่ได้ (ควรคู่กับ IP allowlist)
-- ลำดับตรวจใน `BookingInboundAuthGuard`: IP allowlist (ถ้าตั้ง) → timestamp → signature / key กับทุก secret ที่ active · ไม่ผ่าน ⇒ 401 `INBOUND_AUTH_FAILED` โดยไม่บอกว่าผิดข้อไหน
+- ลำดับของ request: **rate limit (`booking-inbound`) → `BookingInboundAuthGuard`** · ลำดับตรวจใน guard: Content-Type / ขนาด body → IP allowlist (ถ้าตั้ง) → timestamp (เฉพาะ `hmac`) → signature / key กับทุก secret ที่ active · ไม่ผ่าน ⇒ 401 `INBOUND_AUTH_FAILED` โดยไม่บอกว่าผิดข้อไหน
 - **Rotate secret**: เพิ่ม secret ใหม่เป็นตัวที่ 2 → Booking เปลี่ยนไปใช้ตัวใหม่ → ลบตัวเก่า
 - **Network**: route `/api/integration/booking/*` ต้องเข้าถึงได้จาก Smart Booking ผ่าน ingress → nginx `web` → api (เส้นทาง DL29 — ไม่มีอะไรใหม่ใน K8s) · firewall เปิด **ขาเข้า** จาก egress IP ของ Booking · ขาออกไป Booking (DL43) ต้องเปิดเฉพาะเมื่อใช้ read API
 
@@ -284,11 +284,11 @@ export interface BookingProvider {
 ### 7.5.1 Inbound (push) — แทน incremental pull เดิม
 
 1. Smart Booking `POST /api/integration/booking/jobs` (process `api`)
-2. `BookingInboundAuthGuard` ตรวจ auth (§7.4) ⇒ ไม่ผ่าน 401 `INBOUND_AUTH_FAILED` · rate limit `booking-inbound` ⇒ 429
+2. rate limit `booking-inbound` ⇒ 429 (ตรวจก่อน auth) → `BookingInboundAuthGuard` ตรวจตามลำดับ: Content-Type ผิด ⇒ 415 · body เกิน ⇒ 413 · auth (§7.4) ไม่ผ่าน ⇒ 401 `INBOUND_AUTH_FAILED`
 3. validate DTO ตาม mapper ที่เลือก (field ที่ไม่รู้จักเก็บใน raw แล้วข้าม) ⇒ ไม่ผ่าน 400 `VALIDATION_FAILED`
 4. transaction: `INSERT IntegrationInbox (Source='BOOKING', ExternalEventId, EventType, Payload=raw, Channel=1 Push)` `ON CONFLICT DO NOTHING` + `IntegrationSyncState (BOOKING, jobs).LastReceivedAt = now()` (POST ล่าสุดที่ผ่าน auth) · DB ไม่พร้อม ⇒ 503 `SERVICE_UNAVAILABLE` (Booking retry)
 5. **หลัง commit** enqueue BullMQ `booking-inbox` → ตอบ 202 `accepted` (แถวใหม่) / 200 `duplicate` (ชน `UQ_Inbox_Event`) · enqueue ไม่ได้ ⇒ ยังตอบ 202 แล้วให้ retry sweep เก็บ
-6. ทุกคำขอ (รวม 400 / 401) เขียน `IntegrationCallLogs` (`Direction = 2 Inbound`, `Operation = 'inbound.job'`)
+6. ทุกคำขอ (รวม 400 / 401 / 413 / 415) เขียน `IntegrationCallLogs` (`Direction = 2 Inbound`, `Operation = 'inbound.job'`) โดย guard / interceptor ของ inbound เอง (ไม่ใช่ `@Audit`) · excerpt ≤ 4 KB (byte UTF-8) · ไม่เก็บ secret / signature · error ของ DB ที่ log ลง log ไฟล์ไม่มี payload
 
 - `api` **ไม่ map และไม่แตะ `BookingJobs` / `WorkOrders`** — ตอบเร็วโดยไม่รอ processor · map + upsert เป็นงานของ inbox processor ใน worker `integration` (§7.5.2)
 
@@ -310,19 +310,30 @@ ON CONFLICT ("SourceSystem","ExternalJobId") DO UPDATE SET
   "PayloadHash"       = EXCLUDED."PayloadHash",
   "LastSyncedAt"      = now(),
   "SourceMissingSince"= NULL
-WHERE "BookingJobs"."ExternalUpdatedAt" IS NULL
-   OR EXCLUDED."ExternalUpdatedAt" >= "BookingJobs"."ExternalUpdatedAt"
+WHERE CASE
+  WHEN EXCLUDED."ExternalUpdatedAt" IS NOT NULL AND "BookingJobs"."ExternalUpdatedAt" IS NOT NULL
+   AND EXCLUDED."ExternalUpdatedAt" <> "BookingJobs"."ExternalUpdatedAt"
+    THEN EXCLUDED."ExternalUpdatedAt" > "BookingJobs"."ExternalUpdatedAt"
+  WHEN EXCLUDED."ExternalVersion" ~ '^[0-9]+$' AND "BookingJobs"."ExternalVersion" ~ '^[0-9]+$'
+    THEN EXCLUDED."ExternalVersion"::numeric >= "BookingJobs"."ExternalVersion"::numeric
+  ELSE true
+END
 RETURNING "Id", (xmax = 0) AS inserted;
 ```
 
 - ไม่มีแถวคืน ⇒ ข้อมูลเก่ากว่า ⇒ inbox `Ignored`
-- payload มีแค่ `version` (ไม่มี `updatedAt`) ⇒ guard เทียบ `version` แบบตัวเลขแทน (`EXCLUDED."ExternalVersion"::bigint >= "BookingJobs"."ExternalVersion"::bigint`) · มีทั้งคู่ใช้ `updatedAt` · v1 กำหนดให้ `version` เป็นจำนวนเต็มที่เพิ่มขึ้นเท่านั้น
+- payload มีแค่ `version` (ไม่มี `updatedAt` ฝั่งใดฝั่งหนึ่ง) **หรือ `updatedAt` เท่ากันทั้งสองฝั่ง** (Booking อาจประทับเวลาละเอียดแค่วินาที) ⇒ guard เทียบ `version` แบบตัวเลขแทน (`EXCLUDED."ExternalVersion"::numeric >= "BookingJobs"."ExternalVersion"::numeric` เมื่อทั้งคู่เป็นตัวเลข — ข้อความเดิมซ้ำยังผ่าน) · มี `updatedAt` ทั้งคู่และต่างกัน ⇒ `updatedAt` ที่ใหม่กว่าชนะ · เทียบไม่ได้เลย ⇒ ข้อความล่าสุดชนะ · v1 กำหนดให้ `version` เป็นจำนวนเต็มที่เพิ่มขึ้นเท่านั้น
 - **upsert `WorkOrders` 1:1** ใน transaction เดียวกัน (`INSERT … ON CONFLICT ("BookingJobId") DO UPDATE`): งานใหม่ ⇒ สร้าง WO · งานเดิม ⇒ อัปเดตข้อมูลที่แสดง + สถานะตาม Booking (§7.6) · **เป็นทางเดียวที่สร้างใบงานในระบบ** (DL33) · emit `workorder:changed` หลัง commit
-- `PayloadHash` เปลี่ยน ⇒ enqueue `matching.rematch` (`jobId = team:{TeamId}:{yyyyMMdd}` dedupe) ของทั้งทีมเก่าและทีมใหม่ถ้าย้ายทีม
+- `PayloadHash` เปลี่ยน ⇒ enqueue `matching.rematch` (`jobId = team:{TeamId}:{yyyyMMdd}` dedupe) ของทั้งทีมเก่าและทีมใหม่ถ้าย้ายทีม · **P3a ยังไม่ enqueue** (ยังไม่มี queue `matching` / matcher) — P3b เพิ่ม
 - **ทีม / หัวหน้าทีมจากใบงาน (DL53 — ไม่มีหน้าจัดการทีม · [Assumption] Booking ส่ง `teamRef` + `leaderRef` มากับทุกใบ)** ก่อน upsert projection ใน transaction เดียวกัน:
   - `teamRef` ไม่ตรง `Teams.BookingTeamRef` ใด ⇒ สร้าง `Teams` ใหม่ (`Code` = `Name` = `teamRef`, `BookingTeamRef` = `teamRef`) · ไม่มี `teamRef` ⇒ ใบงานไม่มีทีม (`TeamId` null)
-  - `leaderRef` map เป็นพนักงานได้ (`Users.BookingEmployeeRef`) และยังไม่ใช่หัวหน้า active ของทีมนั้น ⇒ ปิดแถว Leader เดิม (`ValidTo = now()`) + เปิดแถว Leader ใหม่ (`AssignedBy` null = ระบบ) · พนักงานคนนั้นเป็นสมาชิก active ทีมอื่นอยู่ ⇒ ปิดแถวเดิมก่อน (`UQ_TeamMembers_ActiveUser`) · ทีม / หัวหน้าเปลี่ยน ⇒ enqueue rematch ของทีมเก่าและใหม่
+  - **เปลี่ยนหัวหน้าทีมเฉพาะตอนเข้างาน (DL85 · Q55 — แก้ DL53 ที่ให้เปลี่ยนทุกข้อความ)**: ทำเมื่อหลังข้อความนี้งานมี check-in และยังไม่ check-out เท่านั้น · ใบล่วงหน้า / ปิดแล้ว / ยกเลิก ไม่เปลี่ยนหัวหน้าของทีม (แต่ `BookingJobs.LeaderUserId` / `WorkOrders.LeaderUserId` ของใบนั้นยังตั้งตาม `leaderRef`)
+  - เมื่อเข้าเงื่อนไขข้างบน: `leaderRef` map เป็นพนักงานได้ (`Users.BookingEmployeeRef`) และยังไม่ใช่หัวหน้า active ของทีมนั้น ⇒ ปิดแถว Leader เดิม (`ValidTo = clock_timestamp()` — ไม่ใช้ `now()` เพราะหลังรอ lock แล้วจะชน `CK_TeamMembers_Window`) + เปิดแถว Leader ใหม่ (`AssignedBy` null = ระบบ) · พนักงานคนนั้นเป็นสมาชิก active ทีมอื่นอยู่ ⇒ ปิดแถวเดิมก่อน (`UQ_TeamMembers_ActiveUser`) · ทีม / หัวหน้าเปลี่ยน ⇒ enqueue rematch ของทีมเก่าและใหม่
   - ใบงานที่ version เก่ากว่า (ถูก version guard ข้าม) ไม่แตะทีม / หัวหน้า
+- **ลำดับ lock ใน processor** (Part 2 §2.4): `BookingJobs` → `Teams` → `TeamMembers` → `WorkOrders` → `WorkOrderCounters` · แถว `Teams` และ `WorkOrders` ล็อกด้วย **`FOR NO KEY UPDATE`** (ไม่ใช่ `FOR UPDATE` — ชน FK `KEY SHARE` แล้วเกิด deadlock 40P01 ตอนทดสอบ)
+- **การทำงานของ processor (P3a · โค้ดจริง)**: อ่าน `Payload` ที่เก็บไว้แล้ว **validate ซ้ำ** ด้วยกติกาเดียวกับตอนรับ (แถวเก่าที่ผ่านมาก่อนแก้กติกาไม่ทำให้ระบบพัง) · หยิบแถวด้วย `FOR UPDATE SKIP LOCKED` (worker หลายตัวไม่ชนกัน) · ล้มเหลวทั้งแถว rollback แล้วนับ `Attempts` ใน transaction ใหม่: `Failed` จนครบ **10 ครั้ง ⇒ `Dead`** · retry sweep ทุก 5 นาที (และตอน start) อ่านแถว `Pending` เก่ากว่า 1 นาที + `Failed` จาก **DB โดยตรง ไม่ผ่าน BullMQ** · BullMQ `attempts = 1` (retry เป็นหน้าที่ของ sweep ไม่ใช่ queue) · ไม่มี `REDIS_URL` ⇒ ไม่เริ่ม worker ของ queue แต่ sweep ยังประมวลผลแถวจาก DB
+- **ตรวจการเปลี่ยนหลังปิดใบ (after-close)**: ใบที่ Closed แล้ว ถ้า `plannedStartAt` / `plannedEndAt` / `deviceRefs` เปลี่ยน ให้เทียบกับค่า **ก่อนหน้าของ `BookingJobs`** ที่ projection จับไว้ส่งให้ writer (ไม่เก็บ snapshot ไว้ใน `WorkOrderEvents.Detail`)
+- **realtime**: emit `workorder:changed` **หลัง commit** เท่านั้น · ส่ง `change: 'updated'` ด้วยเมื่อมีแค่ field ของ Booking เปลี่ยน (`PayloadHash` เปลี่ยนแต่สถานะ WO ไม่เปลี่ยน — กันรายการ / กล้องในหน้า ใบงาน ค้าง) 
 - resolve `TeamId` / `LeaderUserId` ตอน upsert · `leaderRef` / `deviceRefs` / สถานะที่ map ไม่ได้ ⇒ บันทึก `MappingIssues` (ไม่ fail ข้อความ) และสรุปใน alert รายวัน `BOOKING_MAPPING_ISSUES` ถึง `SUPER_ADMIN` (ไม่มีหน้า integration — DL53)
 
 ### 7.5.3 Refresh รายใบ (optional — ต้องมี read API)
@@ -376,7 +387,7 @@ RETURNING "Id", (xmax = 0) AS inserted;
 | Operation | Timeout | Retry | หลังล้มเหลวครบ |
 |---|---|---|---|
 | รับ POST ขาเข้า | — (เราไม่เรียก Booking) | Smart Booking retry เองเมื่อได้ timeout / 5xx / 429 **[Assumption]** (§7.2.2) | Booking หยุดส่ง ⇒ เรามองไม่เห็น — alert 17 `BOOKING_INBOUND_SILENT` |
-| inbox processing | — | retry sweep ทุก 5 นาที: `Failed` + `Pending` ที่เก่ากว่า 1 นาที (enqueue หาย) | `Dead` หลัง 10 ครั้ง + alert `INTEGRATION_DEAD_LETTER` · ประมวลผลใหม่จาก `Payload` ที่เก็บไว้ได้ (DL54 — แถวถัดไปใน §7.10 และปุ่มบนการแจ้งเตือน) |
+| inbox processing | — | retry sweep ทุก 5 นาที จาก DB (ไม่ใช้ BullMQ retry — `attempts = 1`): `Failed` + `Pending` ที่เก่ากว่า 1 นาที (enqueue หาย) | `Dead` หลัง 10 ครั้ง + alert `INTEGRATION_DEAD_LETTER` · ประมวลผลใหม่จาก `Payload` ที่เก็บไว้ได้ (DL54 — แถวถัดไปใน §7.10 และปุ่มบนการแจ้งเตือน) |
 | full reconcile หน้า (`fetchWindow` — optional) | 8s | BullMQ 5 ครั้ง: 30s, 1m, 2m, 4m, 8m + jitter ±20% | job fail · ลองใหม่รอบถัดไป (คืนถัดไป / breaker ปิด) |
 | ปุ่ม refresh จากหน้าจอ (`fetchJob` — optional, sync call ใน API) | 5s | ไม่ retry | ตอบ 503 พร้อมข้อความว่าใช้ข้อมูลเดิม |
 

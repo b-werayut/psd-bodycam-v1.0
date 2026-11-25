@@ -58,3 +58,21 @@ it.each([
   expect(entry.req.headers.authorization).toBe('[Redacted]');
   expect(entry.req.headers.cookie).toBe('[Redacted]');
 });
+
+it('redacts the Booking inbound secrets (x-api-key, x-booking-signature) and keeps x-booking-timestamp', async () => {
+  const id = 'logtest-booking01';
+  await request(app.getHttpServer())
+    .get('/api/health')
+    .set('X-Correlation-Id', id)
+    .set('X-Api-Key', 'shared-secret-value')
+    .set('X-Booking-Signature', 'sha256=deadbeef')
+    .set('X-Booking-Timestamp', '1764000000');
+  await new Promise((r2) => setTimeout(r2, 50));
+  const entry = logged(id);
+  expect(entry).toBeDefined();
+  expect(entry.req.headers['x-api-key']).toBe('[Redacted]');
+  expect(entry.req.headers['x-booking-signature']).toBe('[Redacted]');
+  expect(entry.req.headers['x-booking-timestamp']).toBe('1764000000');
+  expect(JSON.stringify(entry)).not.toContain('shared-secret-value');
+  expect(JSON.stringify(entry)).not.toContain('deadbeef');
+});

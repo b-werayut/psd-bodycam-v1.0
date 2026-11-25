@@ -14,7 +14,16 @@ export function createLoggerOptions(stream?: DestinationStream): Params {
       return id;
     },
     customProps: (req: { id?: unknown }) => ({ correlationId: req.id }),
-    redact: { paths: ['req.headers.authorization', 'req.headers.cookie'], censor: '[Redacted]' },
+    redact: {
+      paths: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        // Booking inbound auth (inbound-auth.ts): the shared secret in api-key mode, the HMAC in hmac mode
+        'req.headers["x-api-key"]',
+        'req.headers["x-booking-signature"]',
+      ],
+      censor: '[Redacted]',
+    },
     transport: !stream && !isProd ? { target: 'pino-pretty', options: { singleLine: true } } : undefined,
   };
   return { pinoHttp: stream ? [options, stream] : options } as Params;

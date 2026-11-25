@@ -81,7 +81,7 @@ npm run db:prepare:test
 
 ### ภาพสดหลายจอ (`/live-wall`)
 
-รัน migration ให้ครบ `0013_p4_live_streaming` ก่อนเปิด API: `npm run db:migrate:apply`
+รัน migration ให้ครบ `0013_p4_live_streaming` และ `0014_p4_talk` ก่อนเปิด API: `npm run db:migrate:apply`
 ใช้ `DSS_DRIVER=dss`, `DSS_BASE_URL` และ `DSS_API_KEY` ชุดเดียวกับรายการกล้อง / GPS
 ระบบขอภาพที่ `POST /api/v1/stream` โดยใช้ `VendorDeviceId` และ channel 1
 หาก endpoint แยกออกไป ให้ตั้ง `STREAM_API_URL`
@@ -97,6 +97,14 @@ API ทุก replica ต้องใช้ `STREAM_URL_SECRET` เดียว�
 ตั้งค่าจำนวนจอได้ที่ `streaming.max-concurrent-per-user` (เริ่มต้น 16)
 ปิดการดูสดทั้งหมดด้วย `streaming.enabled` และตั้งเวลาปิดจอที่หยุดเล่นด้วย
 `streaming.url-ttl-seconds` (เริ่มต้น 180 วินาที) การเปิดและปิดจอมี audit log
+
+### ทดสอบ talk (พูดผ่านกล้อง · DL86)
+
+- ต้องต่อ VPN และตั้ง `DSS_DRIVER=dss` ใน `server/.env` (โหมด `mock` ใช้เฉพาะ test อัตโนมัติ — เสียงสะท้อนกลับ ไม่ใช่การทดสอบจริง) · ไม่มี env ใหม่: ใช้ `DSS_BASE_URL` / `DSS_API_KEY` ชุดเดิม
+- รัน api + `client` dev (`npm run dev` ของ Vite proxy `/api/talk/ws` ให้เอง) · ไมโครโฟนใช้ได้เฉพาะ `https` หรือ `localhost`
+- ใส่หูฟังเสมอ — เป็น full-duplex ถ้าใช้ลำโพงจะได้ยินเสียงสะท้อน
+- เริ่มสายใช้เวลา ~11 วินาที (DSS จับมือ) · ความยาวสูงสุดตั้งที่ `streaming.talk-max-seconds` (เริ่มต้น 600)
+- ลองจากทั้ง 3 จุด: การ์ดกล้องบนแผนที่ติดตาม, ตารางใบงาน, รายละเอียดใบงาน (ผู้ใช้ต้องมี `streaming:view-live` + `streaming:talk`) · ปิด dialog แล้วสายต้องหยุด
 
 ### โปรเซสสำหรับพัฒนา
 
@@ -169,6 +177,28 @@ log ที่ควรเห็น: `DeviceSync: {"created":100,…}` แล้�
 ไม่อยากให้ worker บนเครื่องยิง DSS: `GPS_POLL_ENABLED=false` · สลับ `mock` ⇄ `dss` บน DB เดียวกัน: กล้องของอีกฝั่งที่ค้างใน DB จะถูกตั้ง `VendorMissingSince` + alert 13 (ระบบไม่ลบกล้อง) และ GpsPoll จะถาม `/location` ของกล้องเหล่านั้นไปที่ DSS ทุกรอบ ⇒ ก่อนสลับให้ soft-delete กล้องของอีกฝั่ง (`update "Devices" set "IsDeleted" = true, "DeletedAt" = now() where "VendorDeviceId" like 'SIM-%'` ตอนไป `dss`) หรือล้าง DB ใหม่ตามข้อ 11 · กล้องที่ soft-delete แล้วจะไม่ถูกสร้างซ้ำ (`VendorDeviceId` ห้ามซ้ำตลอดกาล) — กลับไปใช้ simulator ต้องตั้ง `IsDeleted = false` คืน
 
 แผนที่ใช้ tile ของ OpenStreetMap สาธารณะเมื่อไม่ตั้ง `VITE_MAP_TILE_URL` ใน `client/.env` — ใช้ได้เฉพาะ dev
+
+## 9.1 ใบงานจำลอง (Booking simulator)
+
+Smart Booking ยังไม่ส่งข้อมูลจริง ใช้ตัวจำลองที่ยิง `POST /api/integration/booking/jobs` พร้อมลายเซ็นเหมือน Booking:
+
+1. ใส่ secret ใน `server/.env` เช่น `BOOKING_INBOUND_SECRETS=dev-secret-change-me` (ตัวจำลองเซ็นด้วยค่าแรก และไม่พิมพ์ secret ออกมา)
+2. เปิด api และ worker (`npm run start:api:dev` กับ `npm run start:worker:dev` ใน `server/` — worker ต้องมี role `integration`)
+3. `npm run booking:simulate -- demo` ใน `server/` ⇒ ได้ `202` สามครั้ง
+4. เปิดหน้า ใบงาน (`/work-orders`) จะเห็น 3 ใบ: รอเริ่ม (วันนี้) · กำลังทำงาน (เช็คอินเมื่อ 1 ชั่วโมงก่อน) · ปิดแล้ว (เมื่อวาน) — ทั้งหมดผูกกล้อง `1000027`, ทีม `TEAM-DEMO`, หัวหน้าทีม `BK-EMP-0002` (= `teamleader1`)
+
+รูปแบบ: `npm run booking:simulate -- <scenario> [--job <jobId>] [--camera] [--team] [--leader] [--url http://localhost:3000] [--count 200] [--dry-run]`
+(`--dry-run` พิมพ์คำขอที่เซ็นแล้วโดยไม่ส่ง ไม่ต้องเปิด server)
+
+| scenario | ทำอะไร |
+|---|---|
+| `new` | ใบงานใหม่ 1 ใบ สถานะรอเริ่ม |
+| `checkin` / `checkout` / `cancel` | เปลี่ยนสถานะใบงานเดิม — ต้องใส่ `--job <jobId>` (version = เวลา unix จึงสูงกว่าที่ server มีเสมอ) |
+| `duplicate` | ส่ง event เดียวกันสองครั้ง ⇒ ครั้งที่สองได้ `200 duplicate` |
+| `out-of-order` | ส่ง version 3 ก่อน version 2 ⇒ version 2 ถูกเก็บเป็นของเก่า ไม่ทับ |
+| `bad-signature` | ลายเซ็นผิด ⇒ `401` |
+| `burst` | ส่งใบงานใหม่ `--count` ใบ (ค่าเริ่มต้น 200) ติดกัน |
+| `demo` | ชุดสามใบงานข้างต้น |
 
 ## 10. ทดสอบ
 

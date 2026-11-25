@@ -192,6 +192,34 @@ describe('BookingProjectionService.apply', () => {
     expect(await apply(later)).toMatchObject({ kind: 'applied' });
   });
 
+  it('the same updatedAt falls back to the version: an older version with the same stamp is ignored', async () => {
+    // Booking may stamp per second: two versions of one job can carry the same updatedAt
+    const at = '2026-11-25T03:00:00Z';
+    const v4 = snap({ jobId: 'T6P-30', version: 4, updatedAt: at, status: 'ASSIGNED', doNo: 'DO-V4' });
+    expect(await apply(v4)).toMatchObject({ kind: 'applied' });
+    const before = await jobRow('T6P-30');
+    expect(before).toMatchObject({ ExternalVersion: '4', DoNo: 'DO-V4' });
+
+    const v3 = snap({ jobId: 'T6P-30', version: 3, updatedAt: at, status: 'NEW', doNo: 'DO-V3' });
+    expect(await apply(v3)).toEqual({ kind: 'ignored' });
+    expect(await jobRow('T6P-30')).toEqual(before);
+
+    // same stamp, same version: the same message reprocessed is applied again (idempotent)
+    expect(await apply(v4)).toMatchObject({ kind: 'applied' });
+    expect(await jobRow('T6P-30')).toMatchObject({ ExternalVersion: '4', DoNo: 'DO-V4' });
+
+    // same stamp, newer version: applied
+    expect(await apply(snap({ jobId: 'T6P-30', version: 5, updatedAt: at, status: 'CANCELLED' }))).toMatchObject({
+      kind: 'applied',
+    });
+    expect(await jobRow('T6P-30')).toMatchObject({ Status: 5, ExternalVersion: '5' });
+
+    // updatedAt missing on one side: the version decides too
+    expect(await apply(snap({ jobId: 'T6P-30', version: 4, status: 'NEW' }))).toEqual({ kind: 'ignored' });
+    expect(await apply(snap({ jobId: 'T6P-30', version: 6, status: 'NEW' }))).toMatchObject({ kind: 'applied' });
+    expect(await jobRow('T6P-30')).toMatchObject({ Status: 1, ExternalVersion: '6', ExternalUpdatedAt: null });
+  });
+
   it('a new teamRef creates one team; sending again creates none', async () => {
     const r1 = await apply(snap({ jobId: 'T6P-4', version: 1, teamRef: 'T6P-TEAM-C' }));
     const r2 = await apply(snap({ jobId: 'T6P-5', version: 1, teamRef: 'T6P-TEAM-C' }));

@@ -198,7 +198,7 @@ export function RolePermissionsPanel({ readOnly }: { readOnly: boolean }) {
                 {group.codes.map((code) => (
                   <TableRow key={code}>
                     <TableCell>
-                      <span className="font-mono text-xs">{code}</span>
+                      <span className="nwl-mono text-xs">{code}</span>
                       {reserved.has(code) ? (
                         <span className="block text-xs text-muted-foreground">
                           {t('users.permissions.reservedHint')}

@@ -204,6 +204,23 @@ The palette is a cool neutral instrument field with graphite structure and a sin
 - **Caption** (12px/18px): Metadata, compact labels, timestamps, and secondary descriptions.
 
 Metrics, timestamps, identifiers, and other changing numeric data use tabular numerals. Dashboard titles use the standard page hierarchy and do not add an eyebrow merely for decoration.
+Use `nwl-mono` for operational identifiers and technical metadata: it retains Noto Sans Thai
+with aligned numerals, as in Internal-BodyCam. Do not substitute the `font-mono` family.
+Work-order numbers use the reference's `work-order-id` style at 12px/18px semibold;
+job titles use 14px/20px medium and table headers use the muted surface.
+
+Work-order rows expose a circular view tool in a sticky right-hand tools column. The view tool
+and work-order number open a detail dialog over the list, preserving filters, pagination and
+scroll position. Match Internal-BodyCam's fixed title/number header and internally scrolling
+body; keep close and Escape available through loading, empty and error states. Show the job's
+actual site coordinates when supplied, without inventing a location or an operating radius.
+The selected detail modal uses a compact 40% information pane on the left and a 60% map pane
+on the right. Job information, cameras and the timeline share one unboxed information surface,
+separated by hairlines. Job fields are aligned label/value rows rather than a spacious form grid.
+The map fills the available height below the fixed header, with a site caption and coordinates
+below it. The information pane scrolls independently on desktop so the map stays visible.
+On narrow screens, both panes stack and the whole body scrolls. Camera details show name/code
+and a separate connectivity badge. Keep real coordinates and the existing map controls.
 
 Form labels use 14px/20px at medium weight. Input, select, textarea, and searchable-select values use 14px/20px on fine-pointer devices and 16px/24px on coarse-pointer devices. Placeholder text uses the same size as the value with muted color and normal weight; it provides an example or hint and never replaces the visible label.
 
@@ -368,6 +385,11 @@ The fleet/GPS workspace expresses the hierarchy of a precision register using th
 The live wall reuses Internal-BodyCam's camera rail and screen composition: a 320px camera list
 beside a full-height grid, compact screen headers and 1/4/6/9/16 layouts. On narrow screens,
 the camera list sits above the controls and video screens keep their 16:9 aspect ratio.
+The live wall and tracking map share one connectivity filter: all, online, offline and unknown.
+Filtering changes the camera list only; assigned screens stay open. Keep the fleet total separate
+from the filtered result count and provide a clear action to reset search and status together.
+On desktop, nine screens keep at least the tile height of the six-screen layout. The video
+area scrolls vertically to reveal the third row while layout controls stay above it.
 
 Video stages stay dark in both themes to preserve image contrast. The reference's restrained
 neutral vignette is intentional here: stage `oklch(0.19 0.025 258)` to `oklch(0.075 0.015 258)`,
@@ -413,6 +435,11 @@ Operational imagery—maps, camera previews, thumbnails, evidence, avatars, and 
 - Do not repeat the same status, owner, or timestamp in adjacent regions unless the repetition supports a distinct decision.
 
 ## Accessibility and Responsive Contract
+
+Apply the local UX rules in `C:\Skills\UX-UI\ux-design-rules\SKILL.md` and the examples in
+`C:\Skills\UX-UI\assets` alongside the Internal-BodyCam reference. Prefer shared components
+for equivalent controls and data panels. Connectivity badges stay on one line in dense tables;
+setting descriptions lead their technical keys, and visible labels focus their controls.
 
 - Every control has an accessible name, visible keyboard focus, logical focus order, and keyboard behavior matching its role.
 - Selection, severity, validation, and availability never rely on color alone. Pair color with text, icon, shape, or state attributes.

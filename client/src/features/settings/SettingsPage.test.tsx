@@ -71,6 +71,13 @@ const toggle = (key: string) =>
   screen.getByRole('checkbox', { name: t('settings.toggle', { key }) });
 
 describe('SettingsPage', () => {
+  it('focuses the setting control when its visible description is selected', async () => {
+    renderWithProviders(<SettingsPage />);
+    await authPanel();
+    await userEvent.click(screen.getByText('จำนวนครั้งที่ล็อกอินผิดได้'));
+    expect(input('auth.max-failed-logins')).toHaveFocus();
+  });
+
   it('groups settings by category, with raw code for unknown categories', async () => {
     renderWithProviders(<SettingsPage />);
     expect(await authPanel()).toBeInTheDocument();

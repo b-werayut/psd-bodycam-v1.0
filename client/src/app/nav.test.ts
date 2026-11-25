@@ -43,6 +43,7 @@ describe('NAV_ITEMS', () => {
     expect(NAV_ITEMS.filter((i) => i.to).map((i) => i.to)).toEqual([
       '/',
       '/live-wall',
+      '/work-orders',
       '/tracking',
       '/tracking/history',
       '/users',

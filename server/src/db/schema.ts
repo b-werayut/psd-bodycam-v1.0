@@ -582,3 +582,37 @@ export const StreamingSessions = pgTable('StreamingSessions', {
   index('IX_Stream_Device_Started').on(t.DeviceId, t.StartedAt),
   index('IX_Stream_Status').on(t.Status),
 ]);
+
+// Two-way talk (operator speaks through the camera). 1 open call (REQUESTED/ACTIVE = status 1,2) per device and per user.
+export const TalkSessions = pgTable(
+  'TalkSessions',
+  {
+    Id: pkId(),
+    DeviceId: ref('DeviceId', () => Devices.Id).notNull(),
+    UserId: ref('UserId', () => Users.Id).notNull(),
+    StreamingSessionId: ref('StreamingSessionId', () => StreamingSessions.Id).notNull(),
+    VendorTalkId: varchar('VendorTalkId', { length: 64 }),
+    // audio format returned by the middleware at start; the relay sizes uplink frames from it
+    UplinkSampleRate: integer('UplinkSampleRate'),
+    FrameMs: smallint('FrameMs'),
+    TicketHash: varchar('TicketHash', { length: 64 }),
+    TicketExpiresAt: tstz('TicketExpiresAt'),
+    Status: smallint('Status').notNull().default(1),
+    EndReason: smallint('EndReason'),
+    RequestedAt: tstz('RequestedAt').notNull().defaultNow(),
+    StartedAt: tstz('StartedAt'),
+    LastAccessAt: tstz('LastAccessAt'),
+    EndedAt: tstz('EndedAt'),
+    DurationSeconds: integer('DurationSeconds'),
+    ErrorMessage: varchar('ErrorMessage', { length: 500 }),
+    CreatedAt: createdAt(),
+  },
+  (t) => [
+    index('IX_Talk_Device').on(t.DeviceId, t.RequestedAt),
+    index('IX_Talk_User').on(t.UserId, t.RequestedAt),
+    // the open statuses must match TALK_OPEN_STATUSES in code
+    uniqueIndex('UX_Talk_Device_Open').on(t.DeviceId).where(sql`${t.Status} in (1, 2)`),
+    uniqueIndex('UX_Talk_User_Open').on(t.UserId).where(sql`${t.Status} in (1, 2)`),
+    uniqueIndex('UX_Talk_Ticket').on(t.TicketHash),
+  ],
+);

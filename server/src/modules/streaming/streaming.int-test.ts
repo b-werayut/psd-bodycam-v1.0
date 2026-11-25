@@ -85,6 +85,21 @@ describe('live wall HTTP sessions', () => {
     expect((await ctx.http.get(refs[0])).status).toBe(200);
     expect((await ctx.http.get('/api/streams/sessions').set('Authorization', owner)).body.data).toHaveLength(1);
   });
+  it('a role with streaming:view-live but without streaming:live-wall can start, list and stop a live view', async () => {
+    const grant = `select rp."RoleId" as role, rp."PermissionId" as perm from "RolePermissions" rp join "Permissions" p on p."Id" = rp."PermissionId" join "Roles" r on r."Id" = rp."RoleId" where r."Code" = 'OPERATOR' and p."Code" = 'streaming:live-wall'`;
+    const [row] = await ctx.sql.unsafe(grant);
+    expect(row).toBeTruthy();
+    await ctx.sql`delete from "RolePermissions" where "RoleId" = ${row.role} and "PermissionId" = ${row.perm}`;
+    try {
+      const noWall = await bearerFor(ctx.http, `${PREFIX}owner`, PASSWORD);
+      const res = await ctx.http.post('/api/streams/live').set('Authorization', noWall).send({ deviceCode: CODE });
+      expect(res.status).toBe(200);
+      expect((await ctx.http.get('/api/streams/sessions').set('Authorization', noWall)).status).toBe(200);
+      expect((await ctx.http.post(`/api/streams/${res.body.sessionToken}/stop`).set('Authorization', noWall)).status).toBe(200);
+    } finally {
+      await ctx.sql`insert into "RolePermissions" ("RoleId", "PermissionId") values (${row.role}, ${row.perm}) on conflict do nothing`;
+    }
+  });
   it('stops only the owner session, idempotently, and revokes its media URL', async () => {
     const { body: session } = await start();
     const path = `/api/streams/${session.sessionToken}/stop`;

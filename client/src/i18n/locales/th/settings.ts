@@ -1,9 +1,9 @@
 export const settings = {
   'settings.title': 'ตั้งค่าระบบ',
-  'settings.description': 'ค่ากลางที่ใช้ทั้งระบบ — แก้แล้วมีผลทันทีกับการทำงานหลังจากนี้',
-  'settings.warnTitle': 'ค่าเหล่านี้กระทบการเข้าสู่ระบบของผู้ใช้ทุกคน',
+  'settings.description': 'ค่ากลางสำหรับการเข้าสู่ระบบ การติดตามกล้อง และภาพสด',
+  'settings.warnTitle': 'การเปลี่ยนค่ามีผลต่อการใช้งานทั้งระบบ',
   'settings.warnBody':
-    'จำนวนครั้งที่ล็อกอินผิดและระยะเวลาล็อกบัญชีใช้ตัดสินว่าบัญชีจะถูกล็อกเมื่อใดและนานเท่าไร ระบบบันทึกว่าใครแก้เมื่อไร',
+    'ตรวจสอบค่าก่อนบันทึก การเปลี่ยนแปลงจะใช้กับการทำงานหลังจากนี้ ระบบบันทึกผู้แก้ไขและเวลาที่แก้ไขไว้ตรวจสอบ',
   'settings.empty': 'ยังไม่มีค่าตั้งค่าในระบบ',
   'settings.saveFailed': 'บันทึกค่าไม่สำเร็จ',
   'settings.savedToast': 'บันทึกค่าแล้ว',
@@ -24,4 +24,8 @@ export const settings = {
   'settings.saveBlocked': 'บันทึกไม่ได้: {reason}',
   'settings.category.auth': 'การเข้าสู่ระบบ',
   'settings.category.tracking': 'การติดตามกล้อง',
+  'settings.category.gps': 'พิกัดและการอัปเดตตำแหน่ง',
+  'settings.category.status': 'สถานะกล้อง',
+  'settings.category.depot': 'กล้องที่ฐาน',
+  'settings.category.streaming': 'ภาพสด',
 } as const;

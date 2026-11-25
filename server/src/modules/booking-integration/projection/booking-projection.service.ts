@@ -25,13 +25,15 @@ const ISSUE = { UNKNOWN_LEADER_REF: 2, UNMAPPED_STATUS: 3, UNKNOWN_DEVICE_REF: 5
 const SOURCE_SYSTEM = 'BOOKING';
 
 /**
- * Version guard of the upsert (design §4.5, Part 7 §7.5.2): `updatedAt` on both sides ⇒ compare it;
- * otherwise numeric `version` on both sides ⇒ compare that (the column is text: '10' > '9' only as numbers);
- * nothing comparable ⇒ the latest message wins. Equal ⇒ applied again (same message reprocessed).
+ * Version guard of the upsert (design §4.5, Part 7 §7.5.2): `updatedAt` on both sides and different ⇒ the newer
+ * one wins; the same `updatedAt` (Booking may stamp per second) or `updatedAt` missing on either side ⇒ numeric
+ * `version` on both sides decides (the column is text: '10' > '9' only as numbers); nothing comparable ⇒ the
+ * latest message wins. Same version ⇒ applied again (same message reprocessed).
  */
 const NOT_OLDER = sql`case
   when excluded."ExternalUpdatedAt" is not null and "BookingJobs"."ExternalUpdatedAt" is not null
-    then excluded."ExternalUpdatedAt" >= "BookingJobs"."ExternalUpdatedAt"
+    and excluded."ExternalUpdatedAt" <> "BookingJobs"."ExternalUpdatedAt"
+    then excluded."ExternalUpdatedAt" > "BookingJobs"."ExternalUpdatedAt"
   when excluded."ExternalVersion" ~ '^[0-9]+$' and "BookingJobs"."ExternalVersion" ~ '^[0-9]+$'
     then excluded."ExternalVersion"::numeric >= "BookingJobs"."ExternalVersion"::numeric
   else true

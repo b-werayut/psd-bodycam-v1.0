@@ -1,9 +1,9 @@
 export const settings = {
   'settings.title': 'System settings',
-  'settings.description': 'Global values used across the system — changes take effect immediately',
-  'settings.warnTitle': 'These values affect sign-in for every user',
+  'settings.description': 'Shared settings for sign-in, camera tracking and live video',
+  'settings.warnTitle': 'Changes affect the whole system',
   'settings.warnBody':
-    'The failed-login limit and the lockout duration decide when an account is locked and for how long. The system records who changed what and when.',
+    'Check values before saving. Changes apply to subsequent operations. The system records who made each change and when.',
   'settings.empty': 'No settings yet',
   'settings.saveFailed': 'Could not save the value',
   'settings.savedToast': 'Setting saved',
@@ -24,4 +24,8 @@ export const settings = {
   'settings.saveBlocked': 'Cannot save: {reason}',
   'settings.category.auth': 'Sign-in',
   'settings.category.tracking': 'Camera tracking',
+  'settings.category.gps': 'GPS and position updates',
+  'settings.category.status': 'Camera status',
+  'settings.category.depot': 'Cameras at base',
+  'settings.category.streaming': 'Live video',
 } as const;

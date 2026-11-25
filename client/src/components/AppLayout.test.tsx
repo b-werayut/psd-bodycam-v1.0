@@ -169,11 +169,17 @@ describe('AppLayout', () => {
     expect(screen.getByLabelText('current route')).toHaveTextContent('/tracking');
   });
 
-  it('renders disabled nav items without links', () => {
+  it('links the work orders page from the navigation', () => {
     render(<AppLayoutHarness />);
     const nav = screen.getByRole('navigation', { name: t('navigation.label') });
-    // ใบงาน has no page until P3
-    const disabled = within(nav).getByText(t('navigation.workOrders')).closest('[aria-disabled]');
+    expect(within(nav).getByRole('link', { name: t('navigation.workOrders') })).toHaveAttribute('href', '/work-orders');
+  });
+
+  it('renders disabled nav items without links', () => {
+    useAuthStore.setState({ user: { ...operator, permissions: [...operator.permissions, 'notifications:read'] } });
+    render(<AppLayoutHarness />);
+    const nav = screen.getByRole('navigation', { name: t('navigation.label') });
+    const disabled = within(nav).getByText(t('navigation.notifications')).closest('[aria-disabled]');
 
     expect(disabled).toHaveAttribute('aria-disabled', 'true');
     expect(disabled).not.toHaveAttribute('href');

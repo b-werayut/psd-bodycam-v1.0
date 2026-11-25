@@ -212,7 +212,7 @@ export function AuditLogsPage() {
             <TableBody>
               {rows.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell className="whitespace-nowrap font-mono text-xs">
+                  <TableCell className="whitespace-nowrap nwl-mono text-xs">
                     {formatDateTime(log.occurredAt, language, { seconds: true })}
                   </TableCell>
                   <TableCell className="text-sm">
@@ -232,7 +232,7 @@ export function AuditLogsPage() {
                       </span>
                     ) : null}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
+                  <TableCell className="nwl-mono text-xs text-muted-foreground">
                     {log.httpMethod ? `${log.httpMethod} ` : ''}
                     {log.requestPath ?? '—'}
                   </TableCell>
@@ -247,11 +247,11 @@ export function AuditLogsPage() {
                       )}
                     </StatusBadge>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{log.ip ?? '—'}</TableCell>
+                  <TableCell className="nwl-mono text-xs">{log.ip ?? '—'}</TableCell>
                   <TableCell>
                     {log.correlationId ? (
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs">{log.correlationId}</span>
+                        <span className="nwl-mono text-xs">{log.correlationId}</span>
                         <ToolButton
                           tone="neutral"
                           aria-label={t('audit.copyCorrelation', { id: log.correlationId })}

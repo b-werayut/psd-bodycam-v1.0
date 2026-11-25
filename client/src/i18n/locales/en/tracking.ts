@@ -34,6 +34,7 @@ export const tracking = {
   'tracking.card.statusAt': 'Status as of {time}',
   'tracking.card.statusFallback': 'Status from the latest data in the system',
   'tracking.card.history': 'Route history',
+  'tracking.card.watch': 'Watch live',
   'tracking.age.now': 'Just now',
   'tracking.age.minutes': '{n} min ago',
   'tracking.age.hours': '{n} h ago',

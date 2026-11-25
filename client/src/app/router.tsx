@@ -99,6 +99,14 @@ export const appRoutes: RouteObject[] = [
         const { EntraUsersPage } = await import('@/features/users/EntraUsersPage');
         return EntraUsersPage;
       }),
+      guardedLazy('work-orders', async () => {
+        const { WorkOrdersPage } = await import('@/features/work-orders/WorkOrdersPage');
+        return WorkOrdersPage;
+      }),
+      guardedLazy('work-orders/:id', async () => {
+        const { WorkOrderDetailPage } = await import('@/features/work-orders/WorkOrderDetailPage');
+        return WorkOrderDetailPage;
+      }),
       guardedLazy('audit-logs', async () => {
         const { AuditLogsPage } = await import('@/features/audit/AuditLogsPage');
         return AuditLogsPage;

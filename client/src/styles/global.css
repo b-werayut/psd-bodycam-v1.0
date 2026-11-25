@@ -56,6 +56,13 @@ body {
   letter-spacing: 0.015em;
 }
 
+/* Work-order identifiers stay brand-readable and use aligned numerals. */
+.work-order-id {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
 .scrollbar-none {
   scrollbar-width: none;
 }
@@ -393,3 +400,249 @@ body {
 .route-pin[data-kind='end'] {
   background: oklch(var(--destructive));
 }
+
+/*
+ * Voice pill ของการคุยผ่านกล้อง (TalkControl ใน LiveStreamDialog)
+ * port จาก React Bits "Voice Pill" (reactbits.dev/micro/voice-pill) — สีมาจาก token ของธีม:
+ * แคปซูล = muted · ไมค์ตอนพัก = muted-foreground · คลื่น/เวลา/ปุ่มหยุด = foreground
+ *
+ * ต่างจากต้นฉบับจุดเดียว: ต้นฉบับยื่นแคปซูลออกทางซ้ายของปุ่ม แต่ปุ่มเราชิดซ้ายของ footer (ยื่นแล้วล้นขอบ)
+ * จึงให้ `.voice-pill-slot` เพิ่ม padding-left เท่าส่วนที่ยื่น ด้วยเวลา/easing เดียวกับ clip-path —
+ * ขอบซ้ายของแคปซูลจึงอยู่กับที่ แล้วแคปซูลพองไปทางขวาแทน (ปุ่มหยุดเลื่อนไปอยู่ปลายขวา)
+ */
+.voice-pill-slot {
+  --vp-size: 40px;
+  --vp-reach: 12px;
+  --vp-clock-w: 44px;
+  --vp-wave-w: 76px;
+  --vp-extra: calc(var(--vp-clock-w) + var(--vp-wave-w));
+  --vp-open: 200ms;
+  --vp-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  display: inline-flex;
+  flex-shrink: 0;
+  padding-left: 0;
+  transition: padding-left var(--vp-open) var(--vp-ease-out);
+}
+
+.voice-pill-slot[data-state='listening'] {
+  padding-left: calc(var(--vp-reach) + var(--vp-extra));
+}
+
+.voice-pill {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  isolation: isolate;
+  width: var(--vp-size);
+  height: var(--vp-size);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: oklch(var(--muted-foreground));
+  font-family: inherit;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 160ms var(--vp-ease-out),
+    color 150ms ease;
+}
+
+/* พื้นที่กด 44px ทั้งที่ตัววงกลม 40px */
+.voice-pill::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.voice-pill:focus-visible {
+  outline: 2px solid oklch(var(--ring));
+  outline-offset: 2px;
+}
+
+.voice-pill:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.voice-pill[data-state='listening'] {
+  z-index: 1;
+  color: oklch(var(--foreground));
+}
+
+.voice-pill:disabled {
+  cursor: not-allowed;
+}
+
+.voice-pill[data-state='idle']:disabled {
+  opacity: 0.55;
+}
+
+.voice-pill[data-state='busy']:disabled {
+  cursor: progress;
+}
+
+.voice-pill__capsule {
+  position: absolute;
+  inset: 0 0 0 calc(-1 * (var(--vp-reach) + var(--vp-extra)));
+  border-radius: 9999px;
+  background: oklch(var(--muted));
+  clip-path: inset(0 0 0 calc(var(--vp-reach) + var(--vp-extra)) round 9999px);
+  pointer-events: none;
+  transition:
+    clip-path var(--vp-open) var(--vp-ease-out),
+    background-color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .voice-pill[data-state='idle']:not(:disabled):hover .voice-pill__capsule {
+    background: color-mix(in oklch, oklch(var(--muted-foreground)) 12%, oklch(var(--muted)));
+  }
+}
+
+.voice-pill[data-state='listening'] .voice-pill__capsule {
+  clip-path: inset(0 0 0 0 round 9999px);
+}
+
+.voice-pill__time {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  display: grid;
+  place-items: center;
+  width: var(--vp-clock-w);
+  color: oklch(var(--foreground));
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  opacity: 0;
+  filter: blur(2px);
+  pointer-events: none;
+  transition:
+    opacity 200ms ease,
+    filter 200ms ease;
+}
+
+.voice-pill__wave {
+  position: absolute;
+  top: 18%;
+  right: calc(100% + var(--vp-clock-w));
+  width: var(--vp-wave-w);
+  height: 64%;
+  color: oklch(var(--foreground));
+  opacity: 0;
+  filter: blur(2px);
+  pointer-events: none;
+  transition:
+    opacity 200ms ease,
+    filter 200ms ease;
+}
+
+.voice-pill[data-state='listening'] .voice-pill__time,
+.voice-pill[data-state='listening'] .voice-pill__wave {
+  opacity: 1;
+  filter: blur(0);
+}
+
+.voice-pill[data-state='listening'][data-muted] .voice-pill__wave {
+  opacity: 0.45;
+}
+
+.voice-pill__glyph {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--vp-size);
+  height: var(--vp-size);
+}
+
+.voice-pill__glyph > * {
+  grid-area: 1 / 1;
+  transition:
+    opacity 200ms ease,
+    filter 200ms ease,
+    transform 200ms var(--vp-ease-out);
+}
+
+.voice-pill__mic,
+.voice-pill__busy {
+  display: inline-flex;
+}
+
+.voice-pill__busy,
+.voice-pill__stop {
+  opacity: 0;
+  filter: blur(2px);
+  transform: scale(0.6);
+}
+
+.voice-pill__stop {
+  width: 13px;
+  height: 13px;
+  border-radius: 22%;
+  background: currentColor;
+}
+
+.voice-pill[data-state='busy'] .voice-pill__mic,
+.voice-pill[data-state='listening'] .voice-pill__mic {
+  opacity: 0;
+  filter: blur(2px);
+  transform: scale(0.7);
+}
+
+.voice-pill[data-state='busy'] .voice-pill__busy,
+.voice-pill[data-state='listening'] .voice-pill__stop {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+
+/* ปุ่มเปิด/ปิดไมค์ข้างแคปซูล — ทรงและสีชุดเดียวกับ voice pill */
+.voice-pill-aux {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 9999px;
+  background: oklch(var(--muted));
+  color: oklch(var(--muted-foreground));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.voice-pill-aux::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.voice-pill-aux:focus-visible {
+  outline: 2px solid oklch(var(--ring));
+  outline-offset: 2px;
+}
+
+.voice-pill-aux:active {
+  transform: scale(0.95);
+}
+
+.voice-pill-aux[aria-pressed='true'] {
+  color: oklch(var(--foreground));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .voice-pill-aux:hover {
+    color: oklch(var(--foreground));
+  }
+}
+

@@ -1,8 +1,8 @@
-import { Camera, Copy, MapPin, Route, Video, X } from 'lucide-react';
+import { Camera, Copy, MapPin, Radio, Route, Video, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+import { DeviceStateBadge } from '@/components/status/DeviceStateBadge';
 import { actionToast } from '@/components/ui/action-toast';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/i18n/useLanguage';
 import { usePermission } from '@/lib/usePermission';
@@ -11,11 +11,13 @@ import type { LiveDevice } from '../liveMerge';
 import { isStaleFix, positionAge } from '../positionAge';
 
 /** Adapted from Internal-BodyCam's DeviceTrackingCard. */
-export function CameraCard({ device, now, fixActiveSeconds, selected, onSelect, onClose }: {
+export function CameraCard({ device, now, fixActiveSeconds, selected, onSelect, onClose, onWatch }: {
   device: LiveDevice; now: number; fixActiveSeconds: number; selected: boolean; onSelect: () => void; onClose: () => void;
+  onWatch?: () => void;
 }) {
   const { t } = useLanguage();
   const canSeeHistory = usePermission('tracking:history');
+  const canWatch = usePermission('streaming:view-live') && device.platformState === 'online' && onWatch !== undefined;
   const age = device.lastFixAt ? positionAge(device.lastFixAt, now) : null;
   const statusAge = device.platformStatusFetchedAt ? positionAge(device.platformStatusFetchedAt, now) : null;
   const coordinates = device.lat !== null && device.lng !== null
@@ -49,9 +51,7 @@ export function CameraCard({ device, now, fixActiveSeconds, selected, onSelect, 
               <span className="mt-0.5 block truncate text-xs tabular-nums text-muted-foreground">{t('tracking.card.code', { code: device.deviceCode })}</span>
             </span>
           </span>
-          <Badge variant={device.platformState === 'online' ? 'success' : device.platformState === 'unknown' ? 'warning' : 'secondary'} className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium">
-            {t(`tracking.state.${device.platformState}`)}
-          </Badge>
+          <DeviceStateBadge state={device.platformState} className="shrink-0" />
         </span>
         <span className="mt-3 flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/60 pt-2.5 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 font-medium text-foreground"><Camera aria-hidden="true" className="size-3.5" />Bodycam</span>
@@ -78,12 +78,21 @@ export function CameraCard({ device, now, fixActiveSeconds, selected, onSelect, 
               className="size-9 shrink-0 [@media(pointer:coarse)]:size-11"><Copy aria-hidden="true" /></Button>
           ) : null}
         </div>
-        {canSeeHistory ? (
-          <Button asChild variant="outline" size="sm" className="w-full text-xs">
-            <Link to={`/tracking/history?deviceId=${encodeURIComponent(device.id)}`}>
-              <Route aria-hidden="true" />{t('tracking.card.history')}
-            </Link>
-          </Button>
+        {canWatch || canSeeHistory ? (
+          <div className="flex gap-2">
+            {canWatch ? (
+              <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={onWatch}>
+                <Radio aria-hidden="true" />{t('tracking.card.watch')}
+              </Button>
+            ) : null}
+            {canSeeHistory ? (
+              <Button asChild variant="outline" size="sm" className="flex-1 text-xs">
+                <Link to={`/tracking/history?deviceId=${encodeURIComponent(device.id)}`}>
+                  <Route aria-hidden="true" />{t('tracking.card.history')}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </section>

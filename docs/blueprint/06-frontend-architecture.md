@@ -54,8 +54,8 @@ client/src/
     tracking/               # LiveMapPage, useLivePositions, liveMerge, positionAge, CameraListPanel, CameraCard (port + refactor)
     tracking-history/       # HistoryPage, historyRange, historyTimeline, RouteLayers (port, ตัด roadMatch)
     live-wall/              # LiveWallPage — ภาพสดหลายจอ (port)
-    streaming/              # StreamPlayer, LiveStreamDialog, streamStops (port — LiveStreamDialog ใช้กับปุ่ม ดูสด ทุกจุด: หน้า ใบงาน, รายละเอียดใบงาน, การ์ดกล้องบนแผนที่ติดตาม · มีปุ่ม talk ในตัวเมื่อผู้ใช้มี `streaming:talk` · ปิด dialog = หยุด talk + หยุดสตรีม — DL62)
-    talk/                   # (port)
+    streaming/              # StreamPlayer, LiveStreamDialog, streamStops (port — LiveStreamDialog ใช้กับปุ่ม ดูสด ทุกจุด: หน้า ใบงาน, รายละเอียดใบงาน, การ์ดกล้องบนแผนที่ติดตาม · มีปุ่ม talk ในตัวเมื่อผู้ใช้มี `streaming:talk` · ปิด dialog = วางสาย + หยุดสตรีม · วิดีโอ mute ขณะคุย · ปุ่มดูสดแสดงเฉพาะกล้องออนไลน์และผู้ใช้มี `streaming:view-live`: การ์ดกล้องบนแผนที่ติดตาม, คอลัมน์กล้องในตารางใบงาน (ปุ่มไอคอน), รายการกล้องในรายละเอียดใบงาน · กล้องที่มีคนพูดอยู่รู้หลังกดเริ่มคุยเท่านั้น: แสดงข้อความของเซิร์ฟเวอร์ข้างปุ่มและกดซ้ำได้ — DL62, DL86)
+    talk/                   # AudioWorklet capture / playback (PCM16LE 8 kHz), `useTalkSession`, `TalkControl` (voice pill), i18n `talk.*` · Vite dev proxy `/api/talk/ws` (ws)
     work-orders/            # WorkOrdersPage (ตาราง + แท็บสถานะ + คอลัมน์กล้อง — DL53), WorkOrderDetailPage, workOrders.api.ts, workOrderActions.ts
                             # (อ่านอย่างเดียว — ใบงานและสถานะมาจาก Booking · DL33)
     evidence/               # EvidencePage — วิดีโอย้อนหลัง รายกล้อง (เลือกกล้อง + วัน → ไฟล์ทุกช่วง + ป้ายใบงาน — DL59), evidenceCameras.ts (กล้องของใบงาน: sessions + DeviceRefs), evidenceRange.ts (ช่วง ≤ 24 ชม. · ตัดให้อยู่ใน workWindow เมื่อเปิดจากใบงาน)
@@ -83,7 +83,7 @@ client/src/
 | `/login` | Login (password + Entra) | Public | auth |
 | `/mobile-only` | "ใช้งานผ่านแอปมือถือ" — ข้อความ + ปุ่มออกจากระบบ ไม่มีเมนู (DL47) | login + role `TEAM_LEADER` | auth |
 | `/` | แดชบอร์ด | `dashboard:view` (ไม่มี ⇒ redirect ไปเมนูแรกที่เห็น) | shell |
-| `/live-wall` | ภาพสดหลายจอ 1/4/6/9/16 + talk — ทางเดียวที่ดูวิดีโอของกล้องที่ไม่มีใบงาน (ภาพสดเมื่อออนไลน์ — DL53) | `streaming:live-wall` + `streaming:view-live` | shell full-bleed |
+| `/live-wall` | ภาพสดหลายจอ 1/4/6/9/16 + talk (แผง talk ของช่องที่เลือก · สายค้างอยู่ที่ช่องเดิมเมื่อย้ายการเลือก · ปิด/แทนที่ช่องนั้น = วางสาย · ทุกช่อง mute ขณะคุย) — ทางเดียวที่ดูวิดีโอของกล้องที่ไม่มีใบงาน (ภาพสดเมื่อออนไลน์ — DL53) | `streaming:live-wall` + `streaming:view-live` | shell full-bleed |
 | `/work-orders` | ใบงาน — ตารางใบงานจาก Booking (แท็บสถานะ · คอลัมน์กล้อง + ปุ่ม ดูสด เมื่อกล้องออนไลน์ · ปุ่ม ดูย้อนหลัง เปิด dialog เดียวกับหน้า วิดีโอย้อนหลัง — DL53) | `work-orders:read` (ดูสด ต้องมี `streaming:view-live` · ดูย้อนหลัง ต้องมี `playback:view` · `VIEWER` ดูตารางอย่างเดียว) | shell |
 | `/work-orders/by-booking/:externalJobId` | deep link จาก Booking app → redirect `/work-orders/:id` (Part 7 §7.9 — ผู้ใช้ web เท่านั้น) | `work-orders:read` | shell |
 | `/work-orders/:id` | รายละเอียดใบงาน (เปิดจากแถวในหน้า ใบงาน / วิดีโอย้อนหลัง · เมนูที่ active = ใบงาน) | `work-orders:read` | shell |

@@ -160,7 +160,7 @@ export function EntraBulkCreateDialog({
                       <StatusBadge tone={outcome.ok ? 'success' : 'destructive'}>
                         {t(outcome.ok ? 'users.entraSync.bulk.created' : 'users.entraSync.bulk.failed')}
                       </StatusBadge>
-                      <span className="font-mono text-xs">{outcome.username}</span>
+                      <span className="nwl-mono text-xs">{outcome.username}</span>
                       <span className="text-muted-foreground">· {outcome.upn}</span>
                       {outcome.ok ? null : (
                         <span className="w-full text-xs text-destructive">{outcome.error}</span>
@@ -169,7 +169,7 @@ export function EntraBulkCreateDialog({
                   ))
                 : creatable.map((candidate) => (
                     <li key={candidate.oid} className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-mono text-xs">{candidate.values.username}</span>
+                      <span className="nwl-mono text-xs">{candidate.values.username}</span>
                       <span className="text-muted-foreground">
                         · {candidate.upn}
                         {candidate.displayName ? ` · ${candidate.displayName}` : ''}

@@ -15,6 +15,7 @@ export const SETTING_DEFAULTS = {
   'streaming.enabled': true,
   'streaming.max-concurrent-per-user': 16,
   'streaming.url-ttl-seconds': 180,
+  'streaming.talk-max-seconds': 600,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
@@ -33,6 +34,7 @@ export const SETTING_BOUNDS: Record<SettingKey, SettingBound> = {
   'streaming.enabled': { min: 0, max: 1 },
   'streaming.max-concurrent-per-user': { min: 1, max: 50 },
   'streaming.url-ttl-seconds': { min: 30, max: 3600 },
+  'streaming.talk-max-seconds': { min: 60, max: 3600 },
 };
 
 /** `atLeast` must be ≥ `factor` × `of` (Part 3 §3.11: unknown-after ≥ 2 × poll). */

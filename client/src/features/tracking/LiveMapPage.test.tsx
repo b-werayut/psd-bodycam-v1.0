@@ -27,6 +27,9 @@ vi.mock('@/components/map/MarkerClusterLayer', () => ({
   ),
 }));
 vi.mock('./components/LiveMapViewport', () => ({ LiveMapViewport: () => null }));
+vi.mock('@/features/streaming/components/StreamPlayer', () => ({
+  StreamPlayer: ({ device }: { device: { deviceCode: string } }) => <div data-testid="player">{device.deviceCode}</div>,
+}));
 
 const live = vi.hoisted(() => ({ devices: [] as LiveDevice[], isPending: false, isError: false }));
 vi.mock('./useLivePositions', () => ({
@@ -64,7 +67,7 @@ describe('LiveMapPage', () => {
       device('2', { platformState: 'offline', lat: null, lng: null, lastFixAt: null }),
       device('3', { lastFixAt: ago(600) }),
     ];
-    signIn(['tracking:view', 'tracking:history']);
+    signIn(['tracking:view', 'tracking:history', 'streaming:view-live']);
   });
   afterEach(() => signOut());
 
@@ -129,6 +132,17 @@ describe('LiveMapPage', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('ดูสด on a card opens the live dialog for that camera', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const card = screen.getByRole('region', { name: 'SIM-0003' });
+    await user.click(within(card).getByRole('button', { name: 'ดูสด' }));
+    const dialog = await screen.findByRole('dialog', { name: /กล้องจำลอง 3/ });
+    expect(within(dialog).getByTestId('player')).toHaveTextContent('SIM-0003');
+    await user.click(within(dialog).getByRole('button', { name: 'ปิดจอ' }));
+    expect(screen.queryByTestId('player')).not.toBeInTheDocument();
   });
 
   it('an empty system says so', () => {

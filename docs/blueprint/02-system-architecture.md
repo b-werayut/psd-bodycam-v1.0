@@ -200,7 +200,7 @@ flowchart TB
 
 ### กติกา dependency (บังคับด้วย lint rule `no-restricted-imports` หรือ dependency-cruiser)
 
-1. `booking-integration` **ห้าม import** `sessions` และ matcher ของ `work-orders` — ส่งงาน match ต่อผ่าน BullMQ queue `matching` เท่านั้น · ข้อยกเว้นเดียว: inbox processor เรียก writer ของ `work-orders` เพื่อ upsert `WorkOrders` 1:1 กับ `BookingJobs` (+ สถานะตาม Booking) ใน transaction เดียวกับ projection — writer นี้ lock แค่แถว `WorkOrders` ไม่แตะ session / `DeviceState` (DL33) · การ upsert `Teams` / `TeamMembers` จาก ref ของใบงาน (DL53) เรียก writer ของ `teams` ได้ (ไม่ขัดกติกานี้) และทำก่อน resolve `BookingJobs.TeamId` ใน transaction เดียวกัน
+1. `booking-integration` **ห้าม import** `sessions` และ matcher ของ `work-orders` — ส่งงาน match ต่อผ่าน BullMQ queue `matching` เท่านั้น · ข้อยกเว้น (ตามโค้ด P3a): inbox processor เรียก writer ของ `work-orders` เพื่อ upsert `WorkOrders` 1:1 กับ `BookingJobs` (+ สถานะตาม Booking) ใน transaction เดียวกับ projection — writer นี้ lock แค่แถว `WorkOrders` ไม่แตะ session / `DeviceState` (DL33) · การ upsert `Teams` / `TeamMembers` จาก ref ของใบงาน (DL53) เรียก writer ของ `teams` ได้ (ไม่ขัดกติกานี้) และทำก่อน resolve `BookingJobs.TeamId` ใน transaction เดียวกัน · **ย้ายหัวหน้าทีมเฉพาะตอนเข้างาน** (มี check-in ยังไม่ check-out — DL85 · Q55) · **import ที่อนุญาตเพิ่ม**: `booking-integration` import ฟังก์ชันกฎล้วน ๆ ของ `work-orders` (เช่น `isCheckedIn`) และ `devices/resolveDeviceRefs` ได้ — ยังห้าม import `sessions` และ matcher · **ลำดับ lock ของ inbox processor**: `BookingJobs` → `Teams` → `TeamMembers` → `WorkOrders` → `WorkOrderCounters` (แถว `Teams` / `WorkOrders` ใช้ `FOR NO KEY UPDATE`)
 2. `work-orders` อ่าน `BookingJobs` ผ่าน `BookingReadModel` (read-only repository ของ `work-orders` เอง — ไม่ import `booking-integration` จึงไม่เกิด import วน) — ไม่เรียก Booking API
 3. `tracking` / `device-status` / `sessions` **ห้ามเรียกระบบภายนอกที่ไม่ใช่ vendor กล้อง** — real-time path ไม่ขึ้นกับ Booking
 4. ทุก write ที่แตะ session ของอุปกรณ์ต้องถือ row lock `DeviceState` ของอุปกรณ์นั้น (lock order: `DeviceId` จากน้อยไปมาก → `WorkOrders` → `TrackingSessions`)
@@ -305,7 +305,8 @@ Evidence (DL36, DL53, DL59): (ก) หน้า วิดีโอย้อน�
 | integration | `notification-push` | BullMQ | ทันที | port |
 | media | `evidence-export` | BullMQ | ทันที | concurrency `EVIDENCE_EXPORT_CONCURRENCY` (default 1, ≤ 8 — DL39) · ffmpeg · เขียนไฟล์ลง Local disk PVC (DL34) |
 | media | `recording-index` | BullMQ repeatable | session เปิด: ทุก 30 นาที · ปิดแล้ว: 30 นาทีหลังจบ | concurrency 2 |
-| media | `StreamIdle` / `TalkIdle` / `EvidenceCleanup` | timer | 60s | port |
+| media | `StreamIdle` / `EvidenceCleanup` | timer | 60s | port |
+| api | `TalkIdle` (อยู่ใน `TalkService` — รันในทุก process ที่โหลด `AppModule` คือ `api` และ `worker` (worker import `AppModule` ด้วย ไม่ได้เจาะจงเฉพาะ worker `media`) ปลอดภัยเพราะ UPDATE ปิดเฉพาะแถวที่ยังเปิดอยู่ — ปิด `TalkSessions` ที่ `Requested` / `Active` และเงียบเกิน 60 วินาที แล้วสั่ง middleware ปิดสาย · worker ไม่เปิด WS) | timer (`setInterval`) | 30s | DL86 |
 | tracking | `PartitionMaintenance` (P1 · สร้าง partition เดือนปัจจุบัน + 2 เดือนถัดไปของ `GpsLocations` และ `AuditLogs` · `_default` มีแถวของเดือนนั้นแล้ว ⇒ ไม่สร้าง + log error — Part 4 §4.9) | timer | ตอน worker start + ทุก 24 ชม. | lock `partition:maintenance` TTL 300s |
 | tracking | `Retention` (P6 · GPS 3 เดือน, `DeviceStatusHistory` 3 เดือน, ใบงาน 3 เดือน, audit 12 เดือน, แถว `EvidenceExports` 12 เดือน · ไม่มี archive) | BullMQ repeatable | รายวัน | lock |
 
@@ -339,7 +340,7 @@ Evidence (DL36, DL53, DL59): (ก) หน้า วิดีโอย้อน�
   - `team` (DL47) = ทีมที่ employee ของผู้ใช้ (`TeamMembers.UserId = me`) เป็นหัวหน้าที่ active (`TeamMembers.Role = 1 Leader`) · เปลี่ยนหัวหน้ามีผลทันที (DL22)
     - ใบงาน: `BookingJobs.TeamId = myTeam` หรือ `BookingJobs.LeaderUserId = myEmployee`
     - อุปกรณ์: `DeviceAssignments` ที่ active ของทีม + อุปกรณ์ใน `DeviceRefs` ของใบงานที่ `Planned` / `Open`
-    - ไม่มีทีม / ไม่ได้เป็นหัวหน้า ⇒ รายการว่าง (ไม่ error) · หัวหน้าทีมเปลี่ยนตาม leader ref ของใบงานที่ Booking POST มา (DL53)
+    - ไม่มีทีม / ไม่ได้เป็นหัวหน้า ⇒ รายการว่าง (ไม่ error) · หัวหน้าทีมเปลี่ยนตาม leader ref ของใบงานที่ Booking POST มา **เฉพาะตอนงานอยู่ในสถานะเข้างาน** (DL53 · DL85)
 - Permission catalog ดู [05-api-design.md §5.7](05-api-design.md#57-permission-catalog)
 - **Service-to-service**:
   - Smart Booking → เรา (DL46): `POST /api/integration/booking/jobs` ตรวจด้วย HMAC-SHA256 (default) หรือ API key (`BOOKING_INBOUND_AUTH`) + IP allowlist (optional) **[Assumption — ตกลงกับ Booking]** · รายละเอียด Part 7 §7.4

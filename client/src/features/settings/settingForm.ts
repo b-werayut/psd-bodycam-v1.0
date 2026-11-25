@@ -5,6 +5,10 @@ import { VALUE_TYPE, type SettingItem } from './settings.api';
 export const CATEGORY_LABEL_KEY: Record<string, TranslationKey> = {
   auth: 'settings.category.auth',
   tracking: 'settings.category.tracking',
+  gps: 'settings.category.gps',
+  status: 'settings.category.status',
+  depot: 'settings.category.depot',
+  streaming: 'settings.category.streaming',
 };
 
 /** Client-side check only — the server stays the authority (SETTING_OUT_OF_RANGE). */

@@ -83,7 +83,7 @@ sequenceDiagram
 
 ## 3.2 Work Order Creation (จากงานที่ Smart Booking POST เข้ามาเท่านั้น — DL33, DL46) และการเปิด Session
 
-ใบงานเกิดได้ทางเดียว: Smart Booking POST งานมาที่ `POST /api/integration/booking/jobs` → process `api` ตรวจ auth + validate แล้วเก็บ raw ลง `IntegrationInbox` (`Channel = 1 Push`) ตอบ `202` (ไม่ map และไม่แตะ `BookingJobs` / `WorkOrders`) → inbox processor (worker `integration`) map ด้วย `BookingInboundMapper` แล้ว upsert `BookingJobs` + `WorkOrders` **1 ต่อ 1** ใน transaction เดียว (DL46) · ใน transaction เดียวกันสร้าง/อัปเดต `Teams` จาก `teamRef` และหัวหน้าทีม (`TeamMembers` Role 1) จาก leader ref ก่อน resolve `TeamId` / `LeaderUserId` — ไม่มีหน้าจัดการทีม (DL53 **[Assumption — Booking ส่งรหัสทีมและหัวหน้ามากับทุกใบ]**) · **session engine ไม่สร้างใบงาน** — แค่เปิด session แล้วให้ matcher attach เข้า WO ของงานที่ชนะ
+ใบงานเกิดได้ทางเดียว: Smart Booking POST งานมาที่ `POST /api/integration/booking/jobs` → process `api` ตรวจ auth + validate แล้วเก็บ raw ลง `IntegrationInbox` (`Channel = 1 Push`) ตอบ `202` (ไม่ map และไม่แตะ `BookingJobs` / `WorkOrders`) → inbox processor (worker `integration`) map ด้วย `BookingInboundMapper` แล้ว upsert `BookingJobs` + `WorkOrders` **1 ต่อ 1** ใน transaction เดียว (DL46) · ใน transaction เดียวกันสร้าง/อัปเดต `Teams` จาก `teamRef` และหัวหน้าทีม (`TeamMembers` Role 1) จาก leader ref (ย้ายหัวหน้าเฉพาะตอนงานอยู่ในสถานะเข้างาน — DL85) ก่อน resolve `TeamId` / `LeaderUserId` — ไม่มีหน้าจัดการทีม (DL53 **[Assumption — Booking ส่งรหัสทีมและหัวหน้ามากับทุกใบ]**) · **session engine ไม่สร้างใบงาน** — แค่เปิด session แล้วให้ matcher attach เข้า WO ของงานที่ชนะ
 
 ```mermaid
 sequenceDiagram
@@ -107,7 +107,7 @@ sequenceDiagram
   SY->>DB: upsert WorkOrders 1 ต่อ 1 ด้วย UQ_WO_BookingJob สถานะตาม Booking
   SY->>DB: COMMIT
   SY->>RT: workorder:changed หลัง commit
-  SY->>M: queue matching ทีมและกล้องของงาน
+  SY->>M: queue matching ทีมและกล้องของงาน (P3b — P3a ยังไม่ enqueue)
 
   loop ทุก 30 วินาที ทุกอุปกรณ์ ORDER BY Id
     SW->>DB: BEGIN และ SELECT DeviceState FOR UPDATE
@@ -433,7 +433,7 @@ sequenceDiagram
 | Check-in | **สร้าง WO** สถานะ Open 1 ต่อ 1 (มีใบ `Planned` อยู่แล้ว ⇒ เปลี่ยนเป็น Open) · re-match session ที่เกี่ยวข้อง | อัปเดตข้อมูลแสดงผล · re-match | **reopen** (Source Booking) |
 | Check-out / Completed | สร้าง WO สถานะ Closed (`BookingCheckout`) — session ย้อนหลังที่ match ภายหลังเข้าใบนี้ได้ (Rule 1) | **Closed (`BookingCheckout`)** · split open session | อัปเดตเวลา check-out ถ้าเปลี่ยน |
 | Cancelled | สร้าง WO สถานะ `Cancelled` (ไม่เป็น candidate) | WO → `Cancelled` · split open session · `NeedsReview` ถ้ามี recording (badge เท่านั้น ไม่มี alert — DL58) — **ฝั่ง bodycam ตรวจสอบหลักฐานได้** **[Confirmed — Q6]** | `NeedsReview` |
-| เปลี่ยนทีม / หัวหน้า / เวลา / DeviceRefs | — (ถือเป็นงานใหม่) | re-match (§3.3.3) · `WorkOrders.TeamId` อัปเดตตาม Booking · ทีมใหม่ที่ยังไม่มี ⇒ สร้างจาก `teamRef` · หัวหน้าเปลี่ยน ⇒ ปิด / เปิดแถว Leader ใน `TeamMembers` (DL53) | `NeedsReview` |
+| เปลี่ยนทีม / หัวหน้า / เวลา / DeviceRefs | — (ถือเป็นงานใหม่) | re-match (§3.3.3) · `WorkOrders.TeamId` อัปเดตตาม Booking · ทีมใหม่ที่ยังไม่มี ⇒ สร้างจาก `teamRef` · หัวหน้าเปลี่ยน ⇒ ปิด / เปิดแถว Leader ใน `TeamMembers` **เฉพาะเมื่อใบงานอยู่ในสถานะเข้างาน** (check-in แล้วยังไม่ check-out · ใบล่วงหน้า / ปิดแล้ว / ยกเลิกไม่เปลี่ยนหัวหน้า — DL53 · DL85 · Q55) | `NeedsReview` |
 | หายจาก reconcile ตอนกลางคืน (เฉพาะเมื่อมี read API — DL46) | — | `SourceMissingSince` + `NeedsReview` | `SourceMissingSince` + `NeedsReview` |
 
 `NeedsReview` = badge ข้อมูลบนหน้าใบงานเท่านั้น ไม่มี alert (DL58 · ไม่มีคิวตรวจสอบ — DL33)
@@ -520,7 +520,7 @@ User flow (DL47):
 5. **Retry ฝั่ง Booking**: retry เมื่อ timeout / non-2xx แบบ exponential backoff อย่างน้อย 24 ชม. · รักษาลำดับต่องาน · ส่งซ้ำตามคำขอ (manual resend) ได้ไหม **[Assumption]**
 6. **Read API (optional)**: ขอ `GET /jobs/{jobId}` + `GET /jobs?from&to` เพื่อ refresh ต่องาน / reconcile ตอนกลางคืน — ไม่มี ⇒ POST ที่หายกู้ได้เมื่อ Booking ส่งซ้ำเท่านั้น **[Assumption]**
 7. **Booking ระบุกล้องในใบงาน** (`DeviceRefs` รวมกล้องสำรอง) ด้วยรหัสอะไร (DeviceCode / Serial / รหัส DSS) — **เป็นแหล่งเดียวของการผูกกล้อง** (Q20)
-8. Booking มอบงานให้ "ทีม" / "หัวหน้าทีม-คนขับ" / "รถ" — ใช้ ref อะไร · **ส่งรหัสทีม + หัวหน้ามากับทุกใบไหม** (ระบบสร้างทีม / หัวหน้าทีมจากข้อมูลนี้ — ไม่มีหน้าจัดการทีม DL53) **[Assumption]** · มีข้อมูลกล้องประจำทีมให้ดึงไหม (ผ่าน read API)
+8. Booking มอบงานให้ "ทีม" / "หัวหน้าทีม-คนขับ" / "รถ" — ใช้ ref อะไร · **ส่งรหัสทีม + หัวหน้ามากับทุกใบไหม** (ระบบสร้างทีม / หัวหน้าทีมจากข้อมูลนี้ — ไม่มีหน้าจัดการทีม DL53 · หัวหน้าเปลี่ยนเฉพาะตอนเข้างาน DL85) **[Assumption]** · มีข้อมูลกล้องประจำทีมให้ดึงไหม (ผ่าน read API)
 
 ---
 

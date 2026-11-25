@@ -14,17 +14,17 @@ export class StreamingController {
 
   @Post('live')
   @HttpCode(200)
-  @RequirePermission('streaming:view-live', 'streaming:live-wall')
+  @RequirePermission('streaming:view-live')
   @Audit('START_LIVE_STREAM', 'StreamingSessions')
   start(@CurrentUser() user: AuthUser, @Body() input: StartLiveDto) { return this.streams.startLive(user, input.deviceCode, input.channel); }
 
   @Get('sessions')
-  @RequirePermission('streaming:view-live', 'streaming:live-wall')
+  @RequirePermission('streaming:view-live')
   sessions(@CurrentUser() user: AuthUser) { return this.streams.mySessions(user); }
 
   @Post(':token/stop')
   @HttpCode(200)
-  @RequirePermission('streaming:view-live', 'streaming:live-wall')
+  @RequirePermission('streaming:view-live')
   @Audit('STOP_LIVE_STREAM', 'StreamingSessions')
   stop(@CurrentUser() user: AuthUser, @Param('token') token: string) { return this.streams.stop(user, token); }
 

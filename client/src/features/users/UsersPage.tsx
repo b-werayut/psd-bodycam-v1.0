@@ -225,11 +225,11 @@ export function UsersPage() {
                 const statusKey = STATUS_KEY[user.status];
                 return (
                   <TableRow key={user.id}>
-                    <TableCell className="font-mono text-xs">{user.username}</TableCell>
+                    <TableCell className="nwl-mono text-xs">{user.username}</TableCell>
                     <TableCell className="font-medium">{[user.firstName, user.lastName].filter(Boolean).join(' ')}</TableCell>
                     <TableCell className="text-sm">{user.roleName}</TableCell>
-                    <TableCell className="font-mono text-xs">{user.email ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap font-mono text-xs">{user.phone || '—'}</TableCell>
+                    <TableCell className="nwl-mono text-xs">{user.email ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap nwl-mono text-xs">{user.phone || '—'}</TableCell>
                     <TableCell>
                       <StatusBadge tone={user.azureLinked ? 'success' : 'neutral'}>
                         {t(user.azureLinked ? 'users.azure.linked' : 'users.azure.notLinked')}

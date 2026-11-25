@@ -49,12 +49,12 @@ export class StreamingService implements OnModuleInit, OnModuleDestroy {
       .where(and(eq(Users.Id, userId), eq(Users.Status, 1), eq(Users.IsDeleted, false)));
     if (!user || user.roleCode === 'TEAM_LEADER') return false; // mobile scope arrives with its assignment API
     const grants = await this.permissions.roleGrants(user.roleId, user.roleCode as RoleCode);
-    return grants.includes('streaming:view-live') && grants.includes('streaming:live-wall');
+    return grants.includes('streaming:view-live');
   }
 
   async startLive(user: AuthUser, deviceCode: string, channel = 1) {
     if (!await this.settings.getBool('streaming.enabled')) throw new AppException(403, 'STREAMING_DISABLED', 'ระบบปิดการดูภาพสดไว้');
-    if (!await this.currentAccess(user.id)) throw new AppException(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดูภาพสดหลายจอ');
+    if (!await this.currentAccess(user.id)) throw new AppException(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดูภาพสด');
     const [device] = await this.db.select().from(Devices).where(and(eq(Devices.DeviceCode, deviceCode), eq(Devices.IsDeleted, false)));
     if (!device) throw new AppException(404, 'DEVICE_NOT_FOUND', 'ไม่พบกล้อง');
     if (!device.StreamingEnabled || device.Status === 4) throw new AppException(403, 'DEVICE_STREAM_DISABLED', 'กล้องนี้ไม่อนุญาตให้ดูภาพสด');
