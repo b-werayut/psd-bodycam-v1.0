@@ -24,7 +24,7 @@ export class SettingsService {
     if (raw === null) return fallback;
     const n = Number.parseInt(raw, 10);
     if (Number.isFinite(n)) return n;
-    this.logger.warn(`Settings '${key}' = '${raw}' แปลงเป็นจำนวนเต็มไม่ได้ ใช้ค่าเริ่มต้น ${fallback}`);
+    this.logger.warn(`Settings '${key}' = '${raw}' is not an integer, using default ${fallback}`);
     return fallback;
   }
 
@@ -55,7 +55,7 @@ export class SettingsService {
       this.cache.set(key, { value, at: Date.now() });
       return value;
     } catch (error) {
-      this.logger.warn(`อ่าน Settings '${key}' ไม่ได้ ใช้ค่าเริ่มต้น: ${error instanceof Error ? error.message : error}`);
+      this.logger.warn(`Cannot read Settings '${key}', using default: ${error instanceof Error ? error.message : error}`);
       return null;
     }
   }

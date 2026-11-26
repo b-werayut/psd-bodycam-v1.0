@@ -59,7 +59,7 @@ export class InboundCallLogService {
         RequestExcerpt: entry.requestExcerpt === undefined ? null : capUtf8(entry.requestExcerpt),
       });
     } catch (err) {
-      this.logger.warn(`บันทึก call log ไม่สำเร็จ: ${safeErrorSummary(err)}`);
+      this.logger.warn(`Failed to record call log: ${safeErrorSummary(err)}`);
     }
   }
 }

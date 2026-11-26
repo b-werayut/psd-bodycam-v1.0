@@ -174,7 +174,7 @@ describe('DssTalkProvider.start', () => {
     const error = await startError();
 
     expect(error.userMessage).toBe(TALK_MESSAGE.SYSTEM_ERROR);
-    expect(error.message).toMatch(/data ของ start ไม่ครบ/);
+    expect(error.message).toMatch(/start response data is incomplete/);
   });
 
   it('start รอได้ 30 วินาที (DSS ตอบ DESCRIBE ช้า ~10 วินาที) แต่ stop ใช้ DSS_TIMEOUT_MS', async () => {
@@ -190,7 +190,7 @@ describe('DssTalkProvider.start', () => {
     await expect(provider.start({ vendorDeviceId: '1000040', maxSeconds: 600 })).resolves.toMatchObject({
       talkId: TALK_ID,
     });
-    await expect(provider.stop(TALK_ID)).rejects.toThrow(/ไม่ตอบภายใน 1000 ms/);
+    await expect(provider.stop(TALK_ID)).rejects.toThrow(/did not respond within 1000 ms/);
   });
 
   it('ไม่ได้ตั้ง DSS_BASE_URL -> readDssConfig บอกชื่อ env ที่ขาด', () => {

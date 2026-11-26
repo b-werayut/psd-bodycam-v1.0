@@ -24,14 +24,14 @@ function checkCors(env: NodeJS.ProcessEnv): ReadinessCheck {
     return {
       id: 'CORS_ORIGINS',
       level: 'fail',
-      message: 'ไม่ได้ตั้ง — ระบบจะใช้ค่า dev (localhost) แล้วหน้าเว็บจริงเรียก API ไม่ได้',
+      message: 'not set - the system falls back to the dev value (localhost), so the real web app cannot call the API',
     };
   }
   if (raw.split(',').some((o) => o.trim() === '*')) {
     return {
       id: 'CORS_ORIGINS',
       level: 'fail',
-      message: 'ห้ามใช้ `*` — refresh token เป็น httpOnly cookie ที่ต้อง credentials:true ซึ่งใช้กับ wildcard ไม่ได้',
+      message: '`*` is not allowed - the refresh token is an httpOnly cookie that needs credentials:true, which does not work with a wildcard',
     };
   }
   const insecure = raw
@@ -42,7 +42,7 @@ function checkCors(env: NodeJS.ProcessEnv): ReadinessCheck {
     return {
       id: 'CORS_ORIGINS',
       level: 'warn',
-      message: `origin ที่ยังเป็น http: ${insecure.join(', ')} — ไม่มี HTTPS browser จะบล็อก navigator.geolocation ทั้งระบบ (check-in ไม่มีพิกัด)`,
+      message: `origins still on http: ${insecure.join(', ')} - without HTTPS the browser blocks navigator.geolocation system-wide (check-in has no coordinates)`,
     };
   }
   return { id: 'CORS_ORIGINS', level: 'pass', message: raw };
@@ -55,7 +55,7 @@ function checkCookieSameSite(env: NodeJS.ProcessEnv): ReadinessCheck {
     return {
       id: 'COOKIE_SAMESITE',
       level: 'fail',
-      message: `ค่า '${raw}' ใช้ไม่ได้ — รับเฉพาะ lax | none | strict (ระบบจะถอยไป lax ซึ่งอาจไม่ใช่ที่ต้องการ)`,
+      message: `value '${raw}' is invalid - only lax | none | strict are accepted (the system falls back to lax, which may not be what you want)`,
     };
   }
 
@@ -64,7 +64,7 @@ function checkCookieSameSite(env: NodeJS.ProcessEnv): ReadinessCheck {
       id: 'COOKIE_SAMESITE',
       level: 'warn',
       message:
-        "none = cookie กลายเป็น third-party · Safari บล็อกโดยค่าเริ่มต้นและ Chrome กำลังเลิกรองรับ — iPhone คือเครื่องหลักของช่างหน้างาน ถ้าย้ายหน้าเว็บกับ API มาไว้ใต้โดเมนแม่เดียวกันได้ ให้ใช้ lax แทน",
+        "none = the cookie becomes third-party - Safari blocks it by default and Chrome is phasing it out - iPhones are the field crew's main devices; if the web app and the API can move under the same parent domain, use lax instead",
     };
   }
 
@@ -72,14 +72,14 @@ function checkCookieSameSite(env: NodeJS.ProcessEnv): ReadinessCheck {
     return {
       id: 'COOKIE_SAMESITE',
       level: 'warn',
-      message: 'strict ทำให้ cookie ไม่ถูกส่งเมื่อผู้ใช้เข้าจากลิงก์ภายนอก (รวมลิงก์ในอีเมลแจ้งเตือน)',
+      message: 'strict means the cookie is not sent when the user arrives from an external link (including links in notification emails)',
     };
   }
 
   return {
     id: 'COOKIE_SAMESITE',
     level: 'pass',
-    message: 'lax — ใช้ได้ทั้ง origin เดียวกันและ subdomain พี่น้องใต้โดเมนแม่เดียวกัน',
+    message: 'lax - works for the same origin and for sibling subdomains under the same parent domain',
   };
 }
 
@@ -91,13 +91,13 @@ function checkTrustProxy(env: NodeJS.ProcessEnv): ReadinessCheck {
       id: 'TRUST_PROXY',
       level: 'warn',
       message:
-        'ปิดการเชื่อ proxy ไว้ — ถูกเฉพาะเมื่อ Node รับคำขอจากอินเทอร์เน็ตตรง ๆ · มี nginx คั่นแล้ว req.ip จะเป็น IP ของ proxy ทุกคำขอ (AuditLogs.IpAddress ซ้ำกันหมด + โควตาต่อ IP กลายเป็นของทุกคนรวมกัน)',
+        'proxy trust is off - correct only when Node receives requests directly from the internet; with nginx in front, req.ip is the proxy IP on every request (AuditLogs.IpAddress is identical everywhere and the per-IP quota becomes shared by everyone)',
     };
   }
   return {
     id: 'TRUST_PROXY',
     level: 'pass',
-    message: `${Array.isArray(value) ? value.join(', ') : value} — ต้องตรงกับจำนวนชั้น proxy จริง`,
+    message: `${Array.isArray(value) ? value.join(', ') : value} - must match the real number of proxy hops`,
   };
 }
 
@@ -113,13 +113,13 @@ function checkRefreshTtl(env: NodeJS.ProcessEnv): ReadinessCheck[] {
     checks.push({
       id: REFRESH_TTL_ENV_WEB,
       level: 'warn',
-      message: `${webHours} ชม. — ค่านี้คุม session ของ "เว็บ" ซึ่งไม่มีทะเบียนเครื่องให้เพิกถอนรายเครื่อง (ทางเดียวคือรีเซ็ตรหัสผ่านซึ่งเตะทุกเครื่องของคนนั้น) · เครื่องที่ใช้ร่วมกันจะค้างล็อกอินอยู่นานเท่านี้ · ถ้าต้องการให้แอปมือถืออยู่ยาว ให้ตั้ง ${REFRESH_TTL_ENV_DEVICE} แทน`,
+      message: `${webHours} h - this controls the "web" session, which has no device registry to revoke per device (the only way is a password reset, which kicks every device of that user) · shared machines stay logged in this long · to keep the mobile app logged in longer, set ${REFRESH_TTL_ENV_DEVICE} instead`,
     });
   } else {
     checks.push({
       id: REFRESH_TTL_ENV_WEB,
       level: 'pass',
-      message: `${webHours} ชม. (เว็บ — cookie และแถวใน RefreshTokens ใช้ค่าเดียวกัน)`,
+      message: `${webHours} h (web - the cookie and the RefreshTokens row use the same value)`,
     });
   }
 
@@ -128,8 +128,8 @@ function checkRefreshTtl(env: NodeJS.ProcessEnv): ReadinessCheck[] {
     level: 'pass',
     message:
       deviceHours === webHours
-        ? `ไม่ได้ตั้ง — แอปมือถือใช้ค่าเดียวกับเว็บ (${webHours} ชม.) · ปิดแอปข้ามคืนแล้วต้องล็อกอินใหม่`
-        : `${deviceHours} ชม. — ใช้เฉพาะ session ที่ลงทะเบียนเครื่องแล้ว (เพิกถอนรายเครื่องได้ที่หน้า /users)`,
+        ? `not set - the mobile app uses the same value as the web (${webHours} h) · closing the app overnight requires logging in again`
+        : `${deviceHours} h - only for sessions with a registered device (revocable per device on the /users page)`,
   });
 
   return checks;
@@ -146,21 +146,21 @@ function checkAzureAd(env: NodeJS.ProcessEnv): ReadinessCheck[] {
         id: 'AZURE_AD_*',
         level: passwordOn ? 'warn' : 'fail',
         message: passwordOn
-          ? 'ยังไม่ได้ตั้ง — ปุ่มเข้าสู่ระบบด้วยบัญชีองค์กรจะไม่แสดง เหลือแต่ชื่อผู้ใช้+รหัสผ่าน'
-          : 'ไม่ได้ตั้ง SSO และปิด login ด้วยรหัสผ่านไว้ด้วย — จะไม่มีทางเข้าระบบเลย',
+          ? 'not set - the corporate-account sign-in button is hidden, leaving only username + password'
+          : 'SSO is not set and password login is disabled too - there is no way to sign in',
       },
     ];
   }
   const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const bad = [
-    !tenant ? 'AZURE_AD_TENANT_ID (ไม่ได้ตั้ง)' : null,
-    !client ? 'AZURE_AD_CLIENT_ID (ไม่ได้ตั้ง)' : null,
-    tenant && !guid.test(tenant) ? 'AZURE_AD_TENANT_ID (ไม่ใช่ GUID)' : null,
-    client && !guid.test(client) ? 'AZURE_AD_CLIENT_ID (ไม่ใช่ GUID)' : null,
+    !tenant ? 'AZURE_AD_TENANT_ID (not set)' : null,
+    !client ? 'AZURE_AD_CLIENT_ID (not set)' : null,
+    tenant && !guid.test(tenant) ? 'AZURE_AD_TENANT_ID (not a GUID)' : null,
+    client && !guid.test(client) ? 'AZURE_AD_CLIENT_ID (not a GUID)' : null,
   ].filter(Boolean);
 
   if (bad.length > 0) {
-    return [{ id: 'AZURE_AD_*', level: 'fail', message: `ตั้งค่าไม่ถูกต้อง: ${bad.join(', ')}` }];
+    return [{ id: 'AZURE_AD_*', level: 'fail', message: `invalid configuration: ${bad.join(', ')}` }];
   }
   return [{ id: 'AZURE_AD_*', level: 'pass', message: `tenant ${tenant}` }];
 }
@@ -173,23 +173,23 @@ function checkDss(env: NodeJS.ProcessEnv): ReadinessCheck[] {
       : {
           id: 'DSS_DRIVER',
           level: 'fail',
-          message: `'${driver || '(ไม่ได้ตั้ง = mock)'}' — production ต้องเป็น dss ไม่งั้นทั้งระบบใช้กล้องจำลอง`,
+          message: `'${driver || '(not set = mock)'}' - production must be dss, otherwise the whole system uses simulated cameras`,
         },
   ];
   checks.push(
     has(env.DSS_BASE_URL)
-      ? { id: 'DSS_BASE_URL', level: 'pass', message: 'ตั้งแล้ว' }
-      : { id: 'DSS_BASE_URL', level: 'fail', message: 'ไม่ได้ตั้ง — ดึงตำแหน่ง / สถานะ / รายการกล้องไม่ได้' },
+      ? { id: 'DSS_BASE_URL', level: 'pass', message: 'set' }
+      : { id: 'DSS_BASE_URL', level: 'fail', message: 'not set - cannot fetch positions / status / the camera list' },
   );
   const key = (env.DSS_API_KEY ?? '').trim();
-  if (!key) checks.push({ id: 'DSS_API_KEY', level: 'fail', message: 'ไม่ได้ตั้ง — psd-bwc-dss-services ตอบ 401 ทุกคำขอ' });
+  if (!key) checks.push({ id: 'DSS_API_KEY', level: 'fail', message: 'not set - psd-bwc-dss-services answers 401 to every request' });
   else if (key.length < MIN_SECRET_LENGTH) {
     checks.push({
       id: 'DSS_API_KEY',
       level: 'warn',
-      message: `สั้นกว่า ${MIN_SECRET_LENGTH} ตัวอักษร — key นี้ใช้ sign JWT ทุกคำขอไป DSS`,
+      message: `shorter than ${MIN_SECRET_LENGTH} characters - this key signs the JWT on every request to DSS`,
     });
-  } else checks.push({ id: 'DSS_API_KEY', level: 'pass', message: `${key.length} ตัวอักษร` });
+  } else checks.push({ id: 'DSS_API_KEY', level: 'pass', message: `${key.length} characters` });
   return checks;
 }
 
@@ -202,7 +202,7 @@ function checkBookingInbound(env: NodeJS.ProcessEnv): ReadinessCheck {
     return { id: 'BOOKING_INBOUND_SECRETS', level: 'fail', message: (err as Error).message };
   }
   if (secrets.length === 0) {
-    return { id: 'BOOKING_INBOUND_SECRETS', level: 'warn', message: 'endpoint รับใบงานปิดอยู่ (ตอบ 401 ทุกคำขอ)' };
+    return { id: 'BOOKING_INBOUND_SECRETS', level: 'warn', message: 'the work-order inbound endpoint is disabled (answers 401 to every request)' };
   }
   // every secret is accepted by the endpoint (current + the old one kept while rotating), so each must be strong
   const placeholder = secrets.findIndex((s) => s.toUpperCase().includes('CHANGE_ME'));
@@ -210,7 +210,7 @@ function checkBookingInbound(env: NodeJS.ProcessEnv): ReadinessCheck {
     return {
       id: 'BOOKING_INBOUND_SECRETS',
       level: 'fail',
-      message: `BOOKING_INBOUND_SECRETS ค่าที่ ${placeholder + 1} ยังเป็นค่าตัวอย่าง (CHANGE_ME) — ใครก็ส่งใบงานปลอมเข้าระบบได้`,
+      message: `BOOKING_INBOUND_SECRETS value #${placeholder + 1} is still a placeholder (CHANGE_ME) - anyone can send fake work orders into the system`,
     };
   }
   const short = secrets.findIndex((s) => s.length < MIN_SECRET_LENGTH);
@@ -218,10 +218,10 @@ function checkBookingInbound(env: NodeJS.ProcessEnv): ReadinessCheck {
     return {
       id: 'BOOKING_INBOUND_SECRETS',
       level: 'fail',
-      message: `BOOKING_INBOUND_SECRETS ค่าที่ ${short + 1} ยาว ${secrets[short]!.length} ตัว — ควรอย่างน้อย ${MIN_SECRET_LENGTH} ตัวที่สุ่มมา`,
+      message: `BOOKING_INBOUND_SECRETS value #${short + 1} is ${secrets[short]!.length} characters - use at least ${MIN_SECRET_LENGTH} random characters`,
     };
   }
-  return { id: 'BOOKING_INBOUND_SECRETS', level: 'pass', message: `ตั้งแล้ว ${secrets.length} ค่า` };
+  return { id: 'BOOKING_INBOUND_SECRETS', level: 'pass', message: `set (${secrets.length} values)` };
 }
 
 export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {
@@ -233,27 +233,27 @@ export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {
       : {
           id: 'NODE_ENV',
           level: 'warn',
-          message: `ยังเป็น '${env.NODE_ENV ?? '(ไม่ได้ตั้ง)'}' — ตั้งเป็น production เพื่อปิด verbose log และให้ Nest ใช้โหมด production`,
+          message: `still '${env.NODE_ENV ?? '(not set)'}' - set it to production to turn off verbose logging and make Nest use production mode`,
         },
   );
 
   checks.push(
     has(env.DATABASE_URL)
-      ? { id: 'DATABASE_URL', level: 'pass', message: 'ตั้งแล้ว' }
-      : { id: 'DATABASE_URL', level: 'fail', message: 'ไม่ได้ตั้ง — โปรเซสจะ boot ไม่ขึ้น' },
+      ? { id: 'DATABASE_URL', level: 'pass', message: 'set' }
+      : { id: 'DATABASE_URL', level: 'fail', message: 'not set - the process cannot boot' },
   );
 
   const jwt = (env.JWT_ACCESS_SECRET ?? '').trim();
   if (!jwt) {
-    checks.push({ id: 'JWT_ACCESS_SECRET', level: 'fail', message: 'ไม่ได้ตั้ง' });
+    checks.push({ id: 'JWT_ACCESS_SECRET', level: 'fail', message: 'not set' });
   } else if (jwt.length < MIN_SECRET_LENGTH) {
     checks.push({
       id: 'JWT_ACCESS_SECRET',
       level: 'fail',
-      message: `ยาว ${jwt.length} ตัว — ควรอย่างน้อย ${MIN_SECRET_LENGTH} ตัวที่สุ่มมา`,
+      message: `${jwt.length} characters - use at least ${MIN_SECRET_LENGTH} random characters`,
     });
   } else {
-    checks.push({ id: 'JWT_ACCESS_SECRET', level: 'pass', message: `${jwt.length} ตัวอักษร` });
+    checks.push({ id: 'JWT_ACCESS_SECRET', level: 'pass', message: `${jwt.length} characters` });
   }
 
   checks.push(checkCors(env));
@@ -264,7 +264,7 @@ export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {
       : {
           id: 'COOKIE_SECURE',
           level: 'fail',
-          message: 'ต้องเป็น true บน HTTPS — ไม่งั้น refresh cookie ถูกส่งผ่าน http ได้',
+          message: 'must be true on HTTPS - otherwise the refresh cookie can be sent over http',
         },
   );
 
@@ -274,11 +274,11 @@ export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {
 
   checks.push(
     has(env.REDIS_URL)
-      ? { id: 'REDIS_URL', level: 'pass', message: 'ตั้งแล้ว' }
+      ? { id: 'REDIS_URL', level: 'pass', message: 'set' }
       : {
           id: 'REDIS_URL',
           level: 'fail',
-          message: 'ไม่ได้ตั้ง — พิกัด/alert จาก worker ลง DB ครบแต่ไม่เด้งถึงหน้าจอ และงาน export ค้าง Queued ถาวร',
+          message: 'not set - positions/alerts from the worker are saved to the DB but never pushed to screens, and export jobs stay Queued forever',
         },
   );
 
@@ -289,7 +289,7 @@ export function checkProdEnv(env: NodeJS.ProcessEnv): ReadinessCheck[] {
     checks.push({
       id: 'SEED_DEMO_PASSWORD',
       level: 'fail',
-      message: 'production ต้องไม่ตั้งค่านี้ — เป็นรหัสของบัญชี demo ที่ใช้เฉพาะ db:seed (dev)',
+      message: 'must not be set in production - it is the demo account password used only by db:seed (dev)',
     });
   }
 

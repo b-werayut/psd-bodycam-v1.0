@@ -12,6 +12,7 @@ Requirements: `docs/requirements/2026-11-12-body-camera-requirements.md`, adopte
 
 - Talk to the user in **Thai**, keeping technical terms in English.
 - Everything under `docs/` is Thai. UI strings default to Thai (i18n th/en).
+- Server log / console output is **English only** (`Logger`, `console.*`, CLI scripts, boot/config errors): Thai prints as mojibake on the Windows console. Strings that reach a client stay Thai (`AppException` messages, validation messages, alerts, role names).
 - This file is in English only to save tokens.
 
 ## Current state: P0 done, P1 (devices & tracking), P3a (Booking inbound + work-order pages) and part of P4 (live wall + talk + live dialogs) implemented

@@ -66,7 +66,7 @@ export class DeviceSyncService {
       // an "empty but complete" list while we know cameras is a DSS glitch, never "every camera is gone"
       const complete = inventory.complete && !(inventory.devices.length === 0 && local.some((row) => !row.isDeleted));
       if (inventory.complete && !complete) {
-        this.logger.warn('DSS ส่งรายการอุปกรณ์ว่างทั้งที่ระบบมีกล้องอยู่ — ไม่ตั้งกล้องใดเป็นหายในรอบนี้');
+        this.logger.warn('DSS returned an empty device list although the system has cameras - no camera is marked missing this round');
       }
 
       for (const create of plan.creates) {
@@ -127,7 +127,7 @@ export class DeviceSyncService {
     const { plan } = outcome;
     if (plan.skips.length > 0) {
       const sample = plan.skips.slice(0, 5).map((s) => `${s.vendorDeviceId}: ${s.message}`);
-      this.logger.warn(`DeviceSync ข้าม ${plan.skips.length} รายการ — ${sample.join(' | ')}`);
+      this.logger.warn(`DeviceSync skipped ${plan.skips.length} item(s) - ${sample.join(' | ')}`);
     }
     const result: DeviceSyncResult = {
       created: plan.creates.length,
@@ -166,7 +166,7 @@ export class DeviceSyncService {
           dedupeKey: vendorMissingDedupeKey(device.id),
         });
       } catch (error) {
-        this.logger.error(`เขียน alert กล้อง ${device.code} หายไม่สำเร็จ (ลองใหม่รอบถัดไป): ${String(error)}`);
+        this.logger.error(`Failed to write the missing-camera alert for ${device.code} (will retry next round): ${String(error)}`);
       }
     }
 

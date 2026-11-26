@@ -33,7 +33,7 @@ export class BookingInboundController {
     try {
       result = await this.inbox.receive(checked.value, body);
     } catch (err) {
-      this.logger.error(`รับใบงานไม่สำเร็จ: ${safeErrorSummary(err)}`);
+      this.logger.error(`Failed to accept job: ${safeErrorSummary(err)}`);
       throw new AppException(503, 'SERVICE_UNAVAILABLE', 'ระบบยังรับข้อมูลไม่ได้ในขณะนี้ กรุณาส่งใหม่ภายหลัง');
     }
 

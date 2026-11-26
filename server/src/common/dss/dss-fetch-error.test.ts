@@ -31,7 +31,7 @@ describe('dssEndpointLabel', () => {
   it('URL พังต้องเห็นค่าดิบ เพราะสาเหตุมักเป็น env ที่ติดเครื่องหมายคำพูดมาด้วย', () => {
     const label = dssEndpointLabel('"http://dss:3004/api"');
     expect(label).toContain('"http://dss:3004/api"');
-    expect(label).toContain('URL ไม่ถูกรูปแบบ');
+    expect(label).toContain('malformed URL');
   });
 });
 
@@ -89,6 +89,6 @@ describe('describeDssFetchFailure', () => {
   it('ไม่มีอะไรให้ยึดเลย ก็ยังต้องบอก URL ที่เรียก', () => {
     const message = describeDssFetchFailure(LOGIN_URL, new TypeError('fetch failed'));
     expect(message).toContain('http://dss.example.test:3004/api/v1/auth/login');
-    expect(message).toContain('ต่อเครือข่ายไม่ได้');
+    expect(message).toContain('network connection failed');
   });
 });

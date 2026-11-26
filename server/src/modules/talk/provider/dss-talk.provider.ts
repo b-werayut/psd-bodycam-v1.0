@@ -56,7 +56,7 @@ export class DssTalkProvider implements TalkProvider {
       throw new TalkProviderError(
         TALK_MESSAGE.SYSTEM_ERROR,
         body.code ?? null,
-        `FastAPI ปฏิเสธการเลิกสาย (code=${String(body.code)}${body.desc ? `: ${body.desc.trim().slice(0, DESC_MAX)}` : ''})`,
+        `FastAPI rejected stop (code=${String(body.code)}${body.desc ? `: ${body.desc.trim().slice(0, DESC_MAX)}` : ''})`,
       );
     }
   }
@@ -69,7 +69,7 @@ export class DssTalkProvider implements TalkProvider {
     });
     // ต้องมี listener ของ error ตลอดอายุ socket — error หลังต่อติดที่ไม่มีคนรับทำโปรเซสล้ม
     socket.on('error', (error: Error) =>
-      this.logger.warn(`WS เสียงกับ FastAPI error: ${error.message}`),
+      this.logger.warn(`audio WS to FastAPI error: ${error.message}`),
     );
     try {
       await waitForOpen(socket);
@@ -78,7 +78,7 @@ export class DssTalkProvider implements TalkProvider {
       throw new TalkProviderError(
         TALK_MESSAGE.SYSTEM_ERROR,
         null,
-        `ต่อ WS เสียงกับ FastAPI ไม่สำเร็จ: ${(error as Error).message}`,
+        `audio WS to FastAPI failed to connect: ${(error as Error).message}`,
       );
     }
     return new WsTalkAudioChannel(socket);
@@ -119,7 +119,7 @@ export class DssTalkProvider implements TalkProvider {
     throw new TalkProviderError(
       TALK_MESSAGE.SYSTEM_ERROR,
       null,
-      `FastAPI ตอบ ${res.status} (ไม่ใช่รูปแบบ {code, desc})`,
+      `FastAPI replied ${res.status} (not the {code, desc} format)`,
     );
   }
 }
@@ -163,7 +163,7 @@ function waitForOpen(socket: WebSocket): Promise<void> {
     };
     const onClose = (code: number) => {
       cleanup();
-      reject(new Error(`ถูกปิดก่อนต่อสำเร็จ (code ${code})`));
+      reject(new Error(`closed before connecting (code ${code})`));
     };
     socket.on('open', onOpen);
     socket.on('error', onError);
@@ -174,7 +174,7 @@ function waitForOpen(socket: WebSocket): Promise<void> {
 /** code ของ FastAPI → ข้อความผู้ใช้ตามตาราง "Error handling" ของ spec */
 export function talkStartError(body: FastApiBody): TalkProviderError {
   const desc = body.desc?.trim().slice(0, DESC_MAX) ?? '';
-  const detail = `FastAPI ปฏิเสธการเริ่มคุย (code=${String(body.code)}${desc ? `: ${desc}` : ''})`;
+  const detail = `FastAPI rejected start (code=${String(body.code)}${desc ? `: ${desc}` : ''})`;
   switch (body.code) {
     case TALK_VENDOR_CODE.DEVICE_REJECTED:
       return new TalkProviderError(
@@ -212,7 +212,7 @@ export function parseTalkStartData(data: unknown): TalkStartResult {
     throw new TalkProviderError(
       TALK_MESSAGE.SYSTEM_ERROR,
       null,
-      'FastAPI ตอบ data ของ start ไม่ครบ',
+      'FastAPI start response data is incomplete',
     );
   }
   return { talkId, uplinkSampleRate, downlinkSampleRate, frameMs };

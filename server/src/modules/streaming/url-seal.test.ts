@@ -63,6 +63,6 @@ describe('sealUrl / openUrl', () => {
   });
 
   it('ข้อมูลสั้นเกินไป -> ตีกลับ ไม่ crash แบบอื่น', () => {
-    expect(() => openUrl('AAAA', key)).toThrow(/ไม่ครบ/);
+    expect(() => openUrl('AAAA', key)).toThrow(/incomplete/);
   });
 });

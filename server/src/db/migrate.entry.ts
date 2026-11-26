@@ -32,7 +32,7 @@ async function acquireLock(
     if (row?.got) return true;
     if (Date.now() >= deadline) return false;
     if (!waited) {
-      console.log('- โปรเซสอื่นกำลังลง migration อยู่ — รอคิว');
+      console.log('- another process is applying migrations - waiting');
       waited = true;
     }
     await sleep(LOCK_POLL_MS);
@@ -41,13 +41,13 @@ async function acquireLock(
 
 async function main(): Promise<void> {
   const url = (process.argv[2] ?? process.env.DATABASE_URL ?? '').trim();
-  if (!url) throw new Error('ไม่พบ DATABASE_URL (หรือส่ง URL มาเป็น argument)');
+  if (!url) throw new Error('DATABASE_URL not found (or pass the URL as an argument)');
 
   const folder = resolveMigrationsFolder();
   if (folder === null) {
     throw new Error(
-      'ไม่พบโฟลเดอร์ migration (ต้องมี drizzle/meta/_journal.json) — ' +
-        'image ต้อง copy โฟลเดอร์ drizzle/ เข้าไปด้วย หรือชี้ด้วย DB_MIGRATIONS_DIR',
+      'Migrations folder not found (drizzle/meta/_journal.json is required) - ' +
+        'the image must include the drizzle/ folder, or point to it with DB_MIGRATIONS_DIR',
     );
   }
 
@@ -60,8 +60,8 @@ async function main(): Promise<void> {
     locked = await acquireLock(sql, waitSeconds(process.env));
     if (!locked) {
       throw new Error(
-        `รอ advisory lock เกิน ${waitSeconds(process.env)} วินาที — ` +
-          'มีโปรเซสอื่นค้างอยู่ระหว่างลง migration · ตรวจก่อนว่าไม่มีใครลงค้างไว้',
+        `Waited more than ${waitSeconds(process.env)} seconds for the advisory lock - ` +
+          'another process is stuck applying migrations · check that none is left hanging',
       );
     }
 
@@ -70,14 +70,14 @@ async function main(): Promise<void> {
 
     if (before.verdict === 'skipped') {
       for (const line of describeMigrationStatus(before).lines) console.error(`  ${line}`);
-      throw new Error('มี migration ที่ migrator ข้ามถาวร — ต้องแก้ด้วยมือก่อน');
+      throw new Error('Some migrations were permanently skipped by the migrator - fix by hand first');
     }
     if (before.pending.length === 0) {
-      console.log(`- ครบอยู่แล้ว (${before.appliedCount} migration) ไม่มีอะไรต้องลง`);
+      console.log(`- already up to date (${before.appliedCount} migrations), nothing to apply`);
       return;
     }
 
-    console.log(`- ต้องลง ${before.pending.length} ตัว:`);
+    console.log(`- ${before.pending.length} to apply:`);
     for (const ref of before.pending) console.log(`    ${ref.tag}`);
 
     await migrate(drizzle(sql), { migrationsFolder: folder });
@@ -85,9 +85,9 @@ async function main(): Promise<void> {
     const after = compareMigrations(files, await readAppliedMigrations(sql));
     if (after.pending.length > 0 || after.skipped.length > 0) {
       for (const line of describeMigrationStatus(after).lines) console.error(`  ${line}`);
-      throw new Error('ลง migration แล้วแต่ยังไม่ครบ');
+      throw new Error('Migrations applied but the set is still incomplete');
     }
-    console.log(`- ลงครบแล้ว (รวม ${after.appliedCount} migration)`);
+    console.log(`- all applied (${after.appliedCount} migrations in total)`);
   } finally {
     if (locked) await sql`select pg_advisory_unlock(${LOCK_KEY})`;
     await sql.end({ timeout: 5 });

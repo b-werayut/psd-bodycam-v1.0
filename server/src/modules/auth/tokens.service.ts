@@ -76,7 +76,7 @@ export class TokensService {
         throw new AppException(401, 'REFRESH_RACE', 'session ถูกต่ออายุจากอีกแท็บพร้อมกัน กรุณาลองใหม่');
       case 'reuse':
         await this.revokeAllForUser(outcome.userId);
-        this.logger.warn(`refresh token ถูกใช้ซ้ำ (user ${outcome.userId}) — ยกเลิกทุก session ของผู้ใช้`);
+        this.logger.warn(`refresh token reused (user ${outcome.userId}) - revoking all sessions of the user`);
         throw invalid('ตรวจพบการใช้ session ซ้ำ ระบบยกเลิกการเข้าสู่ระบบทั้งหมดของบัญชีนี้ กรุณาเข้าสู่ระบบใหม่');
       default:
         throw invalid();

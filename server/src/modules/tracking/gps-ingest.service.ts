@@ -203,8 +203,8 @@ export class GpsIngestService {
       }));
     if (points.length > 0) this.realtime.bus?.to(TRACKING_ROOM).emit('gps:batch', { points });
 
-    if (result.suspect > 0) this.logger.warn(`พิกัดผิดปกติ ${result.suspect} จุด (เร็วเกิน ${MAX_PLAUSIBLE_SPEED_KPH} กม./ชม.) — เก็บไว้แต่ไม่ใช้`);
-    if (result.future > 0) this.logger.warn(`ตัดพิกัด ${result.future} จุดที่เวลาเกินอนาคต — นาฬิกากล้องอาจเพี้ยน`);
+    if (result.suspect > 0) this.logger.warn(`${result.suspect} suspect GPS point(s) (faster than ${MAX_PLAUSIBLE_SPEED_KPH} km/h) - stored but not used`);
+    if (result.future > 0) this.logger.warn(`Dropped ${result.future} GPS point(s) timestamped in the future - the camera clock may be off`);
     return result;
   }
 

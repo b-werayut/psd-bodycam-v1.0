@@ -12,21 +12,21 @@ export function resolveTestDbTarget(env: NodeJS.ProcessEnv = process.env): TestD
   const devUrl = env.DATABASE_URL;
   const explicit = env.DATABASE_URL_TEST;
   if (!devUrl && !explicit) {
-    throw new Error('ต้องตั้ง DATABASE_URL หรือ DATABASE_URL_TEST ใน .env ก่อน');
+    throw new Error('DATABASE_URL or DATABASE_URL_TEST must be set in .env first');
   }
 
   const raw = explicit ?? deriveTestUrl(devUrl as string);
   const parsed = new URL(raw);
   const database = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
 
-  if (!database) throw new Error(`test database URL ไม่มีชื่อ database: ${redact(raw)}`);
+  if (!database) throw new Error(`test database URL has no database name: ${redact(raw)}`);
   if (!database.endsWith(TEST_SUFFIX)) {
     throw new Error(
-      `ชื่อ test database ต้องลงท้าย '${TEST_SUFFIX}' (ได้ '${database}') — กันเผลอรัน integration test ทับ DB จริง`,
+      `test database name must end with '${TEST_SUFFIX}' (got '${database}') - this prevents running integration tests against a real DB by accident`,
     );
   }
   if (devUrl && raw === devUrl) {
-    throw new Error('DATABASE_URL_TEST ต้องไม่ใช่ตัวเดียวกับ DATABASE_URL');
+    throw new Error('DATABASE_URL_TEST must not be the same as DATABASE_URL');
   }
 
   const admin = new URL(raw);

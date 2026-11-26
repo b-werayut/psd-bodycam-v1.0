@@ -30,7 +30,7 @@ export class RateLimitGuard implements CanActivate {
     const hit = await this.limiter.hit(key, spec.limit, spec.windowSeconds);
     if (hit.allowed) return true;
 
-    this.logger.warn(`เกินโควตา ${name} จาก ${key} (${hit.count}/${spec.limit})`);
+    this.logger.warn(`Rate limit ${name} exceeded by ${key} (${hit.count}/${spec.limit})`);
     context.switchToHttp().getResponse<Response>().setHeader('Retry-After', String(hit.retryAfterSeconds));
     throw new AppException(429, 'TOO_MANY_REQUESTS', 'ส่งคำขอถี่เกินไป กรุณาลองใหม่ภายหลัง', {
       retryAfterSeconds: hit.retryAfterSeconds,

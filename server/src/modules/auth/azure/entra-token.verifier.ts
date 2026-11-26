@@ -29,7 +29,7 @@ export function describeToken(idToken: string): string {
     payload = decodeJwt(idToken) as Record<string, unknown>;
   } catch {
     const parts = idToken.split('.').length;
-    return `อ่านเนื้อ token ไม่ออก (ไม่ใช่ JWT — มี ${parts} ส่วน ยาว ${idToken.length} ตัวอักษร)`;
+    return `cannot read token (not a JWT - ${parts} parts, length ${idToken.length} chars)`;
   }
   const one = (value: unknown): string => {
     if (typeof value === 'string' && value) return value;
@@ -103,7 +103,7 @@ export class EntraTokenVerifier {
       return invalid('การยืนยันตัวตนกับ Microsoft หมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่');
     }
     if (cause instanceof joseErrors.JWTClaimValidationFailed) {
-      this.logger.warn(`id_token claim ไม่ผ่าน: ${cause.claim} — ${cause.message}`);
+      this.logger.warn(`id_token claim check failed: ${cause.claim} - ${cause.message}`);
       return invalid('token จาก Microsoft ไม่ตรงกับที่ระบบตั้งค่าไว้ (ตรวจ Application (client) ID / Directory (tenant) ID)');
     }
     if (
@@ -113,12 +113,12 @@ export class EntraTokenVerifier {
       cause instanceof joseErrors.JWTInvalid
     ) {
       this.logger.warn(
-        `ตรวจลายเซ็น id_token ไม่ผ่าน [${errorCode(cause)}] — ${describeToken(idToken)} · ` +
-          `ระบบตรวจกับ clientId=${this.config.clientId} issuer=${this.config.issuer}`,
+        `id_token signature check failed [${errorCode(cause)}] - ${describeToken(idToken)} | ` +
+          `checked against clientId=${this.config.clientId} issuer=${this.config.issuer}`,
       );
       return invalid('ตรวจสอบ token จาก Microsoft ไม่ผ่าน');
     }
-    this.logger.error(`ตรวจ id_token ไม่สำเร็จ (ติดต่อ ${this.config.jwksUri} ไม่ได้?): ${String(cause)}`);
+    this.logger.error(`id_token verification failed (cannot reach ${this.config.jwksUri}?): ${String(cause)}`);
     return invalid('ตรวจสอบบัญชีกับ Microsoft ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
   }
 }

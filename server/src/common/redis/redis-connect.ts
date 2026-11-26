@@ -28,14 +28,14 @@ export async function openOptionalRedis(
   client.on('error', (error: Error) => {
     if (warned) return;
     warned = true;
-    logger.warn(`การเชื่อมต่อ Redis (${log.label}) มีปัญหา: ${error.message}`);
+    logger.warn(`Redis connection (${log.label}) problem: ${error.message}`);
   });
 
   if (await connectWithDeadline(client)) {
     logger.log(log.connected);
     return client;
   }
-  logger.error(`ยังต่อ Redis (${log.label}) ไม่ได้ (${url}) — ${log.fallback}`);
+  logger.error(`Cannot connect to Redis (${log.label}) yet (${url}) — ${log.fallback}`);
   client.once('ready', () => logger.log(log.recovered));
   return client;
 }

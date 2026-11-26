@@ -66,10 +66,10 @@ export class GpsPollService implements OnApplicationBootstrap, OnApplicationShut
   onApplicationBootstrap(): void {
     const options = gpsPollOptions();
     if (!options.enabled) {
-      this.logger.log('GpsPoll ปิดอยู่ (GPS_POLL_ENABLED=false)');
+      this.logger.log('GpsPoll is disabled (GPS_POLL_ENABLED=false)');
       return;
     }
-    this.logger.log(`GpsPoll เริ่มทำงาน (ถามพร้อมกัน ${options.concurrency} คำขอ)`);
+    this.logger.log(`GpsPoll started (${options.concurrency} concurrent requests)`);
     this.start();
   }
 
@@ -125,7 +125,7 @@ export class GpsPollService implements OnApplicationBootstrap, OnApplicationShut
         firstError ??= error instanceof Error ? error.message : String(error);
       }
     });
-    if (failed > 0) this.logger.error(`ดึงพิกัด/สถานะไม่สำเร็จ ${failed}/${devices.length} กล้อง: ${firstError}`);
+    if (failed > 0) this.logger.error(`Failed to fetch GPS/status for ${failed}/${devices.length} cameras: ${firstError}`);
 
     const ingested = await this.ingest.ingest(fixes);
     const fresh = new Set(ingested.freshDeviceIds);
@@ -146,15 +146,15 @@ export class GpsPollService implements OnApplicationBootstrap, OnApplicationShut
       elapsedMs,
     };
     this.logger.log(
-      `GpsPoll: ถาม ${devices.length} กล้อง | ได้สถานะ ${observations.length} | ได้พิกัด ${fixes.length} | ` +
-        `บันทึก ${ingested.stored} | สถานะเปลี่ยน ${changed.length} | ผิดพลาด ${failed} | ${elapsedMs} ms`,
+      `GpsPoll: polled ${devices.length} cameras | statuses ${observations.length} | fixes ${fixes.length} | ` +
+        `stored ${ingested.stored} | status changed ${changed.length} | failed ${failed} | ${elapsedMs} ms`,
     );
     const intervalSeconds = await this.intervalSeconds();
     if (elapsedMs > intervalSeconds * 1000) {
       this.logger.warn(
-        `รอบ GpsPoll ใช้เวลา ${Math.round(elapsedMs / 1000)} วินาที (${devices.length} กล้อง, พร้อมกัน ${concurrency}) ` +
-          `นานกว่า gps.poll-interval-seconds (${intervalSeconds}) — รอบถัดไปเริ่มช้าลง ไม่มีกล้องถูกข้าม · ` +
-          'แก้ด้วยการเพิ่ม GPS_POLL_CONCURRENCY หรือยืด gps.poll-interval-seconds',
+        `GpsPoll round took ${Math.round(elapsedMs / 1000)} s (${devices.length} cameras, concurrency ${concurrency}) ` +
+          `longer than gps.poll-interval-seconds (${intervalSeconds}) - the next round starts late, no camera is skipped. ` +
+          'Fix by raising GPS_POLL_CONCURRENCY or lengthening gps.poll-interval-seconds',
       );
     }
     return result;
@@ -165,7 +165,7 @@ export class GpsPollService implements OnApplicationBootstrap, OnApplicationShut
     try {
       await this.tick();
     } catch (error) {
-      this.logger.error(`รอบ GpsPoll ล้มเหลว: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(`GpsPoll round failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     const seconds = await this.intervalSeconds();
     if (this.stopped) return;

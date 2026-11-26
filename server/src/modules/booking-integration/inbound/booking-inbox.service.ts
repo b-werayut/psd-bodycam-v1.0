@@ -71,7 +71,7 @@ export class BookingInboxService {
         }),
       ]);
     } catch (err) {
-      this.logger.warn(`ส่ง inbox ${inboxId} เข้าคิวไม่สำเร็จ (retry sweep จะหยิบเอง): ${safeErrorSummary(err)}`);
+      this.logger.warn(`Failed to enqueue inbox ${inboxId} (the retry sweep will pick it up): ${safeErrorSummary(err)}`);
     } finally {
       clearTimeout(timer);
     }

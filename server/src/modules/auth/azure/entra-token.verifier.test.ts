@@ -68,12 +68,12 @@ describe('describeToken', () => {
   });
 
   it('ไม่โยน exception เมื่อ token เสียรูป — ทางนี้ถูกเรียกตอน token พังอยู่แล้ว', () => {
-    expect(describeToken('ไม่ใช่ jwt')).toContain('อ่านเนื้อ token ไม่ออก');
-    expect(describeToken('')).toContain('อ่านเนื้อ token ไม่ออก');
-    expect(describeToken('a.b.c')).toContain('อ่านเนื้อ token ไม่ออก');
+    expect(describeToken('ไม่ใช่ jwt')).toContain('cannot read token');
+    expect(describeToken('')).toContain('cannot read token');
+    expect(describeToken('a.b.c')).toContain('cannot read token');
   });
 
   it('บอกจำนวนส่วนของ token ที่เสียรูป เพื่อแยก "ก๊อปมาไม่ครบ" ออกจาก "ส่งผิดค่า"', () => {
-    expect(describeToken('eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJhIn0')).toContain('มี 2 ส่วน');
+    expect(describeToken('eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJhIn0')).toContain('2 parts');
   });
 });

@@ -22,7 +22,7 @@ export class RedisIoAdapter extends IoAdapter {
   async connect(): Promise<boolean> {
     const url = redisUrl();
     if (!url) {
-      RedisIoAdapter.logger.warn('ไม่ได้ตั้ง REDIS_URL — Socket.IO ใช้ adapter ในหน่วยความจำ (event จาก worker จะไม่ถึงผู้ใช้)');
+      RedisIoAdapter.logger.warn('REDIS_URL is not set - Socket.IO uses the in-memory adapter (events from the worker will not reach users)');
       return false;
     }
 
@@ -33,7 +33,7 @@ export class RedisIoAdapter extends IoAdapter {
       client.on('error', (error: Error) => {
         if (warned.has(client)) return;
         warned.add(client);
-        RedisIoAdapter.logger.warn(`การเชื่อมต่อ Redis (Socket.IO) มีปัญหา: ${error.message}`);
+        RedisIoAdapter.logger.warn(`Redis connection (Socket.IO) problem: ${error.message}`);
       });
     }
     this.clients = [pubClient, subClient];
@@ -41,13 +41,13 @@ export class RedisIoAdapter extends IoAdapter {
     const connected = await Promise.all([connectWithDeadline(pubClient), connectWithDeadline(subClient)]);
     if (connected.every(Boolean)) {
       this.adapterConstructor = createAdapter(pubClient, subClient, { key: REALTIME_REDIS_KEY });
-      RedisIoAdapter.logger.log('Socket.IO ใช้ Redis adapter (รับ event จาก worker + scale-out)');
+      RedisIoAdapter.logger.log('Socket.IO is using the Redis adapter (receives worker events + scale-out)');
       return true;
     }
 
     RedisIoAdapter.logger.warn(
-      `ต่อ Redis ไม่ได้ (${url}) — Socket.IO ใช้ adapter ในหน่วยความจำ · event จาก worker จะไม่ถึงผู้ใช้ ` +
-        'จนกว่า Redis ขึ้นแล้ว restart โปรเซส api',
+      `Cannot connect to Redis (${url}) - Socket.IO uses the in-memory adapter; events from the worker will not reach users ` +
+        'until Redis is up and the api process is restarted',
     );
     await Promise.all(this.clients.map((client) => closeRedis(client)));
     this.clients = [];

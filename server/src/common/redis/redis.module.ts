@@ -22,9 +22,9 @@ class RedisLifecycle implements OnApplicationShutdown {
       useFactory: () =>
         openOptionalRedis(new Logger('Redis'), {
           label: 'lock / rate limit',
-          connected: 'ต่อ Redis แล้ว (lock ข้ามโปรเซส + นับโควตาร่วมกันทุกอินสแตนซ์)',
-          fallback: 'งานตามเวลาที่ต้องใช้ lock จะถูกข้าม และนับโควตาในหน่วยความจำจนกว่าจะต่อติด',
-          recovered: 'ต่อ Redis ได้แล้ว',
+          connected: 'Connected to Redis (cross-process locks + rate limits shared by all instances)',
+          fallback: 'scheduled jobs that need a lock are skipped and rate limits are counted in memory until it connects',
+          recovered: 'Redis connected',
         }),
     },
     RedisLifecycle,

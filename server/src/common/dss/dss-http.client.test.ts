@@ -224,15 +224,15 @@ describe('DssHttpClient.fetchReading', () => {
 
   it('HTTP 500 / 401 ⇒ throws once, no retry', async () => {
     handler = (_req, res) => json(res, 'boom', 500);
-    await expect(client().fetchReading('1')).rejects.toThrow(/DSS ตอบ 500/);
+    await expect(client().fetchReading('1')).rejects.toThrow(/DSS replied 500/);
     handler = (_req, res) => json(res, { detail: 'Invalid or expired token' }, 401);
-    await expect(client().fetchReading('1')).rejects.toThrow(/DSS ตอบ 401/);
+    await expect(client().fetchReading('1')).rejects.toThrow(/DSS replied 401/);
     expect(calls).toHaveLength(2);
   });
 
   it('a hung vendor is cut by the timeout', async () => {
     handler = () => {};
-    await expect(client(150).fetchReading('1')).rejects.toThrow(/ไม่ตอบภายใน 150 ms/);
+    await expect(client(150).fetchReading('1')).rejects.toThrow(/did not respond within 150 ms/);
   });
 
   it('headers sent then the body stalls: the same timeout cuts the body read (review #2)', async () => {
@@ -241,7 +241,7 @@ describe('DssHttpClient.fetchReading', () => {
       res.write('{"code":1000,');
     };
     const started = Date.now();
-    await expect(client(150).fetchReading('1')).rejects.toThrow(/ไม่ตอบภายใน 150 ms/);
+    await expect(client(150).fetchReading('1')).rejects.toThrow(/did not respond within 150 ms/);
     expect(Date.now() - started).toBeLessThan(2000);
   });
 });

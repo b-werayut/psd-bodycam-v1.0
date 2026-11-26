@@ -43,7 +43,7 @@ export function readLocalMigrations(folder: string | null): MigrationRef[] {
   return readMigrationFiles({ migrationsFolder: folder }).map((file, index) => ({
     hash: file.hash,
     folderMillis: file.folderMillis,
-    tag: entries[index]?.tag ?? `(ลำดับที่ ${index})`,
+    tag: entries[index]?.tag ?? `(index ${index})`,
   }));
 }
 

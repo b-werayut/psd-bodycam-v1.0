@@ -80,7 +80,7 @@ export class InboxRetryJob implements OnApplicationBootstrap, BeforeApplicationS
       try {
         await this.processor.process(id, now);
       } catch (err) {
-        this.logger.warn(`ลองประมวลผลแถว inbox ${id} ซ้ำไม่สำเร็จ: ${safeErrorSummary(err)}`);
+        this.logger.warn(`Retrying inbox row ${id} failed: ${safeErrorSummary(err)}`);
       }
     }
     return rows.length;
@@ -105,7 +105,7 @@ export class InboxRetryJob implements OnApplicationBootstrap, BeforeApplicationS
       if (!this.redis?.isReady) await run();
       else await this.lock.withLock(LEASE_KEY, LEASE_TTL_SECONDS, run);
     } catch (err) {
-      this.logger.warn(`retry sweep ของ inbox ไม่สำเร็จ (ลองใหม่รอบถัดไป): ${safeErrorSummary(err)}`);
+      this.logger.warn(`Inbox retry sweep failed (will retry next round): ${safeErrorSummary(err)}`);
     }
   }
 

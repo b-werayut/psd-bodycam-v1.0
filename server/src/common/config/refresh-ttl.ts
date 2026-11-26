@@ -26,7 +26,7 @@ export function resolveRefreshTtl(env: NodeJS.ProcessEnv): RefreshTtlPlan {
   const webHours = typeof web === 'number' ? web : DEFAULT_REFRESH_TTL_HOURS;
   if (web === 'invalid') {
     warnings.push(
-      `${REFRESH_TTL_ENV_WEB}='${env[REFRESH_TTL_ENV_WEB]}' ใช้ไม่ได้ (ต้องเป็นจำนวนชั่วโมงมากกว่า 0) — ถอยไป ${DEFAULT_REFRESH_TTL_HOURS} ชั่วโมง`,
+      `${REFRESH_TTL_ENV_WEB}='${env[REFRESH_TTL_ENV_WEB]}' is invalid (must be a number of hours greater than 0) - falling back to ${DEFAULT_REFRESH_TTL_HOURS} hours`,
     );
   }
 
@@ -34,13 +34,13 @@ export function resolveRefreshTtl(env: NodeJS.ProcessEnv): RefreshTtlPlan {
   const deviceHours = typeof device === 'number' ? device : webHours;
   if (device === 'invalid') {
     warnings.push(
-      `${REFRESH_TTL_ENV_DEVICE}='${env[REFRESH_TTL_ENV_DEVICE]}' ใช้ไม่ได้ (ต้องเป็นจำนวนชั่วโมงมากกว่า 0) — ถอยไปใช้ค่าเดียวกับเว็บ (${webHours} ชั่วโมง)`,
+      `${REFRESH_TTL_ENV_DEVICE}='${env[REFRESH_TTL_ENV_DEVICE]}' is invalid (must be a number of hours greater than 0) - falling back to the web value (${webHours} hours)`,
     );
   }
 
   if (typeof device === 'number' && device < webHours) {
     warnings.push(
-      `${REFRESH_TTL_ENV_DEVICE} (${device} ชม.) สั้นกว่า ${REFRESH_TTL_ENV_WEB} (${webHours} ชม.) — ค่านี้มีไว้ให้ยาวกว่า ตรวจว่าสลับค่ากันไว้หรือไม่`,
+      `${REFRESH_TTL_ENV_DEVICE} (${device} h) is shorter than ${REFRESH_TTL_ENV_WEB} (${webHours} h) - it is meant to be longer; check whether the values were swapped`,
     );
   }
 

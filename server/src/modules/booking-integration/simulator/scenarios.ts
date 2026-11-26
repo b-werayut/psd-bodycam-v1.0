@@ -70,7 +70,7 @@ function job(s: Shape): InboundEnvelopeV1 {
 }
 
 function requireJob(name: string, opts: SimOptions): string {
-  if (!opts.jobId) throw new Error(`scenario ${name} ต้องระบุ --job <jobId> (ใบงานที่มีอยู่แล้ว เช่น jobId ที่ได้จาก scenario new)`);
+  if (!opts.jobId) throw new Error(`scenario ${name} requires --job <jobId> (an existing job, e.g. the jobId printed by scenario new)`);
   return opts.jobId;
 }
 

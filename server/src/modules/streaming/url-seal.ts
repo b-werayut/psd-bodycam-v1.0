@@ -7,7 +7,7 @@ const TAG_BYTES = 16;
 export function streamUrlKey(env: NodeJS.ProcessEnv = process.env): Buffer {
   const secret = env.STREAM_URL_SECRET || env.JWT_ACCESS_SECRET;
   if (!secret) {
-    throw new Error('ต้องตั้ง STREAM_URL_SECRET หรือ JWT_ACCESS_SECRET ก่อนใช้ live streaming');
+    throw new Error('STREAM_URL_SECRET or JWT_ACCESS_SECRET must be set before using live streaming');
   }
   return createHash('sha256').update(secret).digest();
 }
@@ -22,7 +22,7 @@ export function sealUrl(url: string, key: Buffer, sessionToken = ''): string {
 
 export function openUrl(sealed: string, key: Buffer, sessionToken = ''): string {
   const raw = Buffer.from(sealed, 'base64url');
-  if (raw.length <= IV_BYTES + TAG_BYTES) throw new Error('ข้อมูล URL ไม่ครบ');
+  if (raw.length <= IV_BYTES + TAG_BYTES) throw new Error('sealed URL data is incomplete');
   const iv = raw.subarray(0, IV_BYTES);
   const tag = raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES);
   const decipher = createDecipheriv(ALGO, key, iv);

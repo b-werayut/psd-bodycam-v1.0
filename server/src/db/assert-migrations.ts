@@ -23,7 +23,7 @@ export async function checkMigrationsForBoot(
   if (error) Logger.error(error, CONTEXT);
   if (mode === 'off') {
     Logger.warn(
-      'DB_MIGRATION_CHECK=off — ข้ามการตรวจ schema · schema ที่ไม่ตรงจะกลายเป็น 500 ตอนใช้งานแทน',
+      'DB_MIGRATION_CHECK=off - schema check skipped · a schema mismatch will surface as 500 errors at runtime instead',
       CONTEXT,
     );
     return null;
@@ -31,7 +31,7 @@ export async function checkMigrationsForBoot(
 
   const url = (env.DATABASE_URL ?? '').trim();
   if (!url) {
-    Logger.error('ไม่ได้ตั้ง DATABASE_URL — ตรวจ schema ไม่ได้', CONTEXT);
+    Logger.error('DATABASE_URL is not set - cannot check the schema', CONTEXT);
     return null;
   }
 
@@ -47,8 +47,8 @@ export async function checkMigrationsForBoot(
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     Logger.warn(
-      `ตรวจ schema ไม่สำเร็จ (${redactUrl(url)}): ${message} — ปล่อยให้ขึ้นต่อ ` +
-        'เพราะพิสูจน์ไม่ได้ว่า schema ไม่ตรง',
+      `Schema check failed (${redactUrl(url)}): ${message} - continuing to start ` +
+        'because a schema mismatch cannot be proven',
       CONTEXT,
     );
     return null;
@@ -80,14 +80,14 @@ export async function guardMigrationsOrExit(
 
   if (blocked) {
     Logger.error(
-      'ไม่สตาร์ตโปรเซส — ลง migration ให้ครบก่อน (หรือตั้ง DB_MIGRATION_CHECK=warn ' +
-        'ชั่วคราวถ้าจำเป็นต้องให้ระบบขึ้นก่อน)',
+      'Not starting the process - apply all migrations first (or set DB_MIGRATION_CHECK=warn ' +
+        'temporarily if the system must come up first)',
       CONTEXT,
     );
     process.exit(1);
   }
 
   if (report.level === 'fail') {
-    Logger.warn('DB_MIGRATION_CHECK=warn — ขึ้นระบบต่อทั้งที่ schema ไม่ตรง', CONTEXT);
+    Logger.warn('DB_MIGRATION_CHECK=warn - starting even though the schema does not match', CONTEXT);
   }
 }

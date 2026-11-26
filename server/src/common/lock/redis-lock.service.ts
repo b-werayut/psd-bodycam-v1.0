@@ -42,7 +42,7 @@ export class RedisLockService {
     const fullKey = lockKey(key);
     const token = randomBytes(TOKEN_BYTES).toString('hex');
     if ((await client.set(fullKey, token, { NX: true, EX: ttlSeconds })) !== 'OK') {
-      this.logger.debug(`ข้ามงาน '${key}' — อินสแตนซ์อื่นถือล็อกอยู่`);
+      this.logger.debug(`Skipping job '${key}' - another instance holds the lock`);
       return null;
     }
 
@@ -60,7 +60,7 @@ export class RedisLockService {
     const fullKey = lockKey(key);
     const token = randomBytes(TOKEN_BYTES).toString('hex');
     if ((await client.set(fullKey, token, { NX: true, EX: ttlSeconds })) !== 'OK') {
-      this.logger.log(`ข้ามงาน '${key}' — อินสแตนซ์อื่นถือล็อกอยู่`);
+      this.logger.log(`Skipping job '${key}' - another instance holds the lock`);
       return null;
     }
 
@@ -77,10 +77,10 @@ export class RedisLockService {
             if (extended === 1) return;
             state.held = false;
             clearInterval(timer);
-            this.logger.warn(`เสียล็อก '${key}' ให้อินสแตนซ์อื่น — หยุดงานฝั่งนี้`);
+            this.logger.warn(`Lost lock '${key}' to another instance - stopping work on this side`);
             onLost?.();
           } catch (error) {
-            this.logger.warn(`ต่ออายุล็อก '${key}' ไม่สำเร็จ: ${errorMessage(error)}`);
+            this.logger.warn(`Failed to renew lock '${key}': ${errorMessage(error)}`);
           }
         })();
       },
@@ -105,7 +105,7 @@ export class RedisLockService {
     if (this.client?.isReady) return this.client;
     if (!this.warnedNoRedis) {
       this.warnedNoRedis = true;
-      this.logger.warn(`ไม่มี Redis สำหรับล็อก — ข้ามงานที่ต้องใช้ล็อก (เช่น '${key}') จนกว่าจะต่อติด`);
+      this.logger.warn(`No Redis for locks - skipping jobs that need a lock (e.g. '${key}') until it connects`);
     }
     return null;
   }
@@ -120,7 +120,7 @@ export class RedisLockService {
     try {
       await client.eval(RELEASE_SCRIPT, { keys: [fullKey], arguments: [token] });
     } catch (error) {
-      this.logger.warn(`ปล่อยล็อก '${key}' ไม่สำเร็จ (จะหมดอายุเองใน ${ttlSeconds} วิ): ${errorMessage(error)}`);
+      this.logger.warn(`Failed to release lock '${key}' (it will expire on its own in ${ttlSeconds} s): ${errorMessage(error)}`);
     }
   }
 }

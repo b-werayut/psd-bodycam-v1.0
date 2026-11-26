@@ -60,7 +60,7 @@ export class EntraUserSyncService {
     }
 
     const fetched = await fetchEntraUsers(config).catch((cause: Error) => {
-      this.logger.error(`ดึงรายชื่อจาก Microsoft Graph ไม่สำเร็จ: ${cause.message}`);
+      this.logger.error(`failed to fetch users from Microsoft Graph: ${cause.message}`);
       throw new AppException(502, 'GRAPH_UNAVAILABLE', `ติดต่อ Microsoft Graph ไม่สำเร็จ: ${cause.message}`);
     });
 

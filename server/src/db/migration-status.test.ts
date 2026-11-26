@@ -119,7 +119,7 @@ describe('describeMigrationStatus', () => {
     );
     expect(report.level).toBe('fail');
     expect(report.lines[0]).toContain('0001_next');
-    expect(report.lines.join('\n')).toContain('ซ่อมให้ไม่ได้');
+    expect(report.lines.join('\n')).toContain('cannot repair');
   });
 
   it('journal-missing = fail · บอกให้ db:migrate และไม่แนะนำ baseline (ระบบนี้ไม่มีสคริปต์นั้น)', () => {

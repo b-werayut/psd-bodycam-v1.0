@@ -86,7 +86,7 @@ export class TalkRelay implements OnApplicationBootstrap, OnModuleDestroy {
 
   private async accept(req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
     // socket ของ upgrade ยังไม่มี listener ของ error — client ตัดระหว่างรอ DB แล้วโปรเซสล้มได้
-    socket.on('error', (error: Error) => this.logger.debug(`socket ของ ${TALK_WS_PATH}: ${error.message}`));
+    socket.on('error', (error: Error) => this.logger.debug(`socket of ${TALK_WS_PATH}: ${error.message}`));
 
     const ticket = talkTicketFromUrl(req.url);
     let row: TalkSessionRow | null = null;
@@ -94,7 +94,7 @@ export class TalkRelay implements OnApplicationBootstrap, OnModuleDestroy {
       try {
         row = await this.talk.consumeTicket(ticket);
       } catch (error) {
-        this.logger.error(`ใช้ ticket ของ WS เสียงไม่สำเร็จ: ${(error as Error).message}`);
+        this.logger.error(`failed to consume audio WS ticket: ${(error as Error).message}`);
       }
     }
 
@@ -107,7 +107,7 @@ export class TalkRelay implements OnApplicationBootstrap, OnModuleDestroy {
     // ตอบ 101 ทันทีหลังใช้ ticket แล้วค่อยต่อ FastAPI — engine.io ทำลาย upgrade ที่ไม่ใช่ของตัวเอง
     // ถ้ายังไม่มีไบต์ตอบกลับภายใน 1 วินาที (destroyUpgradeTimeout)
     this.wss.handleUpgrade(req, socket, head, (browser) => {
-      browser.on('error', (error: Error) => this.logger.warn(`WS เสียงฝั่ง browser error: ${error.message}`));
+      browser.on('error', (error: Error) => this.logger.warn(`audio WS (browser side) error: ${error.message}`));
       if (!row) {
         // ticket ผิด / หมดอายุ / ใช้แล้ว — รับ upgrade แล้วปิด 4401 ให้ browser แปล code เป็นข้อความได้
         browser.close(TALK_CLOSE_CODE.TICKET, closeReasonFor(TALK_CLOSE_CODE.TICKET));
@@ -119,7 +119,7 @@ export class TalkRelay implements OnApplicationBootstrap, OnModuleDestroy {
 
   private begin(row: TalkSessionRow, browser: WebSocket): void {
     if (!row.VendorTalkId || row.UplinkSampleRate === null || row.FrameMs === null) {
-      this.logger.error(`สาย ${row.Id} ไม่มีข้อมูลจาก FastAPI ครบ — ตัดสาย`);
+      this.logger.error(`call ${row.Id} has incomplete data from FastAPI - dropping the call`);
       browser.close(TALK_CLOSE_CODE.VENDOR_ERROR, closeReasonFor(TALK_CLOSE_CODE.VENDOR_ERROR));
       void this.talk.hangUp(row, TALK_END_REASON.VENDOR_ERROR, {
         closeCode: TALK_CLOSE_CODE.VENDOR_ERROR,
@@ -149,7 +149,7 @@ export class TalkRelay implements OnApplicationBootstrap, OnModuleDestroy {
     try {
       channel = await this.provider.openAudio(talkId);
     } catch (error) {
-      this.logger.error(`ต่อช่องเสียงของสาย ${call.row.Id} ไม่สำเร็จ: ${(error as Error).message}`);
+      this.logger.error(`failed to open audio channel of call ${call.row.Id}: ${(error as Error).message}`);
       this.finish(call, {
         browserCode: TALK_CLOSE_CODE.VENDOR_ERROR,
         upstreamCode: null,
@@ -192,7 +192,7 @@ export class TalkRelay implements OnApplicationBootstrap, OnModuleDestroy {
   private fromUpstream(call: TalkCall, frame: Buffer): void {
     if (call.finished || call.browser.readyState !== WebSocket.OPEN) return;
     if (!isValidDownlinkFrame(frame.length)) {
-      this.logger.debug(`ทิ้ง frame ขาลงขนาด ${frame.length} byte ของสาย ${call.row.Id}`);
+      this.logger.debug(`dropped ${frame.length}-byte downlink frame of call ${call.row.Id}`);
       return;
     }
     call.browser.send(frame, { binary: true });
@@ -235,7 +235,7 @@ export class TalkRelay implements OnApplicationBootstrap, OnModuleDestroy {
       }
     } catch (error) {
       // DB ใช้ไม่ได้ = ไม่มีใครเขียนการถอนสิทธิ์ลง DB ได้เช่นกัน จึงปล่อยสายไว้แล้วตรวจใหม่รอบหน้า
-      this.logger.warn(`ตรวจสิทธิ์ของสาย ${call.row.Id} ไม่สำเร็จ: ${(error as Error).message}`);
+      this.logger.warn(`revalidation of call ${call.row.Id} failed: ${(error as Error).message}`);
     } finally {
       call.checking = false;
     }

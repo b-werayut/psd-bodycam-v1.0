@@ -40,7 +40,7 @@ export class RateLimiterService {
         };
       } catch (error) {
         this.logger.warn(
-          `นับโควตาที่ Redis ไม่สำเร็จ (ปล่อยผ่าน): ${error instanceof Error ? error.message : String(error)}`,
+          `Counting rate limit in Redis failed (allowing request): ${error instanceof Error ? error.message : String(error)}`,
         );
         return { allowed: true, count: 0, retryAfterSeconds: 0 };
       }
@@ -48,7 +48,7 @@ export class RateLimiterService {
 
     if (!this.warnedLocal) {
       this.warnedLocal = true;
-      this.logger.warn('ไม่มี Redis — นับโควตาในหน่วยความจำ (โควตาเป็นต่ออินสแตนซ์)');
+      this.logger.warn('No Redis - counting rate limits in memory (limits are per instance)');
     }
     return hitFixedWindow(this.local, key, limit, windowSeconds * 1000, Date.now());
   }

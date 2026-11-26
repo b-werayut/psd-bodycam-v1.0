@@ -34,12 +34,12 @@ export class BookingInboxWorker implements OnApplicationBootstrap, BeforeApplica
   onApplicationBootstrap(): void {
     const url = (process.env.REDIS_URL ?? '').trim();
     if (!url) {
-      this.logger.warn('ไม่ได้ตั้ง REDIS_URL — ไม่เปิดคิว booking-inbox');
+      this.logger.warn('REDIS_URL is not set - booking-inbox queue not started');
       return;
     }
     const connection = queueConnection(url, 'worker');
     // Without a listener ioredis would print every reconnect error unhandled.
-    connection.on('error', (err) => this.logger.warn(`Redis ของคิว booking-inbox: ${err.message}`));
+    connection.on('error', (err) => this.logger.warn(`booking-inbox queue Redis: ${err.message}`));
     this.connection = connection;
 
     const worker = new Worker<BookingInboxJob, InboxOutcome>(
@@ -47,10 +47,10 @@ export class BookingInboxWorker implements OnApplicationBootstrap, BeforeApplica
       (job) => this.processor.process(BigInt(job.data.inboxId)),
       { connection, prefix: queuePrefix(), concurrency: BOOKING_INBOX_CONCURRENCY },
     );
-    worker.on('error', (err) => this.logger.warn(`คิว booking-inbox: ${err.message}`));
+    worker.on('error', (err) => this.logger.warn(`booking-inbox queue: ${err.message}`));
     // only when the DB could not even record the failure (or a bad job id); the row is left for the sweep
     worker.on('failed', (job, err) =>
-      this.logger.warn(`งาน ${job?.id ?? '?'} ของคิว booking-inbox ไม่สำเร็จ: ${safeErrorSummary(err)}`),
+      this.logger.warn(`booking-inbox job ${job?.id ?? '?'} failed: ${safeErrorSummary(err)}`),
     );
     this.worker = worker;
   }
@@ -80,7 +80,7 @@ export class BookingInboxWorker implements OnApplicationBootstrap, BeforeApplica
       });
       const result = await Promise.race([worker.close().catch(() => undefined), timeout]);
       clearTimeout(timer);
-      if (result === 'timeout') this.logger.warn(`ปิดคิว booking-inbox ไม่เสร็จใน ${CLOSE_TIMEOUT_MS} ms — ตัดการเชื่อมต่อ`);
+      if (result === 'timeout') this.logger.warn(`Closing booking-inbox queue did not finish in ${CLOSE_TIMEOUT_MS} ms - disconnecting`);
     }
     connection?.disconnect();
   }

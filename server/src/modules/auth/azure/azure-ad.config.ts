@@ -31,17 +31,17 @@ export function readAzureAdConfig(env: NodeJS.ProcessEnv): AzureAdConfig {
 
   if (!tenantId || !clientId) {
     throw new AzureAdConfigError(
-      'ต้องตั้ง AZURE_AD_TENANT_ID และ AZURE_AD_CLIENT_ID ให้ครบทั้งคู่ (ตั้งมาตัวเดียวจะเปิด SSO ไม่ได้)',
+      'AZURE_AD_TENANT_ID and AZURE_AD_CLIENT_ID must both be set (setting only one cannot enable SSO)',
     );
   }
   if (!GUID.test(tenantId)) {
     throw new AzureAdConfigError(
-      `AZURE_AD_TENANT_ID '${tenantId}' ไม่ใช่ GUID — คัดลอกค่า Directory (tenant) ID จากหน้า App registration`,
+      `AZURE_AD_TENANT_ID '${tenantId}' is not a GUID - copy the Directory (tenant) ID from the App registration page`,
     );
   }
   if (!GUID.test(clientId)) {
     throw new AzureAdConfigError(
-      `AZURE_AD_CLIENT_ID '${clientId}' ไม่ใช่ GUID — คัดลอกค่า Application (client) ID จากหน้า App registration`,
+      `AZURE_AD_CLIENT_ID '${clientId}' is not a GUID - copy the Application (client) ID from the App registration page`,
     );
   }
 
@@ -76,7 +76,7 @@ export function assertSomeLoginMethod(config: Pick<AzureAdConfig, 'enabled'>, en
   const passwordOn = (env.AUTH_PASSWORD_LOGIN_ENABLED ?? 'true').trim().toLowerCase() !== 'false';
   if (!config.enabled && !passwordOn) {
     throw new AzureAdConfigError(
-      'ไม่ได้ตั้ง AZURE_AD_* (SSO ปิด) และ AUTH_PASSWORD_LOGIN_ENABLED=false — จะไม่มีใครเข้าระบบได้เลย',
+      'AZURE_AD_* is not set (SSO off) and AUTH_PASSWORD_LOGIN_ENABLED=false - nobody would be able to sign in',
     );
   }
 }

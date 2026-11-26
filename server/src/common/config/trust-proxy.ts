@@ -12,10 +12,10 @@ const OFF = new Set(['off', 'false', 'none', 'no']);
 const TRUST_EVERYTHING = new Set(['true', 'all', 'any', '*']);
 
 const DANGER =
-  'ทำให้ Express เชื่อ X-Forwarded-For ที่ผู้เรียกส่งมาเอง = ปลอม IP ข้าม rate limit ' +
-  'และเขียนแถว AuditLogs ด้วย IP ปลอมได้';
+  'makes Express trust an X-Forwarded-For header supplied by the caller = IP spoofing past the rate limit ' +
+  'and AuditLogs rows written with a fake IP';
 const HOW_TO =
-  "ใช้ 'loopback' (nginx เครื่องเดียวกัน), จำนวน hop เช่น '1', หรือ IP/ช่วง IP ของ proxy";
+  "use 'loopback' (nginx on the same machine), a hop count such as '1', or the proxy IP / IP range";
 
 export function resolveTrustProxy(env: NodeJS.ProcessEnv): TrustProxyResolution {
   const raw = (env.TRUST_PROXY ?? '').trim();
@@ -26,7 +26,7 @@ export function resolveTrustProxy(env: NodeJS.ProcessEnv): TrustProxyResolution 
   if (TRUST_EVERYTHING.has(lower)) {
     return {
       value: TRUST_PROXY_DEFAULT,
-      error: `TRUST_PROXY='${raw}' ใช้ไม่ได้ — ${DANGER} · ${HOW_TO} · ตอนนี้ถอยไปใช้ '${TRUST_PROXY_DEFAULT}'`,
+      error: `TRUST_PROXY='${raw}' is not allowed - ${DANGER} · ${HOW_TO} · falling back to '${TRUST_PROXY_DEFAULT}'`,
     };
   }
   if (OFF.has(lower)) return { value: false };
@@ -37,7 +37,7 @@ export function resolveTrustProxy(env: NodeJS.ProcessEnv): TrustProxyResolution 
     if (!Number.isSafeInteger(hops)) {
       return {
         value: TRUST_PROXY_DEFAULT,
-        error: `TRUST_PROXY='${raw}' เป็นจำนวนที่ใหญ่เกินใช้งาน — ${HOW_TO}`,
+        error: `TRUST_PROXY='${raw}' is too large to use - ${HOW_TO}`,
       };
     }
     return { value: hops };
@@ -51,7 +51,7 @@ export function resolveTrustProxy(env: NodeJS.ProcessEnv): TrustProxyResolution 
   if (list.length === 0 || bad.length > 0) {
     return {
       value: TRUST_PROXY_DEFAULT,
-      error: `TRUST_PROXY มีค่าที่อ่านไม่ออก: ${bad.join(', ') || raw} — ${HOW_TO} · ตอนนี้ถอยไปใช้ '${TRUST_PROXY_DEFAULT}'`,
+      error: `TRUST_PROXY has unreadable values: ${bad.join(', ') || raw} - ${HOW_TO} · falling back to '${TRUST_PROXY_DEFAULT}'`,
     };
   }
   return { value: list };

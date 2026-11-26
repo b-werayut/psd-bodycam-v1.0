@@ -42,7 +42,7 @@ export async function dssRequest(
     return { ok: res.ok, status: res.status, text };
   } catch (error) {
     if (controller.signal.aborted || (error as Error).name === 'AbortError') {
-      throw new Error(`DSS ที่ ${dssEndpointLabel(url)} ไม่ตอบภายใน ${timeoutMs} ms`);
+      throw new Error(`DSS at ${dssEndpointLabel(url)} did not respond within ${timeoutMs} ms`);
     }
     // undici wraps every cause as `TypeError: fetch failed`; the real one is in error.cause
     throw Object.assign(new Error(describeDssFetchFailure(url, error)), { cause: error });

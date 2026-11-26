@@ -30,7 +30,7 @@ export const DEFAULT_DEMO_PASSWORD = 'Demo@12345';
 
 export function assertSeedAllowed(env: Env): void {
   if ((env.NODE_ENV ?? '').trim() === 'production') {
-    throw new Error('db:seed ใช้เฉพาะเครื่อง dev — ปฏิเสธเมื่อ NODE_ENV=production');
+    throw new Error('db:seed is for dev machines only - refused when NODE_ENV=production');
   }
 }
 
@@ -65,7 +65,7 @@ export async function runDevSeed(
     const roleId = new Map(roles.map((r) => [r.Code as string, r.Id]));
     const missing = roleCodes.filter((c) => !roleId.has(c));
     if (missing.length) {
-      throw new Error(`ไม่พบ role ${missing.join(', ')} — รัน npm run db:migrate ก่อน db:seed`);
+      throw new Error(`Role not found: ${missing.join(', ')} - run npm run db:migrate before db:seed`);
     }
 
     for (const u of users) {

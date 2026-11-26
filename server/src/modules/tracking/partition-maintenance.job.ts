@@ -70,8 +70,8 @@ export class PartitionMaintenanceJob implements OnApplicationBootstrap, OnApplic
         if (stray.length > 0) {
           blocked.push(name);
           this.logger.error(
-            `สร้าง partition ${name} ไม่ได้: ${table}_default มีแถวของเดือนนั้นอยู่แล้ว — ` +
-              `ย้ายแถวออกจาก ${table}_default ก่อน แล้วรันงานนี้ใหม่`,
+            `Cannot create partition ${name}: ${table}_default already has rows of that month - ` +
+              `move the rows out of ${table}_default first, then rerun this job`,
           );
           continue;
         }
@@ -82,7 +82,7 @@ export class PartitionMaintenanceJob implements OnApplicationBootstrap, OnApplic
         created.push(name);
       }
     }
-    if (created.length > 0) this.logger.log(`สร้าง partition ล่วงหน้า: ${created.join(', ')}`);
+    if (created.length > 0) this.logger.log(`Created partitions ahead: ${created.join(', ')}`);
     return { created, blocked };
   }
 
@@ -90,7 +90,7 @@ export class PartitionMaintenanceJob implements OnApplicationBootstrap, OnApplic
     try {
       await this.runOnce();
     } catch (error) {
-      this.logger.error(`PartitionMaintenance ไม่สำเร็จ: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(`PartitionMaintenance failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     if (this.stopped) return;
     this.timer = setTimeout(() => void this.loop(), PARTITION_MAINTENANCE_INTERVAL_MS);

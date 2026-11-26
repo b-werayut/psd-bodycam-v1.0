@@ -9,7 +9,7 @@ export function accessTokenSecret(env: NodeJS.ProcessEnv = process.env): string 
   const secret = (env.JWT_ACCESS_SECRET ?? '').trim();
   if (secret) return secret;
   if (env.NODE_ENV === 'production') {
-    throw new Error('ไม่ได้ตั้ง JWT_ACCESS_SECRET — production ต้องตั้งค่าสุ่มอย่างน้อย 32 ตัวอักษร');
+    throw new Error('JWT_ACCESS_SECRET is not set - production requires a random value of at least 32 characters');
   }
   return DEV_FALLBACK_SECRET;
 }

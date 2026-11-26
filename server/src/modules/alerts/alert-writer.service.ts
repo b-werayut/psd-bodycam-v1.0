@@ -94,7 +94,7 @@ export class AlertWriterService {
       for (const admin of admins) bus.to(userRoom(admin.id)).emit('alert:new', event);
     } catch (error) {
       // the alert is in the DB either way; a lost push only delays what the screen shows
-      this.logger.warn(`push alert:new ไม่สำเร็จ: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(`Failed to push alert:new: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

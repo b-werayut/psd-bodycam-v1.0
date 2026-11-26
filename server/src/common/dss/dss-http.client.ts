@@ -47,7 +47,7 @@ export class DssHttpClient implements DssClient {
     const reading = parseDssReading(payload, vendorDeviceId);
     if (reading.online === null && payload?.code !== DSS_SUCCESS_CODE) {
       this.logger.debug(
-        `DSS ตอบ code=${String(isObject(payload) ? payload.code : 'n/a')} ของ ${vendorDeviceId} — ถือว่าไม่รู้สถานะ`,
+        `DSS replied code=${String(isObject(payload) ? payload.code : 'n/a')} for ${vendorDeviceId} - treating status as unknown`,
       );
     }
     return reading;
@@ -56,17 +56,17 @@ export class DssHttpClient implements DssClient {
   async listDevices(): Promise<VendorInventory> {
     const body = await this.request('/api/v1/devices', { method: 'GET' });
     const payload = parseJson(body);
-    if (payload === undefined) throw new Error('DSS ส่งรายการอุปกรณ์ที่ไม่ใช่ JSON');
+    if (payload === undefined) throw new Error('DSS returned a device list that is not JSON');
     const typed = payload as DssDeviceListBody;
     if (!isObject(typed) || typed.code !== DSS_SUCCESS_CODE) {
       const code = isObject(typed) ? String(typed.code) : 'n/a';
       const desc = isObject(typed) && typed.desc ? `: ${typed.desc}` : '';
-      throw new Error(`DSS ปฏิเสธคำขอรายการอุปกรณ์ (code=${code}${desc})`);
+      throw new Error(`DSS rejected the device list request (code=${code}${desc})`);
     }
     const parsed = parseDssDeviceList(typed);
     if (!parsed.complete) {
       this.logger.warn(
-        `DSS แจ้งจำนวนอุปกรณ์มากกว่าที่ส่งมา (ส่งมา ${parsed.devices.length}) — รายการไม่ครบ จะไม่ตั้งกล้องที่ไม่อยู่ในรายการเป็นหาย`,
+        `DSS reports more devices than it returned (returned ${parsed.devices.length}) - the list is incomplete, so cameras missing from it will not be marked as missing`,
       );
     }
     return { ...parsed, fetchedAt: new Date() };
@@ -85,7 +85,7 @@ export class DssHttpClient implements DssClient {
       },
       this.config.timeoutMs,
     );
-    if (!res.ok) throw new Error(`DSS ตอบ ${res.status}: ${res.text.slice(0, 200)}`);
+    if (!res.ok) throw new Error(`DSS replied ${res.status}: ${res.text.slice(0, 200)}`);
     return res.text;
   }
 }

@@ -78,7 +78,7 @@ export class DeviceStatusDisplayService {
     } catch (error) {
       if (!(error instanceof DssRecentlyFailed)) {
         this.logger.warn(
-          `ถามสถานะกล้องจาก DSS ไม่ได้ ใช้สถานะล่าสุดในระบบแทน: ${error instanceof Error ? error.message : String(error)}`,
+          `Could not get camera status from DSS, using the latest status in the system instead: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
       for (const [id, status] of await this.fromDeviceState(missing)) out.set(id, status);
@@ -113,7 +113,7 @@ export class DeviceStatusDisplayService {
         out.set(String(devices[i].id), { platformState: value.s, platformStatusFetchedAt: value.at });
       });
     } catch (error) {
-      this.logger.warn(`อ่าน cache สถานะกล้องไม่ได้ ถาม DSS ตรง: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(`Could not read the camera status cache, asking DSS directly: ${error instanceof Error ? error.message : String(error)}`);
       out.clear();
     }
     return out;
@@ -132,7 +132,7 @@ export class DeviceStatusDisplayService {
         ),
       );
     } catch (error) {
-      this.logger.warn(`เขียน cache สถานะกล้องไม่ได้: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(`Could not write the camera status cache: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

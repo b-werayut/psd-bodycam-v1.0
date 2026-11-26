@@ -61,7 +61,7 @@ export function planDeviceSync(vendor: readonly VendorDevice[], local: readonly 
       plan.skips.push({
         vendorDeviceId,
         reason: 'duplicateInVendorList',
-        message: `DSS ส่งรหัส '${vendorDeviceId}' ซ้ำในรายการเดียวกัน — ใช้รายการแรก`,
+        message: `DSS sent code '${vendorDeviceId}' twice in the same list - using the first`,
       });
       continue;
     }
@@ -73,7 +73,7 @@ export function planDeviceSync(vendor: readonly VendorDevice[], local: readonly 
         plan.skips.push({
           vendorDeviceId,
           reason: 'localDeleted',
-          message: `กล้อง '${existing.deviceCode}' ที่ถือรหัสนี้ถูกลบไปแล้ว — VendorDeviceId ซ้ำไม่ได้ จึงไม่สร้างใหม่`,
+          message: `Camera '${existing.deviceCode}' holding this code was deleted - VendorDeviceId must be unique, so it is not recreated`,
         });
         continue;
       }
@@ -87,7 +87,7 @@ export function planDeviceSync(vendor: readonly VendorDevice[], local: readonly 
       plan.skips.push({
         vendorDeviceId,
         reason: 'unsupportedType',
-        message: `ชนิด '${device.vendorType ?? device.model ?? '-'}' ไม่ใช่ bodycam — ระบบนี้รับเฉพาะ bodycam`,
+        message: `Type '${device.vendorType ?? device.model ?? '-'}' is not a bodycam - this system accepts bodycams only`,
       });
       continue;
     }
@@ -95,7 +95,7 @@ export function planDeviceSync(vendor: readonly VendorDevice[], local: readonly 
       plan.skips.push({
         vendorDeviceId,
         reason: 'tooLong',
-        message: `รหัสจาก DSS ยาว ${vendorDeviceId.length} ตัว เกิน DeviceCode (${MAX_DEVICE_CODE})`,
+        message: `DSS code is ${vendorDeviceId.length} chars long, exceeds DeviceCode (${MAX_DEVICE_CODE})`,
       });
       continue;
     }
@@ -104,7 +104,7 @@ export function planDeviceSync(vendor: readonly VendorDevice[], local: readonly 
       plan.skips.push({
         vendorDeviceId,
         reason: 'deviceCodeTaken',
-        message: `รหัสกล้อง '${vendorDeviceId}' ถูกใช้แล้วโดยกล้องที่ผูกกับรหัส DSS '${owner}'`,
+        message: `Camera code '${vendorDeviceId}' is already used by the camera bound to DSS code '${owner}'`,
       });
       continue;
     }

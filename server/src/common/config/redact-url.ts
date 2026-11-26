@@ -4,6 +4,6 @@ export function redactUrl(url: string): string {
     if (parsed.password) parsed.password = '***';
     return parsed.toString();
   } catch {
-    return '(URL ไม่ถูกรูปแบบ)';
+    return '(malformed URL)';
   }
 }

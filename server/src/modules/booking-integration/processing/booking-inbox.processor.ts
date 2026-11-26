@@ -142,17 +142,17 @@ export class BookingInboxProcessor {
         .returning({ status: IntegrationInbox.Status, attempts: IntegrationInbox.Attempts });
     } catch (writeErr) {
       this.logger.error(
-        `ประมวลผล inbox ${inboxId} ไม่สำเร็จ (${summary}) และบันทึกผลไม่ได้: ${safeErrorSummary(writeErr)}`,
+        `Processing inbox ${inboxId} failed (${summary}) and the result could not be saved: ${safeErrorSummary(writeErr)}`,
       );
       throw err;
     }
 
     if (!counted) return 'skipped';
     if (counted.status === INBOX.DEAD) {
-      this.logger.error(`inbox ${inboxId} เป็น Dead หลังผิดพลาด ${counted.attempts} ครั้ง: ${summary}`);
+      this.logger.error(`inbox ${inboxId} is Dead after ${counted.attempts} failed attempts: ${summary}`);
       return 'dead';
     }
-    this.logger.warn(`ประมวลผล inbox ${inboxId} ไม่สำเร็จ ครั้งที่ ${counted.attempts}: ${summary}`);
+    this.logger.warn(`Processing inbox ${inboxId} failed (attempt ${counted.attempts}): ${summary}`);
     return 'failed';
   }
 
@@ -165,7 +165,7 @@ export class BookingInboxProcessor {
       const pushed = change ?? (await this.currentAsUpdated(bookingJobId));
       if (pushed) emitWorkOrderChanged(this.realtime, pushed);
     } catch (err) {
-      this.logger.warn(`push workorder:changed ของ BookingJobs ${bookingJobId} ไม่สำเร็จ: ${safeErrorSummary(err)}`);
+      this.logger.warn(`Failed to push workorder:changed for BookingJobs ${bookingJobId}: ${safeErrorSummary(err)}`);
     }
   }
 

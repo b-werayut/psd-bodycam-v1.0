@@ -32,14 +32,14 @@ export class StreamingService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    this.timer = setInterval(() => { void this.expireIdle().catch(() => this.logger.warn('เก็บจอภาพหมดอายุไม่สำเร็จ')); }, 30_000);
+    this.timer = setInterval(() => { void this.expireIdle().catch(() => this.logger.warn('failed to expire idle stream sessions')); }, 30_000);
     this.timer.unref();
   }
   onModuleDestroy(): void { clearInterval(this.timer); }
 
   private notify(row: SessionRow): void {
     try { this.realtime.bus?.to(`user:${row.UserId}`).emit('stream:status', { sessionToken: row.SessionToken, deviceId: String(row.DeviceId), status: row.Status, endReason: row.EndReason }); }
-    catch { this.logger.warn('ส่งสถานะจอภาพผ่าน realtime ไม่สำเร็จ'); }
+    catch { this.logger.warn('failed to push stream status via realtime'); }
   }
 
   /** Media bearer tickets are checked against the current account/grants on every fetch. */
@@ -81,7 +81,7 @@ export class StreamingService implements OnModuleInit, OnModuleDestroy {
         .where(and(eq(Sessions.Id, reserved.Id), eq(Sessions.Status, 1)));
       if (error instanceof AppException) throw error;
       // Vendor payloads and URLs may contain credentials; do not include them in logs or responses.
-      this.logger.warn('DSS เปิดภาพสดไม่สำเร็จ');
+      this.logger.warn('DSS failed to open live stream');
       throw new AppException(502, 'STREAM_START_FAILED', 'ขอภาพสดจาก DSS ไม่สำเร็จ กรุณาลองอีกครั้ง');
     }
   }

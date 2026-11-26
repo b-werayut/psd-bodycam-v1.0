@@ -70,7 +70,7 @@ export class DssMockClient implements DssClient {
   private warnOnce(): void {
     if (this.warned) return;
     this.warned = true;
-    this.logger.warn(`ใช้กล้องจำลอง ${this.count} ตัว (DSS_DRIVER=mock) — สถานะและพิกัดไม่ใช่ของจริง`);
+    this.logger.warn(`Using ${this.count} simulated cameras (DSS_DRIVER=mock) - status and coordinates are not real`);
   }
 }
 

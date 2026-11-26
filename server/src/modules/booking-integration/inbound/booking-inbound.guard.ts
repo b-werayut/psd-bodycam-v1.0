@@ -60,7 +60,7 @@ export class BookingInboundAuthGuard implements CanActivate {
         httpStatus: 400,
         latencyMs: Date.now() - startedAt,
         correlationId: getCorrelationId() ?? null,
-        errorMessage: 'VALIDATION_FAILED: JSON ไม่ถูกต้อง',
+        errorMessage: 'VALIDATION_FAILED: invalid JSON',
         requestExcerpt: excerptOf(rawBody),
       });
       throw new AppException(400, 'VALIDATION_FAILED', 'ข้อมูลที่ส่งมาไม่ถูกต้อง', [

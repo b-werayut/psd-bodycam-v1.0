@@ -13,18 +13,18 @@ import {
 async function main(): Promise<void> {
   assertSeedAllowed(process.env);
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('ไม่ได้ตั้ง DATABASE_URL');
+  if (!url) throw new Error('DATABASE_URL is not set');
 
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
     const result = await runDevSeed(sql, process.env);
-    console.log(`seed เสร็จ: ผู้ใช้ ${result.users} บัญชี`);
+    console.log(`seed done: ${result.users} user accounts`);
     for (const u of SEED_USERS) {
       const source =
         u.role === 'SUPER_ADMIN'
-          ? `SEED_ADMIN_PASSWORD (ไม่ตั้ง = ${DEFAULT_ADMIN_PASSWORD})`
-          : `SEED_DEMO_PASSWORD (ไม่ตั้ง = ${DEFAULT_DEMO_PASSWORD})`;
-      console.log(`  ${u.username.padEnd(14)} ${u.role.padEnd(14)} รหัสผ่าน: ${source}`);
+          ? `SEED_ADMIN_PASSWORD (unset = ${DEFAULT_ADMIN_PASSWORD})`
+          : `SEED_DEMO_PASSWORD (unset = ${DEFAULT_DEMO_PASSWORD})`;
+      console.log(`  ${u.username.padEnd(14)} ${u.role.padEnd(14)} password: ${source}`);
     }
   } finally {
     await sql.end();

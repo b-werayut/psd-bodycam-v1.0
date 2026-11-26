@@ -21,7 +21,7 @@ export class RealtimeEmitterService implements OnModuleInit, OnApplicationShutdo
   async onModuleInit(): Promise<void> {
     const url = redisUrl();
     if (!url) {
-      this.logger.log('ไม่ได้ตั้ง REDIS_URL — โปรเซสนี้ push realtime ไม่ได้');
+      this.logger.log('REDIS_URL is not set - this process cannot push realtime events');
       return;
     }
 
@@ -30,7 +30,7 @@ export class RealtimeEmitterService implements OnModuleInit, OnApplicationShutdo
     client.on('error', (error: Error) => {
       if (warned) return;
       warned = true;
-      this.logger.warn(`การเชื่อมต่อ Redis (realtime emitter) มีปัญหา: ${error.message}`);
+      this.logger.warn(`Redis connection (realtime emitter) problem: ${error.message}`);
     });
     this.client = client;
 
@@ -38,7 +38,7 @@ export class RealtimeEmitterService implements OnModuleInit, OnApplicationShutdo
       this.use(client);
       return;
     }
-    this.logger.error(`ยังต่อ Redis ไม่ได้ (${url}) — ยัง push realtime ไม่ได้จนกว่าจะต่อติด (ข้อมูลยังลง DB ครบ)`);
+    this.logger.error(`Cannot connect to Redis yet (${url}) - realtime push is unavailable until it connects (data is still fully written to the DB)`);
     client.once('ready', () => {
       warned = false;
       this.use(client);
@@ -54,6 +54,6 @@ export class RealtimeEmitterService implements OnModuleInit, OnApplicationShutdo
 
   private use(client: RedisClientType): void {
     this.emitter = new Emitter(client, { key: REALTIME_REDIS_KEY }).of(REALTIME_NAMESPACE) as unknown as BroadcastBus;
-    this.logger.log(`push realtime ผ่าน Redis ได้แล้ว (namespace ${REALTIME_NAMESPACE})`);
+    this.logger.log(`Realtime push via Redis is ready (namespace ${REALTIME_NAMESPACE})`);
   }
 }

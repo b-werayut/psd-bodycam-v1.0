@@ -94,7 +94,7 @@ export class MockTalkProvider implements TalkProvider {
     const talk = this.talks.get(talkId);
     if (!talk) {
       return Promise.reject(
-        new TalkProviderError(TALK_MESSAGE.SYSTEM_ERROR, null, `mock: ไม่พบสาย ${talkId.slice(0, 8)}`),
+        new TalkProviderError(TALK_MESSAGE.SYSTEM_ERROR, null, `mock: call ${talkId.slice(0, 8)} not found`),
       );
     }
     if (talk.channel) {
@@ -102,7 +102,7 @@ export class MockTalkProvider implements TalkProvider {
         new TalkProviderError(
           TALK_MESSAGE.SYSTEM_ERROR,
           null,
-          `mock: สาย ${talkId} ต่อ WS ไปแล้ว (ต่อได้ครั้งเดียวต่อสาย)`,
+          `mock: call ${talkId} already has a WS attached (one per call)`,
         ),
       );
     }

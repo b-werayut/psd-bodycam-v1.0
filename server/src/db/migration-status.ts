@@ -86,12 +86,12 @@ export function describeMigrationStatus(status: MigrationStatus): MigrationRepor
   switch (status.verdict) {
     case 'ok': {
       const lines = [
-        `schema ตรงกับ image (ลงแล้ว ${status.appliedCount} migration จาก ${status.fileCount} ไฟล์)`,
+        `schema matches the image (${status.appliedCount} migrations applied out of ${status.fileCount} files)`,
       ];
       if (status.ahead > 0) {
         lines.push(
-          `database มี migration ที่ image นี้ไม่มีอยู่ ${status.ahead} ตัว — ` +
-            'ปกติแปลว่าเพิ่ง rollback โค้ดหลัง migrate ไปแล้ว ปล่อยผ่านได้ แต่ควรรู้ตัว',
+          `the database has ${status.ahead} migrations that this image does not contain - ` +
+            'usually means a code rollback after migrating; safe to continue, but be aware',
         );
         return { level: 'warn', lines };
       }
@@ -102,9 +102,9 @@ export function describeMigrationStatus(status: MigrationStatus): MigrationRepor
       return {
         level: 'fail',
         lines: [
-          `database ขาด migration ${status.pending.length} ตัว: ${names(status.pending)}`,
-          'schema ไม่ตรงกับโค้ดใน image นี้ — ปล่อยให้ขึ้นระบบจะได้ 500 ตอน query ที่แตะคอลัมน์ใหม่',
-          `แก้: ${MIGRATE_CMD}`,
+          `the database is missing ${status.pending.length} migrations: ${names(status.pending)}`,
+          'the schema does not match the code in this image - starting anyway will cause 500 errors on queries that touch the new columns',
+          `fix: ${MIGRATE_CMD}`,
         ],
       };
 
@@ -112,13 +112,13 @@ export function describeMigrationStatus(status: MigrationStatus): MigrationRepor
       return {
         level: 'fail',
         lines: [
-          `migration ${status.skipped.length} ตัวถูกข้ามถาวร: ${names(status.skipped)}`,
-          'hash ไม่อยู่ใน database แต่เวลาเก่ากว่าตัวล่าสุดที่ลงแล้ว — ' +
-            'drizzle เลือกจากเวลา จึงจะไม่รันตัวเหล่านี้อีกเลย `db:migrate` ซ่อมให้ไม่ได้',
-          'แก้: ลง SQL ของไฟล์เหล่านั้นกับ database เอง แล้วบันทึก hash ลง ' +
-            'drizzle.__drizzle_migrations (หรือ generate ใหม่ให้เวลาเดินหน้า)',
+          `${status.skipped.length} migrations were permanently skipped: ${names(status.skipped)}`,
+          'their hashes are not in the database but their timestamps are older than the latest applied one - ' +
+            'drizzle selects by timestamp, so it will never run them; `db:migrate` cannot repair this',
+          'fix: run the SQL of those files against the database yourself and record the hashes in ' +
+            'drizzle.__drizzle_migrations (or regenerate them so the timestamps move forward)',
           ...(status.pending.length > 0
-            ? [`(ยังมีตัวที่รอลงตามปกติอีก ${status.pending.length}: ${names(status.pending)})`]
+            ? [`(${status.pending.length} more are pending as usual: ${names(status.pending)})`]
             : []),
         ],
       };
@@ -127,10 +127,10 @@ export function describeMigrationStatus(status: MigrationStatus): MigrationRepor
       return {
         level: 'fail',
         lines: [
-          'ไม่พบตาราง drizzle.__drizzle_migrations — database นี้ยังไม่เคยผ่าน migrator',
-          'database ว่าง: รัน npm run db:migrate ตรง ๆ',
-          'database ที่มีตารางอยู่แล้วแต่ไม่เคยผ่าน migrator: ตรวจเทียบ schema ด้วยมือก่อน ' +
-            'ห้าม mark migration ว่าลงแล้วโดยไม่ได้รันจริง',
+          'table drizzle.__drizzle_migrations not found - this database has never been through the migrator',
+          'empty database: just run npm run db:migrate',
+          'database that already has tables but never went through the migrator: compare the schema by hand first; ' +
+            'never mark a migration as applied without actually running it',
         ],
       };
 
@@ -138,8 +138,8 @@ export function describeMigrationStatus(status: MigrationStatus): MigrationRepor
       return {
         level: 'warn',
         lines: [
-          'ไม่พบไฟล์ migration ใน image — ตรวจ schema ไม่ได้',
-          'image ต้อง copy โฟลเดอร์ drizzle/ (รวม meta/_journal.json) เข้าไปด้วย',
+          'no migration files found in the image - cannot check the schema',
+          'the image must include the drizzle/ folder (with meta/_journal.json)',
         ],
       };
   }
@@ -167,7 +167,7 @@ export function resolveMigrationCheckMode(
   return {
     mode: MIGRATION_CHECK_DEFAULT,
     error:
-      `DB_MIGRATION_CHECK='${raw}' อ่านไม่ออก — ใช้ได้เฉพาะ enforce | warn | off · ` +
-      `ตอนนี้ถอยไปใช้ '${MIGRATION_CHECK_DEFAULT}'`,
+      `DB_MIGRATION_CHECK='${raw}' is not recognized - only enforce | warn | off are valid · ` +
+      `falling back to '${MIGRATION_CHECK_DEFAULT}'`,
   };
 }

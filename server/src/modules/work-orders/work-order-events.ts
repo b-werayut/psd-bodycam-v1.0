@@ -35,6 +35,6 @@ export function emitWorkOrderChanged(realtime: RealtimeGateway, c: WorkOrderChan
     bus.to(TRACKING_ROOM).emit(WORKORDER_CHANGED, payload);
     if (c.teamId !== null) bus.to(`team:${c.teamId}`).emit(WORKORDER_CHANGED, payload);
   } catch (err) {
-    logger.warn(`push ${WORKORDER_CHANGED} ของใบงาน ${c.workOrderId} ไม่สำเร็จ: ${err instanceof Error ? err.message : String(err)}`);
+    logger.warn(`Failed to push ${WORKORDER_CHANGED} for work order ${c.workOrderId}: ${err instanceof Error ? err.message : String(err)}`);
   }
 }

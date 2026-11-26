@@ -9,11 +9,11 @@ import { decodeProtectedHeader, jwtVerify, type JWTPayload } from 'jose';
 export async function verifyDssBearer(header: string | undefined, key: string): Promise<JWTPayload> {
   const [scheme, token, extra] = (header ?? '').split(' ');
   if (scheme !== 'Bearer' || !token || extra !== undefined) {
-    throw new Error(`ไม่ใช่ "Bearer <token>": ${String(header)}`);
+    throw new Error(`not "Bearer <token>": ${String(header)}`);
   }
   const protectedHeader = decodeProtectedHeader(token);
   if (protectedHeader.alg !== 'HS256' || protectedHeader.typ !== 'JWT') {
-    throw new Error(`header ของ JWT ผิด: ${JSON.stringify(protectedHeader)}`);
+    throw new Error(`wrong JWT header: ${JSON.stringify(protectedHeader)}`);
   }
   const { payload } = await jwtVerify(token, new TextEncoder().encode(key), {
     algorithms: ['HS256'],

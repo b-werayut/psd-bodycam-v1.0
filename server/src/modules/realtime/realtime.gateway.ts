@@ -68,7 +68,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
       bus.to(userRoom(userId)).emit('session:revoked', payload);
       bus.to(userRoom(userId)).disconnectSockets?.(true);
     } catch (error) {
-      this.logger.warn(`ตัด session ของผู้ใช้ ${userId} ผ่าน realtime ไม่สำเร็จ: ${String(error)}`);
+      this.logger.warn(`failed to revoke session of user ${userId} via realtime: ${String(error)}`);
     }
   }
 
@@ -79,7 +79,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     if (emitterBus) return emitterBus;
     if (!this.warnedNoBus) {
       this.warnedNoBus = true;
-      this.logger.warn('โปรเซสนี้ไม่มีทั้ง Socket.IO server และ Redis emitter — ข้ามการ push realtime');
+      this.logger.warn('this process has neither a Socket.IO server nor a Redis emitter - skipping realtime push');
     }
     return null;
   }

@@ -26,7 +26,7 @@ export class DeviceSyncJob implements OnApplicationBootstrap, OnApplicationShutd
     try {
       await this.sync.syncOnce();
     } catch (error) {
-      this.logger.error(`DeviceSync ไม่สำเร็จ (ลองใหม่รอบถัดไป): ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(`DeviceSync failed (will retry next round): ${error instanceof Error ? error.message : String(error)}`);
     }
     if (this.stopped) return;
     this.timer = setTimeout(() => void this.loop(), DEVICE_SYNC_INTERVAL_MS);

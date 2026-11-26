@@ -14,7 +14,7 @@ describe('resolveTrustProxy', () => {
     (raw) => {
       const r = resolveTrustProxy({ TRUST_PROXY: raw });
       expect(r.value).toBe(TRUST_PROXY_DEFAULT);
-      expect(r.error).toContain('ปลอม IP');
+      expect(r.error).toContain('IP spoofing');
     },
   );
 

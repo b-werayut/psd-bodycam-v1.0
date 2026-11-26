@@ -51,7 +51,7 @@ export class AuditWriterService {
         CorrelationId: ctx?.correlationId ?? null,
       });
     } catch (error) {
-      this.logger.error(`เขียน AuditLogs ไม่สำเร็จ (${entry.action}): ${error instanceof Error ? error.message : error}`);
+      this.logger.error(`Failed to write AuditLogs (${entry.action}): ${error instanceof Error ? error.message : error}`);
     }
   }
 }
