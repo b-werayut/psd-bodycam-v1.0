@@ -47,6 +47,15 @@ describe('Bangkok date + time fields', () => {
     expect(windowOfFields(rangeFieldsOf(window))).toEqual(window);
   });
 
+  it('preserves selected seconds across Bangkok conversion and range field updates', () => {
+    expect(bangkokInstant('2026-11-24', '20:00:15')).toBe('2026-11-24T13:00:15.000Z');
+    expect(bangkokInstant('2026-11-24', '20:00:60')).toBeNull();
+    const window = { from: '2026-11-21T13:00:15.000Z', to: '2026-11-21T23:00:45.000Z' };
+    const fields = rangeFieldsOf(window);
+    expect(fields).toEqual({ startDate: '2026-11-21', startTime: '20:00:15', endDate: '2026-11-22', endTime: '06:00:45' });
+    expect(windowOfFields(fields)).toEqual(window);
+  });
+
   it('a whole day ends at 00:00 of the next day', () => {
     expect(rangeFieldsOf(dayWindowOf('2026-11-22'))).toEqual({
       startDate: '2026-11-22',

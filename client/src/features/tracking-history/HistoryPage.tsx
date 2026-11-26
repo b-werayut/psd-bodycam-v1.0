@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, ListFilter, TriangleAlert } from 'lucide-react';
+import { ListFilter, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -8,6 +8,7 @@ import { MapCanvas } from '@/components/map/MapCanvas';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import type { TranslationKey } from '@/i18n/locales/th';
@@ -21,13 +22,10 @@ import { historyApi } from './history.api';
 import {
   HISTORY_MAX_HOURS,
   bangkokDateOf,
-  dayWindowOf,
   historySearch,
-  isFutureDay,
   parseHistoryQuery,
   rangeFieldsOf,
   rangeProblem,
-  shiftWindow,
   spansDays,
   windowOfFields,
   type HistoryWindow,
@@ -45,7 +43,7 @@ const PROBLEM_KEY: Record<RangeProblem, TranslationKey> = {
 
 /**
  * ประวัติเส้นทาง: one camera over a Bangkok start–end window of at most 36 h (a whole day by default).
- * The fields are a draft: only Show route (or whole day / previous / next / camera) loads — every load is audited.
+ * The fields are a draft: only Show route or choosing a camera loads — every load is audited.
  */
 /**
  * `viewSwitch`: shown as the history tab of แผนที่ติดตาม (with the ตำแหน่งปัจจุบัน | ประวัติเส้นทาง tabs).
@@ -65,11 +63,13 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
 
   const draftWindow = windowOfFields(draft);
   const problem = rangeProblem(draftWindow);
-  const prevWindow = shiftWindow(query, -1);
-  const nextWindow = shiftWindow(query, 1);
-  const wholeDayOk = /^\d{4}-\d{2}-\d{2}$/.test(draft.startDate) && !isFutureDay(draft.startDate);
-  const edit = (field: keyof RangeFields) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setDraft((current) => ({ ...current, [field]: e.target.value }));
+  const edit = (edge: 'start' | 'end') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const [date = '', time = ''] = e.target.value.split('T');
+    const wallTime = time.split('.')[0];
+    setDraft((current) => edge === 'start'
+      ? { ...current, startDate: date, startTime: wallTime }
+      : { ...current, endDate: date, endTime: wallTime });
+  };
 
   const devices = useQuery({ queryKey: ['tracking', 'history-devices'], queryFn: historyApi.devices });
   const history = useQuery({
@@ -104,25 +104,27 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
     setFocus(null);
     if (query.deviceId) void history.refetch();
   };
-  const clockOf = (iso: string) => `${formatDayMonth(iso, language)} ${formatTime(iso, language)}`;
+  const clockOf = (iso: string) => {
+    const second = new Date(iso).getUTCSeconds();
+    return `${formatDayMonth(iso, language)} ${formatTime(iso, language)}${second ? `:${String(second).padStart(2, '0')}` : ''}`;
+  };
 
   const route = history.data;
   const error = history.isError ? apiErrorOf(history.error, t).message : null;
   const stops = route?.timeline.filter((item) => item.kind === 'stop').length ?? 0;
-  const filtered = route ? route.suspectCount + route.staleStartCount + route.spikeCount : 0;
   const withDate = spansDays(query);
 
   const renderPanel = (idPrefix: string) => (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
-      <div className="flex shrink-0 flex-col gap-2.5 border-b border-border p-4">
-        <div>
-          <p aria-hidden="true" className="text-lg font-semibold tracking-tight">{t('navigation.trackingHistory')}</p>
+      <div className="flex shrink-0 flex-col gap-2.5 border-b border-border p-3">
+        <div data-slot="history-heading">
+          <p aria-hidden="true" className="text-base font-semibold">{t('navigation.trackingHistory')}</p>
           <p className="mt-1 text-xs text-muted-foreground">{t('tracking.history.description')}</p>
         </div>
         {viewSwitch ? <TrackingViewSwitch current="history" /> : null}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
-      <div className="flex flex-col gap-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-3">
+      <div className="flex shrink-0 flex-col gap-3">
         <div>
           <label htmlFor={`${idPrefix}-camera`} className="mb-1 block text-sm font-medium">
             {t('tracking.history.camera')}
@@ -143,53 +145,34 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
           </Select>
         </div>
         <div className="flex flex-col gap-3">
-          <div role="group" aria-labelledby={`${idPrefix}-range-start`}>
-            <span id={`${idPrefix}-range-start`} className="mb-1 block text-sm font-medium">
-              {t('tracking.history.rangeStart')}
-            </span>
-            <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
+          <h2 id={`${idPrefix}-range-title`} className="text-control font-semibold">{t('tracking.history.rangeTitle')}</h2>
+          <FieldGroup aria-labelledby={`${idPrefix}-range-title`} className="gap-3">
+            <Field orientation="horizontal" data-disabled={!hasCamera} className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)]">
+              <FieldLabel htmlFor={`${idPrefix}-from`}>{t('tracking.history.rangeStart')}</FieldLabel>
               <Input
-                type="date"
-                aria-label={t('tracking.history.startDate')}
+                id={`${idPrefix}-from`}
+                type="datetime-local"
+                step={1}
                 disabled={!hasCamera}
-                value={draft.startDate}
-                max={today}
-                onChange={edit('startDate')}
-                className="min-w-0"
+                value={draft.startDate && draft.startTime ? `${draft.startDate}T${draft.startTime}` : ''}
+                max={`${today}T23:59:59`}
+                onChange={edit('start')}
+                className="relative min-w-0 max-w-full pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:m-0"
               />
+            </Field>
+            <Field orientation="horizontal" data-disabled={!hasCamera} className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)]">
+              <FieldLabel htmlFor={`${idPrefix}-to`}>{t('tracking.history.rangeEnd')}</FieldLabel>
               <Input
-                type="time"
-                aria-label={t('tracking.history.startTime')}
+                id={`${idPrefix}-to`}
+                type="datetime-local"
+                step={1}
                 disabled={!hasCamera}
-                value={draft.startTime}
-                onChange={edit('startTime')}
-                className="min-w-0"
+                value={draft.endDate && draft.endTime ? `${draft.endDate}T${draft.endTime}` : ''}
+                onChange={edit('end')}
+                className="relative min-w-0 max-w-full pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:m-0"
               />
-            </div>
-          </div>
-          <div role="group" aria-labelledby={`${idPrefix}-range-end`}>
-            <span id={`${idPrefix}-range-end`} className="mb-1 block text-sm font-medium">
-              {t('tracking.history.rangeEnd')}
-            </span>
-            <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
-              <Input
-                type="date"
-                aria-label={t('tracking.history.endDate')}
-                disabled={!hasCamera}
-                value={draft.endDate}
-                onChange={edit('endDate')}
-                className="min-w-0"
-              />
-              <Input
-                type="time"
-                aria-label={t('tracking.history.endTime')}
-                disabled={!hasCamera}
-                value={draft.endTime}
-                onChange={edit('endTime')}
-                className="min-w-0"
-              />
-            </div>
-          </div>
+            </Field>
+          </FieldGroup>
           <Button
             type="button"
             className="min-h-11"
@@ -197,37 +180,6 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
             onClick={show}
           >
             {t('tracking.history.show')}
-          </Button>
-        </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11"
-            disabled={!hasCamera || !wholeDayOk}
-            onClick={() => go({ window: dayWindowOf(draft.startDate) })}
-          >
-            {t('tracking.history.wholeDay')}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 px-3"
-            aria-label={t('tracking.history.prevDay')}
-            disabled={!hasCamera}
-            onClick={() => go({ window: prevWindow })}
-          >
-            <ChevronLeft aria-hidden="true" className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 px-3"
-            aria-label={t('tracking.history.nextDay')}
-            disabled={!hasCamera || Date.parse(nextWindow.from) > Date.now()}
-            onClick={() => go({ window: nextWindow })}
-          >
-            <ChevronRight aria-hidden="true" className="size-4" />
           </Button>
         </div>
         {problem ? (
@@ -244,7 +196,7 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
       </div>
 
       {error ? (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="shrink-0">
           <TriangleAlert aria-hidden="true" />
           <div>
             <AlertTitle>{t('tracking.history.loadFailed')}</AlertTitle>
@@ -253,7 +205,7 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
         </Alert>
       ) : null}
       {route?.truncated ? (
-        <Alert>
+        <Alert className="shrink-0">
           <TriangleAlert aria-hidden="true" />
           <div>
             <AlertTitle>{t('tracking.history.truncatedTitle')}</AlertTitle>
@@ -262,7 +214,7 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
         </Alert>
       ) : null}
 
-        <div className="flex flex-col gap-3 border-t border-border pt-4" aria-busy={history.isFetching}>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 border-t border-border pt-4" aria-busy={history.isFetching}>
           {!query.deviceId ? (
             <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
               {t('tracking.history.pickCamera')}
@@ -275,24 +227,16 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
             </p>
           ) : route ? (
             <>
-              <p className="text-sm">
-                {t('tracking.history.summary', { points: route.pointCount, stops })}
+              <p className="shrink-0 text-sm">
                 <span className="block font-medium">
                   {t('tracking.history.totalDistance', {
                     distance: distanceText(route.totalDistanceM, route.totalDistanceApprox, language),
                   })}
                 </span>
-                {route.totalDistanceApprox ? (
-                  <span className="block text-xs text-muted-foreground">{t('tracking.history.totalDistanceApprox')}</span>
-                ) : null}
-                {filtered > 0 ? (
-                  <span className="block text-xs text-muted-foreground">
-                    {t('tracking.history.filtered', { count: filtered })}
-                  </span>
-                ) : null}
+                <span className="block">{t('tracking.history.summary', { stops })}</span>
               </p>
-              <h2 className="text-sm font-semibold">{t('tracking.history.timeline')}</h2>
-              <ol className="flex flex-col gap-1">
+              <h2 className="shrink-0 text-sm font-semibold">{t('tracking.history.timeline')}</h2>
+              <ol className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
                 {route.timeline.map((item) => {
                   const view = timelineView(item, language, withDate);
                   return (
@@ -325,29 +269,26 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
 
   return (
     <Dialog open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
-      <section aria-labelledby="tracking-history-title" className="relative isolate min-h-0 flex-1 overflow-hidden bg-muted">
+      <section aria-labelledby="tracking-history-title" className="relative isolate flex min-h-0 min-w-0 flex-1 overflow-hidden bg-muted">
         <h1 id="tracking-history-title" className="sr-only">{t('navigation.trackingHistory')}</h1>
-        <div className="absolute inset-0 z-0">
-          <MapCanvas zoomControlPosition="topright" className="tracking-live-map">
-            {route && route.pointCount > 0 ? <RouteLayers route={route} focus={focus} /> : null}
-          </MapCanvas>
-        </div>
-        <aside className="absolute bottom-5 left-5 top-5 z-[500] hidden w-[380px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:flex">
+        <aside className="hidden min-h-0 w-80 shrink-0 flex-col overflow-hidden border-r border-border bg-card lg:flex">
           {renderPanel('history')}
         </aside>
-        <div className="absolute inset-x-3 top-3 z-[500] flex flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-sm lg:hidden">
-          <div>
-            <p className="text-lg font-semibold">{t('navigation.trackingHistory')}</p>
-            {route ? <p className="text-xs text-muted-foreground">{t('tracking.history.summary', { points: route.pointCount, stops })}</p> : null}
+        <div className="relative isolate min-h-0 min-w-0 flex-1 overflow-hidden">
+          <div className="absolute inset-0 z-0">
+            <MapCanvas zoomControlPosition="topright" className="tracking-live-map">
+              {route && route.pointCount > 0 ? <RouteLayers route={route} focus={focus} /> : null}
+            </MapCanvas>
           </div>
-          {viewSwitch ? <TrackingViewSwitch current="history" /> : null}
-          <DialogTrigger asChild>
-            <Button type="button" className="w-full"><ListFilter aria-hidden="true" />{t('tracking.history.openPanel')}</Button>
-          </DialogTrigger>
+          <div className="absolute left-3 top-3 z-[500] lg:hidden">
+            <DialogTrigger asChild>
+              <Button type="button" variant="outline" className="bg-card shadow-sm"><ListFilter aria-hidden="true" />{t('tracking.history.openPanel')}</Button>
+            </DialogTrigger>
+          </div>
         </div>
       </section>
-      <DialogContent closeLabel={t('tracking.history.closePanel')} className="max-h-[88dvh] overflow-hidden p-0 lg:hidden">
-        <DialogHeader className="shrink-0 px-4 pt-4">
+      <DialogContent closeLabel={t('tracking.history.closePanel')} className="flex h-dvh max-h-dvh flex-col gap-0 overflow-hidden p-0 lg:hidden [&_[data-slot=history-heading]]:min-h-10 [&_[data-slot=history-heading]]:pr-12">
+        <DialogHeader className="sr-only">
           <DialogTitle>{t('navigation.trackingHistory')}</DialogTitle>
           <DialogDescription className="sr-only">{t('tracking.history.description')}</DialogDescription>
         </DialogHeader>

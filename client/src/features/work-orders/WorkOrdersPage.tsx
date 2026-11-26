@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Eye, Search } from 'lucide-react';
+import { Eye, Search, Video } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -27,6 +27,7 @@ import type { TranslationKey } from '@/i18n/locales/th';
 import { useLanguage } from '@/i18n/useLanguage';
 import { queryErrorDescription } from '@/lib/queryErrorCopy';
 import { formatTime } from '@/lib/time';
+import { usePermission } from '@/lib/usePermission';
 import { WorkOrderCameraList } from './WorkOrderCameraList';
 import { WorkOrderDetailDialog } from './WorkOrderDetailDialog';
 import { workOrdersApi, type WorkOrderRow, type WorkOrderStatus } from './workOrders.api';
@@ -52,6 +53,7 @@ function parseStatus(value: string | null): WorkOrderStatus | undefined {
 
 export function WorkOrdersPage() {
   const { t, language } = useLanguage();
+  const canWatchLive = usePermission('streaming:view-live');
   const [openWorkOrder, setOpenWorkOrder] = useState<WorkOrderRow | null>(null);
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const openDetail = (row: WorkOrderRow, trigger: HTMLButtonElement) => {
@@ -276,15 +278,40 @@ export function WorkOrdersPage() {
                       ) : null}
                     </TableCell>
                     <TableCell>
-                      <WorkOrderCameraList cameras={row.cameras} onWatch={onWatch} />
+                      <WorkOrderCameraList cameras={row.cameras} />
                     </TableCell>
                     <TableCell className="sticky right-0 z-10 w-px whitespace-nowrap bg-card text-right transition-colors group-hover:bg-muted/50">
-                      <ToolButton type="button" tone="view" aria-haspopup="dialog"
-                        aria-label={t('workOrders.viewDetail', { no: row.workOrderNo })}
-                        title={t('workOrders.viewDetail', { no: row.workOrderNo })}
-                        onClick={(event) => openDetail(row, event.currentTarget)}>
-                        <Eye aria-hidden="true" />
-                      </ToolButton>
+                      <div className="flex items-start justify-end gap-2">
+                        {canWatchLive && row.cameras.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            {row.cameras.map((camera) => (
+                              <ToolButton
+                                key={camera.deviceRef}
+                                type="button"
+                                tone="view"
+                                className="disabled:text-muted-foreground"
+                                aria-haspopup="dialog"
+                                aria-label={t('workOrders.camera.watch', { camera: camera.deviceCode ?? camera.deviceRef })}
+                                title={t('workOrders.camera.watch', { camera: camera.deviceCode ?? camera.deviceRef })}
+                                disabled={!camera.deviceId || !camera.deviceCode || camera.platformState !== 'online'}
+                                onClick={(event) => {
+                                  if (camera.deviceId && camera.deviceCode && camera.platformState === 'online') {
+                                    onWatch({ ...camera, deviceCode: camera.deviceCode }, event.currentTarget);
+                                  }
+                                }}
+                              >
+                                <Video aria-hidden="true" />
+                              </ToolButton>
+                            ))}
+                          </div>
+                        ) : null}
+                        <ToolButton type="button" tone="view" aria-haspopup="dialog"
+                          aria-label={t('workOrders.viewDetail', { no: row.workOrderNo })}
+                          title={t('workOrders.viewDetail', { no: row.workOrderNo })}
+                          onClick={(event) => openDetail(row, event.currentTarget)}>
+                          <Eye aria-hidden="true" />
+                        </ToolButton>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

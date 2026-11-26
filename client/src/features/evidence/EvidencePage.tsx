@@ -21,6 +21,8 @@ import { usePermission } from '@/lib/usePermission';
 import { cn } from '@/lib/utils';
 import { StreamPlayer } from '../streaming/components/StreamPlayer';
 import { streamingApi, type RecordingFile } from '../streaming/streaming.api';
+import { EvidenceDownloadStatus } from './components/EvidenceDownloadStatus';
+import { RecordingFileList } from './components/RecordingFileList';
 import { RecordingSegmentsPanel, type SegmentsState } from './components/RecordingSegmentsPanel';
 import {
   bangkokLocalInput,
@@ -31,7 +33,6 @@ import {
   selectableDays,
   validateEvidenceRange,
 } from './evidenceRange';
-import { formatFileSize } from './evidenceDownload';
 import { evidenceExportsApi } from './evidenceExports.api';
 import { useEvidenceDownload } from './useEvidenceDownload';
 import './evidence.css';
@@ -154,7 +155,6 @@ export function EvidencePage() {
     });
   };
   const exportBlocked = !canPlay || overCap;
-  const fileSize = formatFileSize(download.view?.fileSizeBytes ?? null);
 
   const search = () => {
     if (device) void recordings.refetch();
@@ -274,7 +274,7 @@ export function EvidencePage() {
             </div>
           </dl>
           <Separator />
-          <div>
+          <section aria-labelledby="evidence-range-title">
             <h3 id="evidence-range-title" className="text-control font-semibold">{t('evidence.range.title')}</h3>
             <FieldGroup className="mt-3 gap-3">
               <Field orientation="horizontal" data-disabled={!device} data-invalid={!!rangeProblem} className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)]">
@@ -300,6 +300,9 @@ export function EvidencePage() {
               </Can>
               </div>
             </FieldGroup>
+            <Can permission="evidence:export">
+              <EvidenceDownloadStatus download={download} blocked={exportBlocked} onRequest={requestExport} />
+            </Can>
             <p className="mt-3 text-caption leading-relaxed text-muted-foreground">{t('evidence.range.description')}</p>
             <Can permission="evidence:export">
               {maxMinutes !== null ? (
@@ -307,72 +310,17 @@ export function EvidencePage() {
                   {t('evidence.download.cap', { n: maxMinutes })}
                 </p>
               ) : null}
-              {download.requesting || download.state !== 'idle' ? (
-                <div className="mt-2 rounded-md border border-border bg-muted/40 p-3 text-sm" aria-live="polite">
-                  {download.requesting ? <p>{t('evidence.download.requesting')}</p> : null}
-                  {download.state === 'queued' ? <p>{t('evidence.download.queued')}</p> : null}
-                  {download.state === 'processing' ? (
-                    <div className="flex flex-col gap-2">
-                      <p>{t('evidence.download.processing', { n: download.progress })}</p>
-                      <div
-                        role="progressbar"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={download.progress}
-                        className="h-2 overflow-hidden rounded-full bg-border"
-                      >
-                        <div className="h-full bg-primary" style={{ width: `${download.progress}%` }} />
-                      </div>
-                    </div>
-                  ) : null}
-                  {download.state === 'ready' ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="font-medium">{t('evidence.download.ready')}</p>
-                      <Can
-                        permission="evidence:download"
-                        fallback={<p className="text-muted-foreground">{t('evidence.download.noPermission')}</p>}
-                      >
-                        <Button type="button" size="sm" onClick={download.download} disabled={download.downloading}>
-                          <Download aria-hidden="true" className="size-4" />
-                          {t('evidence.download.file', { name: download.view?.fileName ?? 'MP4' })}
-                          {fileSize ? ` (${fileSize})` : ''}
-                        </Button>
-                      </Can>
-                    </div>
-                  ) : null}
-                  {download.state === 'failed' ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="font-medium text-destructive">{t('evidence.download.failed')}</p>
-                      {download.error ? <p>{download.error}</p> : null}
-                      <Button type="button" size="sm" variant="outline" onClick={requestExport} disabled={exportBlocked}>
-                        {t('evidence.download.retry')}
-                      </Button>
-                    </div>
-                  ) : null}
-                  {download.state === 'expired' ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="font-medium">{t('evidence.download.expired')}</p>
-                      <Button type="button" size="sm" variant="outline" onClick={requestExport} disabled={exportBlocked}>
-                        {t('evidence.download.again')}
-                      </Button>
-                    </div>
-                  ) : null}
-                  {download.state === 'ready' && download.error ? (
-                    <p role="alert" className="mt-2 text-destructive">
-                      {download.error}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
             </Can>
             {rangeProblem ? (
               <p id="evidence-range-error" role="alert" className="mt-2 text-caption text-destructive">{t(rangeProblem)}</p>
             ) : playing ? <p className="mt-2 text-caption text-muted-foreground">{t('evidence.player.replay')}</p> : null}
-          </div>
+          </section>
+          <Separator className="my-1" />
+          <RecordingFileList state={visibleSegments} activeKey={activeKey} filtered={!!filter} onPlay={playFile} onRetry={search} />
         </section>
       </div>
 
-      <RecordingSegmentsPanel state={visibleSegments} date={date} activeKey={activeKey} filtered={!!filter} onPlay={playFile} onRetry={search} />
+      <RecordingSegmentsPanel state={visibleSegments} date={date} activeKey={activeKey} onPlay={playFile} />
     </div>
   );
 }

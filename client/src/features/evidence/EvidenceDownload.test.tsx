@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -83,7 +83,32 @@ describe('EvidencePage download', () => {
     renderPage();
     await screen.findByText('ไม่พบวิดีโอของกล้องนี้ในวันที่เลือก');
     expect(exportButton()).toBeNull();
+    expect(screen.queryByRole('region', { name: 'สถานะดาวน์โหลด MP4' })).toBeNull();
     expect(evidenceExportsApi.policy).not.toHaveBeenCalled();
+  });
+
+  it('hides download status before an export is requested', async () => {
+    renderPage();
+    await screen.findByText('ดาวน์โหลดได้ครั้งละไม่เกิน 120 นาที');
+    expect(screen.queryByRole('region', { name: 'สถานะดาวน์โหลด MP4' })).toBeNull();
+    expect(screen.queryByText('ยังไม่มีรายการดาวน์โหลด')).toBeNull();
+    expect(evidenceExportsApi.request).not.toHaveBeenCalled();
+  });
+
+  it('shows pending download feedback with the range actions after clicking download', async () => {
+    let resolveRequest!: (value: EvidenceExportView) => void;
+    vi.mocked(evidenceExportsApi.request).mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
+    renderPage();
+    await screen.findByText('ดาวน์โหลดได้ครั้งละไม่เกิน 120 นาที');
+    setRange('10:00:00', '10:30:00');
+    fireEvent.click(exportButton()!);
+
+    const range = screen.getByRole('region', { name: 'เลือกช่วงเวลาที่ต้องการดู' });
+    const status = within(range).getByRole('region', { name: 'สถานะดาวน์โหลด MP4' });
+    expect(within(range).getByRole('button', { name: 'ดาวน์โหลด MP4' })).toBeDisabled();
+    expect(within(status).getByText('กำลังส่งคำขอ…')).toBeInTheDocument();
+    await act(async () => resolveRequest(view(1)));
+    expect(await within(status).findByText('รอคิว')).toBeInTheDocument();
   });
 
   it('disables the button and states the cap when the range is longer than the policy', async () => {
@@ -108,12 +133,13 @@ describe('EvidencePage download', () => {
     await screen.findByText('ดาวน์โหลดได้ครั้งละไม่เกิน 120 นาที');
     setRange('10:00:00', '10:30:00');
     fireEvent.click(exportButton()!);
-    expect(await screen.findByText('รอคิว')).toBeInTheDocument();
+    const status = screen.getByRole('region', { name: 'สถานะดาวน์โหลด MP4' });
+    expect(await within(status).findByText('รอคิว')).toBeInTheDocument();
     expect(vi.mocked(evidenceExportsApi.request).mock.calls[0]![0]).toMatchObject({ deviceCode: 'CAM-1' });
     await tick();
-    expect(await screen.findByText('กำลังแปลงไฟล์ 42%')).toBeInTheDocument();
+    expect(await within(status).findByText('กำลังแปลงไฟล์ 42%')).toBeInTheDocument();
     await tick();
-    expect(await screen.findByText('พร้อมดาวน์โหลด')).toBeInTheDocument();
+    expect(await within(status).findByText('พร้อมดาวน์โหลด')).toBeInTheDocument();
     const download = screen.getByRole('button', { name: /evidence_CAM-1_20261125-100000\.mp4/ });
     expect(download).toHaveTextContent('310 MB');
     // ready: polling has stopped
@@ -228,6 +254,7 @@ describe('EvidencePage download', () => {
     await screen.findByText('รอคิว');
     setRange('10:00:00', '10:45:00');
     expect(screen.queryByText('รอคิว')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'สถานะดาวน์โหลด MP4' })).toBeNull();
     const calls = vi.mocked(evidenceExportsApi.get).mock.calls.length;
     await tick(6000);
     expect(evidenceExportsApi.get).toHaveBeenCalledTimes(calls);

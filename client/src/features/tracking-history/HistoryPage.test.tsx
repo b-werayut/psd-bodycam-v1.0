@@ -157,27 +157,28 @@ describe('HistoryPage', () => {
   it('enables range controls only after selecting a camera and disables them again when cleared', async () => {
     const user = userEvent.setup();
     renderAt(q(yesterday, ''));
-    const fields = ['วันที่เริ่ม', 'เวลาเริ่ม', 'วันที่สิ้นสุด', 'เวลาสิ้นสุด'].map((label) => screen.getByLabelText(label));
-    const actions = ['ดูเส้นทาง', 'ทั้งวัน', 'วันก่อนหน้า', 'วันถัดไป'].map((name) => screen.getByRole('button', { name }));
-    for (const control of [...fields, ...actions]) expect(control).toBeDisabled();
+    const fields = ['เริ่มต้น', 'สิ้นสุด'].map((label) => screen.getByLabelText(label));
+    const controls = [...fields, screen.getByRole('button', { name: 'ดูเส้นทาง' })];
+    for (const control of controls) expect(control).toBeDisabled();
     expect(historyApi.history).not.toHaveBeenCalled();
 
     const camera = screen.getByLabelText('กล้อง');
     await waitFor(() => expect(within(camera).getAllByRole('option')).toHaveLength(3));
     expect(camera).toBeEnabled();
     await user.selectOptions(camera, '1');
-    for (const control of [...fields, ...actions]) expect(control).toBeEnabled();
+    for (const control of controls) expect(control).toBeEnabled();
     await waitFor(() => expect(historyApi.history).toHaveBeenCalledTimes(1));
 
     await user.selectOptions(camera, '');
-    for (const control of [...fields, ...actions]) expect(control).toBeDisabled();
+    for (const control of controls) expect(control).toBeDisabled();
     expect(historyApi.history).toHaveBeenCalledTimes(1);
   });
 
   it('shows the summary, the route and the timeline of the chosen day', async () => {
     renderAt(q(today));
     expect(await screen.findByTestId('route')).toHaveTextContent('1 segments');
-    expect(within(screen.getByRole('complementary')).getByText(/41 จุด/)).toBeInTheDocument();
+    expect(within(screen.getByRole('complementary')).getByText('จุดแวะ 1 แห่ง')).toBeInTheDocument();
+    expect(screen.queryByText(/41 จุด/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /จุดแวะที่ 1/ })).toBeInTheDocument();
     expect(screen.getByText(/^ระยะทางรวม 12\.4\sกม\.$/)).toBeInTheDocument();
     expect(screen.queryByText('ช่วงไม่มีสัญญาณนับเป็นระยะเส้นตรง')).not.toBeInTheDocument();
@@ -190,7 +191,7 @@ describe('HistoryPage', () => {
     await screen.findByTestId('route');
     await user.click(screen.getByRole('button', { name: 'ตัวเลือกและลำดับเส้นทาง' }));
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByLabelText('เวลาเริ่ม')).toHaveValue('00:00');
+    expect(within(dialog).getByLabelText('เริ่มต้น')).toHaveValue(`${todayYmd}T00:00`);
     await user.click(within(dialog).getByRole('button', { name: /จุดแวะที่ 1/ }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByTestId('route')).toHaveAttribute('data-focus', '[13.75,100.5]');
@@ -201,26 +202,16 @@ describe('HistoryPage', () => {
     vi.mocked(historyApi.history).mockResolvedValueOnce(route({ totalDistanceApprox: true }));
     renderAt(q(today));
     expect(await screen.findByText(/^ระยะทางรวม ≈ 12\.4\sกม\.$/)).toBeInTheDocument();
-    expect(screen.getByText('ช่วงไม่มีสัญญาณนับเป็นระยะเส้นตรง')).toBeInTheDocument();
-  });
-
-  it('previous day moves the window; next day is disabled on today', async () => {
-    const user = userEvent.setup();
-    renderAt(q(today));
-    await screen.findByTestId('route');
-    expect(screen.getByRole('button', { name: 'วันถัดไป' })).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: 'วันก่อนหน้า' }));
-    await waitFor(() => expect(historyApi.history).toHaveBeenLastCalledWith('1', yesterday.from, yesterday.to));
+    expect(screen.queryByText('ช่วงไม่มีสัญญาณนับเป็นระยะเส้นตรง')).not.toBeInTheDocument();
+    expect(screen.queryByText(/ไม่นำจุดผิดปกติ/)).not.toBeInTheDocument();
   });
 
   it('editing the fields does not load; Show route loads the Bangkok window', async () => {
     const user = userEvent.setup();
     renderAt(q(today));
     await screen.findByTestId('route');
-    setField('วันที่เริ่ม', d2);
-    setField('เวลาเริ่ม', '20:00');
-    setField('วันที่สิ้นสุด', d1);
-    setField('เวลาสิ้นสุด', '06:00');
+    setField('เริ่มต้น', `${d2}T20:00`);
+    setField('สิ้นสุด', `${d1}T06:00`);
     expect(historyApi.history).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'ดูเส้นทาง' }));
@@ -228,44 +219,39 @@ describe('HistoryPage', () => {
     expect(historyApi.history).toHaveBeenLastCalledWith('1', bangkokInstant(d2, '20:00'), bangkokInstant(d1, '06:00'));
   });
 
-  it('a range over 36 h, a reversed range or an empty time cannot be shown', async () => {
+  it('a combined date and time range preserves seconds when loading the route', async () => {
+    const user = userEvent.setup();
+    renderAt(q(yesterday));
+    await screen.findByTestId('route');
+    setField('เริ่มต้น', `${d2}T20:00:15`);
+    setField('สิ้นสุด', `${d1}T06:00:45`);
+    expect(historyApi.history).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'ดูเส้นทาง' }));
+    await waitFor(() => expect(historyApi.history).toHaveBeenCalledTimes(2));
+    expect(historyApi.history).toHaveBeenLastCalledWith('1', `${d2}T13:00:15.000Z`, `${d2}T23:00:45.000Z`);
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue(`${d2}T20:00:15.000`);
+    expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${d1}T06:00:45.000`);
+  });
+
+  it('a range over 36 h, a reversed range or an empty date and time cannot be shown', async () => {
     renderAt(q(today));
     await screen.findByTestId('route');
     const show = screen.getByRole('button', { name: 'ดูเส้นทาง' });
 
-    setField('วันที่เริ่ม', d2);
-    setField('เวลาเริ่ม', '00:00');
-    setField('วันที่สิ้นสุด', d1);
-    setField('เวลาสิ้นสุด', '13:00');
+    setField('เริ่มต้น', `${d2}T00:00`);
+    setField('สิ้นสุด', `${d1}T13:00`);
     expect(show).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('ช่วงเวลาต้องไม่เกิน 36 ชั่วโมง');
 
-    setField('เวลาเริ่ม', '20:00');
-    setField('วันที่สิ้นสุด', d2);
-    setField('เวลาสิ้นสุด', '06:00');
+    setField('เริ่มต้น', `${d2}T20:00`);
+    setField('สิ้นสุด', `${d2}T06:00`);
     expect(show).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('เวลาสิ้นสุดต้องหลังเวลาเริ่ม');
 
-    setField('เวลาเริ่ม', '');
+    setField('เริ่มต้น', '');
     expect(show).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('กรอกวันและเวลาให้ครบ');
-  });
-
-  it('Whole day loads the start date; previous day shifts a custom window by 24 h and updates the fields', async () => {
-    const user = userEvent.setup();
-    renderAt(q(night));
-    await screen.findByTestId('route');
-
-    await user.click(screen.getByRole('button', { name: 'วันก่อนหน้า' }));
-    await waitFor(() =>
-      expect(historyApi.history).toHaveBeenLastCalledWith('1', bangkokInstant(d2, '20:00'), bangkokInstant(d1, '06:00')),
-    );
-    expect(screen.getByLabelText('วันที่เริ่ม')).toHaveValue(d2);
-    expect(screen.getByLabelText('เวลาเริ่ม')).toHaveValue('20:00');
-
-    await user.click(screen.getByRole('button', { name: 'ทั้งวัน' }));
-    const day = dayWindowOf(d2);
-    await waitFor(() => expect(historyApi.history).toHaveBeenLastCalledWith('1', day.from, day.to));
   });
 
   it('the loaded range is named under the fields', async () => {
@@ -283,7 +269,7 @@ describe('HistoryPage', () => {
     await screen.findByTestId('route');
     expect(screen.queryByText('ช่วงในช่องยังไม่ได้โหลด — กด ดูเส้นทาง')).not.toBeInTheDocument();
 
-    setField('เวลาเริ่ม', '08:00');
+    setField('เริ่มต้น', `${d1}T08:00`);
     expect(screen.getByText('ช่วงในช่องยังไม่ได้โหลด — กด ดูเส้นทาง')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'ดูเส้นทาง' }));
@@ -303,10 +289,8 @@ describe('HistoryPage', () => {
     const user = userEvent.setup();
     renderAt(q(today));
     await screen.findByTestId('route');
-    setField('วันที่เริ่ม', d2);
-    setField('เวลาเริ่ม', '20:00');
-    setField('วันที่สิ้นสุด', d1);
-    setField('เวลาสิ้นสุด', '06:00');
+    setField('เริ่มต้น', `${d2}T20:00`);
+    setField('สิ้นสุด', `${d1}T06:00`);
     const select = screen.getByLabelText('กล้อง');
     await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(3));
 
@@ -321,13 +305,13 @@ describe('HistoryPage', () => {
     const user = userEvent.setup();
     renderAt(q(today));
     await screen.findByTestId('route');
-    setField('เวลาเริ่ม', '');
+    setField('เริ่มต้น', '');
     const select = screen.getByLabelText('กล้อง');
     await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(3));
 
     await user.selectOptions(select, '2');
     await waitFor(() => expect(historyApi.history).toHaveBeenLastCalledWith('2', today.from, today.to));
-    expect(screen.getByLabelText('เวลาเริ่ม')).toHaveValue('00:00');
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue(`${todayYmd}T00:00`);
   });
 
   it('timeline rows carry the day when the window spans days', async () => {

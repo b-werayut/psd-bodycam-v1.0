@@ -54,6 +54,7 @@ export const evidence = {
   'evidence.errorRangeTooLong': 'ดูย้อนหลังได้ครั้งละไม่เกิน 24 ชั่วโมง',
   'evidence.errorRangeFuture': 'ยังไม่มีคลิปของเวลาในอนาคต',
   'evidence.download.button': 'ดาวน์โหลด MP4',
+  'evidence.download.title': 'สถานะดาวน์โหลด MP4',
   'evidence.download.cap': 'ดาวน์โหลดได้ครั้งละไม่เกิน {n} นาที',
   'evidence.download.requesting': 'กำลังส่งคำขอ…',
   'evidence.download.queued': 'รอคิว',

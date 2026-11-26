@@ -33,7 +33,7 @@ export function RouteLayers({ route, focus }: { route: RouteHistory; focus: [num
 
   useEffect(() => {
     if (bounds) map.fitBounds(bounds, {
-      paddingTopLeft: window.matchMedia('(min-width: 1024px)').matches ? [420, 32] : [32, 230],
+      paddingTopLeft: window.matchMedia('(min-width: 1024px)').matches ? [32, 32] : [32, 80],
       paddingBottomRight: [32, 32],
       maxZoom: 17,
     });
@@ -41,7 +41,7 @@ export function RouteLayers({ route, focus }: { route: RouteHistory; focus: [num
 
   useEffect(() => {
     if (focus) map.fitBounds(L.latLngBounds([focus, focus]), {
-      paddingTopLeft: window.matchMedia('(min-width: 1024px)').matches ? [420, 32] : [32, 230],
+      paddingTopLeft: window.matchMedia('(min-width: 1024px)').matches ? [32, 32] : [32, 80],
       paddingBottomRight: [32, 32],
       maxZoom: Math.max(map.getZoom(), 16),
     });

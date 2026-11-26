@@ -240,6 +240,13 @@ describe('WorkOrdersPage', () => {
     expect(screen.getByText(/CAM-X/)).toBeInTheDocument();
   });
 
+  it('hides live tools without streaming:view-live permission', async () => {
+    renderPage();
+    await screen.findByRole('table');
+    expect(screen.queryByRole('button', { name: /ดูสด/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ดูข้อมูลใบงาน WO-0011' })).toBeEnabled();
+  });
+
   it('shows the filtered-empty state', async () => {
     list.mockResolvedValue({ data: [], page: 1, pageSize: 20, total: 0 });
     renderPage('/work-orders?status=3');
@@ -347,6 +354,57 @@ describe('WorkOrdersPage', () => {
 // the live dialog (and its talk call) belongs to the page, not to a table row: a refetch must never hang it up
 describe('WorkOrdersPage live dialog', () => {
   beforeEach(() => signIn(['work-orders:read', 'streaming:view-live']));
+
+  it('places each camera live button beside the detail tool instead of in the camera column', async () => {
+    const camera = row().cameras[0];
+    list.mockResolvedValue({ data: [row({ cameras: [
+      camera,
+      { ...camera, deviceRef: 'CAM-B', deviceId: '2', deviceCode: 'SIM-0002', platformState: 'offline' },
+    ] })], page: 1, pageSize: 20, total: 1 });
+    renderPage();
+    const detail = await screen.findByRole('button', { name: 'ดูข้อมูลใบงาน WO-0011' });
+    const cells = within(detail.closest('tr')!).getAllByRole('cell');
+    const cameras = cells[cells.length - 2];
+    const tools = cells[cells.length - 1];
+
+    expect(within(cameras).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(cameras).getByText('SIM-0001')).toBeInTheDocument();
+    expect(within(cameras).getByText('ออฟไลน์')).toBeInTheDocument();
+    expect(within(tools).getByRole('button', { name: 'ดูสด SIM-0001' })).toBeEnabled();
+    expect(within(tools).getByRole('button', { name: 'ดูสด SIM-0002' })).toBeDisabled();
+    expect(within(tools).getByRole('button', { name: 'ดูข้อมูลใบงาน WO-0011' })).toBeEnabled();
+  });
+
+  it.each([
+    ['offline', { platformState: 'offline' as const }],
+    ['unknown', { platformState: 'unknown' as const }],
+    ['missing device ID', { deviceId: null }],
+    ['missing device code', { deviceCode: null }],
+  ])('disables the live tool for a camera that is %s', async (_label, cameraState) => {
+    list.mockResolvedValue({ data: [row({ cameras: [{ ...row().cameras[0], ...cameraState }] })], page: 1, pageSize: 20, total: 1 });
+    renderPage();
+    const watch = await screen.findByRole('button', { name: /ดูสด/ });
+    expect(watch).toBeDisabled();
+    await userEvent.click(watch);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('player')).not.toBeInTheDocument();
+  });
+
+  it('updates the live tool when a refresh changes camera connectivity', async () => {
+    list.mockResolvedValue({ data: [row({ cameras: [{ ...row().cameras[0], platformState: 'offline' }] })], page: 1, pageSize: 20, total: 1 });
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'ดูสด SIM-0001' })).toBeDisabled();
+
+    list.mockResolvedValue({ data: [row()], page: 1, pageSize: 20, total: 1 });
+    act(() => live.listeners.forEach((listener) => listener()));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'ดูสด SIM-0001' })).toBeEnabled(), { timeout: 3000 });
+    await userEvent.click(screen.getByRole('button', { name: 'ดูสด SIM-0001' }));
+    expect(await screen.findByTestId('player')).toHaveTextContent('SIM-0001');
+    expect(workOrdersApi.detail).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByTestId('player')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'ดูสด SIM-0001' })).toHaveFocus();
+  });
 
   it('stays open when a refetch drops the row it was opened from', async () => {
     const user = userEvent.setup();

@@ -1,4 +1,4 @@
-import { Radio } from 'lucide-react';
+import { Video } from 'lucide-react';
 
 import { ToolButton } from '@/components/command-center';
 import { DeviceStateBadge } from '@/components/status/DeviceStateBadge';
@@ -45,7 +45,7 @@ export function WorkOrderCameraList({ cameras, detailed = false, onWatch }: {
                 <Button type="button" variant="outline" size="sm" className="text-xs" aria-haspopup="dialog"
                   aria-label={t('workOrders.camera.watch', { camera: code })}
                   onClick={(event) => watch(camera, event)}>
-                  <Radio aria-hidden="true" />{t('workOrders.camera.watchShort')}
+                  <Video aria-hidden="true" />{t('workOrders.camera.watchShort')}
                 </Button>
               ) : null}
               <DeviceStateBadge state={camera.platformState} />
@@ -70,7 +70,7 @@ export function WorkOrderCameraList({ cameras, detailed = false, onWatch }: {
                   aria-label={t('workOrders.camera.watch', { camera: camera.deviceCode })}
                   title={t('workOrders.camera.watch', { camera: camera.deviceCode })}
                   onClick={(event) => watch(camera, event)}>
-                  <Radio aria-hidden="true" />
+                  <Video aria-hidden="true" />
                 </ToolButton>
               ) : null}
             </>

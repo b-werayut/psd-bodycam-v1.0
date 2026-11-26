@@ -150,6 +150,22 @@ describe('EvidencePage', () => {
     expect(selected).toHaveTextContent('18:00');
   });
 
+  it('selects a recording from the inspector list and keeps the timeline in sync', async () => {
+    renderAt(`?deviceId=1&date=${NOW_DAY}`);
+    const inspector = screen.getByRole('region', { name: 'ช่วงวิดีโอที่เลือก' });
+    const list = await within(inspector).findByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' });
+    const recording = within(list).getByRole('button', { name: /00:30/ });
+    await userEvent.click(recording);
+
+    expect(await screen.findByTestId('player')).toHaveAttribute('data-start', at('00:30'));
+    expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${NOW_DAY}T00:45`);
+    expect(recording).toHaveAttribute('aria-pressed', 'true');
+    const timeline = screen.getByRole('region', { name: 'ช่วงวิดีโอในวันที่เลือก' });
+    expect(within(timeline).getByRole('button', { name: /00:30/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(timeline).queryByRole('list')).toBeNull();
+    expect(screen.getAllByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' })).toHaveLength(1);
+  });
+
   it('filters recorded intervals locally without triggering an audited camera search', async () => {
     vi.mocked(streamingApi.recordings).mockResolvedValue({
       data: [

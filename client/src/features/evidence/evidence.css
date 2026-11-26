@@ -13,7 +13,7 @@
     min-height: 0;
   }
 
-  /* The video determines row height; long export feedback scrolls in the inspector. */
+  /* The video determines row height; the recording list and export status scroll here. */
   .evidence-inspector {
     contain: size;
     min-height: 0;
@@ -44,10 +44,4 @@
     flex-shrink: 0;
   }
 
-  /* Long result sets scroll independently while the video stays in view. */
-  .evidence-recordings > ul {
-    flex: 1 1 auto;
-    min-height: 0;
-    max-height: none;
-  }
 }

@@ -11,7 +11,7 @@ const BANGKOK_OFFSET_MS = 7 * HOUR_MS;
 export type HistoryQuery = { deviceId: string | null; from: string; to: string };
 /** UTC ISO instants */
 export type HistoryWindow = { from: string; to: string };
-/** `yyyy-MM-dd` / `HH:mm`, Bangkok wall time */
+/** `yyyy-MM-dd` / `HH:mm[:ss]`, Bangkok wall time */
 export type RangeFields = { startDate: string; startTime: string; endDate: string; endTime: string };
 export type RangeProblem = 'incomplete' | 'endBeforeStart' | 'tooLong' | 'future';
 
@@ -23,20 +23,22 @@ export function bangkokDateOf(date: Date): string {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
 }
 
-/** `HH:mm` of `date` in Bangkok. */
+/** `HH:mm[:ss]` of `date` in Bangkok, preserving nonzero seconds. */
 function bangkokTimeOf(date: Date): string {
   const shifted = new Date(date.getTime() + BANGKOK_OFFSET_MS);
-  return `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
+  const hm = `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
+  return shifted.getUTCSeconds() ? `${hm}:${pad(shifted.getUTCSeconds())}` : hm;
 }
 
-/** Bangkok `yyyy-MM-dd` + `HH:mm` → UTC ISO; null when malformed or the date does not exist (no roll-over). */
+/** Bangkok `yyyy-MM-dd` + `HH:mm[:ss]` → UTC ISO; null when malformed or the date does not exist (no roll-over). */
 export function bangkokInstant(dateYmd: string, timeHm: string): string | null {
   const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateYmd);
-  const time = /^(\d{2}):(\d{2})$/.exec(timeHm);
+  const time = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(timeHm);
   if (!date || !time) return null;
   const [year, month, day, hour, minute] = [date[1], date[2], date[3], time[1], time[2]].map(Number);
-  if (hour > 23 || minute > 59) return null;
-  const wall = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  const second = Number(time[3] ?? 0);
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  const wall = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
   if (wall.getUTCFullYear() !== year || wall.getUTCMonth() !== month - 1 || wall.getUTCDate() !== day) return null;
   return new Date(wall.getTime() - BANGKOK_OFFSET_MS).toISOString();
 }

@@ -106,3 +106,20 @@ final result: passed
 - At 1366x768 with expanded navigation, page width is 1076px with equal 24px gutters; stage ratio remains 16:9. No horizontal document overflow at either size. Vertical scrolling is intentional.
 - Inspected the rendered screen, toggled navigation and checked browser console (no warnings/errors). Default viewport and collapsed navigation restored.
 - Focused evidence/player tests: 75 passed. TypeScript/production build and full client ESLint passed; existing bundle-size advisories remain. No actionable P0/P1/P2 findings remain for this correction.
+
+## Evidence recording list and MP4 status — 27 November 2026
+
+final result: passed
+
+- Moved the recording list into the right inspector and added the current MP4 export status below it, separated by a horizontal rule. The bottom timeline retains its selectable bars without repeating the list.
+- The download section has an idle explanation and preserves queued, conversion progress, ready/download, permission, failure/retry and expiry behavior. Thai and English copy remain in parity.
+- Browser: selected the real 17:06–18:11 recording, verified matching input values and timeline selection, and confirmed video readyState 4. The stage remains exactly 16:9; the inspector matches the player height and scrolls as needed.
+- Checked a 390px viewport: main content has equal client/scroll widths, the stage remains 16:9, and the inspector expands naturally in the mobile stack. Restored the default viewport and stopped test playback.
+- Screenshot: `C:/Users/WERAYU~1/AppData/Local/Temp/codex-evidence-qa/recordings-download-panels.jpg`.
+- Verification: full client suite 105 files / 924 tests passed; TypeScript/production build and ESLint passed. MP4 state transitions are covered by automated tests; browser QA did not request a new real export.
+
+### Download feedback refinement — 27 November 2026
+
+- Latest instruction supersedes the persistent MP4 section: the recording list is the only lower inspector section. Download feedback appears immediately below the action buttons only after a request, and disappears when its range is reset.
+- Verified hidden idle feedback and two real recording rows in the browser. Pending request, queue/progress/ready, error/retry, permission and expiry behavior pass in the focused tests (43 tests including translation checks); ESLint and TypeScript/production build passed.
+- Screenshot: `C:/Users/WERAYU~1/AppData/Local/Temp/codex-evidence-qa/recordings-only-idle.jpg`. Restored the default viewport; no new real MP4 export was requested.

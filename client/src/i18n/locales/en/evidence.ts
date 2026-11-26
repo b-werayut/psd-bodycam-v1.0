@@ -54,6 +54,7 @@ export const evidence = {
   'evidence.errorRangeTooLong': 'Playback is limited to 24 hours at a time',
   'evidence.errorRangeFuture': 'There is no video for a future time',
   'evidence.download.button': 'Download MP4',
+  'evidence.download.title': 'MP4 download status',
   'evidence.download.cap': 'Download is limited to {n} minutes at a time',
   'evidence.download.requesting': 'Sending request…',
   'evidence.download.queued': 'Queued',
