@@ -4,6 +4,10 @@
   flex: none;
 }
 
+.evidence-inspector-section {
+  padding: 16px;
+}
+
 @media (min-width: 1024px) {
   .evidence-workspace {
     align-items: stretch;
@@ -17,13 +21,15 @@
   .evidence-inspector {
     contain: size;
     min-height: 0;
-    gap: 8px;
-    padding: 12px;
     overflow-y: auto;
   }
 
   .evidence-inspector > * {
     flex-shrink: 0;
+  }
+
+  .evidence-inspector-section {
+    padding: 12px;
   }
 
   .evidence-recordings {

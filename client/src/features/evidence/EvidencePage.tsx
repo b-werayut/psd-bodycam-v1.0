@@ -37,8 +37,8 @@ import { evidenceExportsApi } from './evidenceExports.api';
 import { useEvidenceDownload } from './useEvidenceDownload';
 import './evidence.css';
 
-/** `fileKey` = the clicked recording file's own `startAt|endAt` (unclipped), null for a hand-typed range. */
-type Playing = { startAt: string; endAt: string; nonce: number; fileKey: string | null };
+/** Playback changes only when the user confirms the selected range. */
+type Playing = { startAt: string; endAt: string; nonce: number };
 
 /** The current time, refreshed every 30 s so the day list follows midnight while the page stays open. */
 function useNow(): Date {
@@ -88,12 +88,14 @@ export function EvidencePage() {
   const [fromField, setFromField] = useState('');
   const [toField, setToField] = useState('');
   const [playing, setPlaying] = useState<Playing | null>(null);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [fileFilter, setFileFilter] = useState('');
   if (seen !== context) {
     setSeen(context);
     setFromField('');
     setToField('');
     setPlaying(null);
+    setActiveKey(null);
     setFileFilter('');
   }
 
@@ -109,23 +111,22 @@ export function EvidencePage() {
   const rangeProblem = fromField || toField ? rangeError : null;
   const canPlay = device !== null && rangeError === null;
 
-  const play = (startAt: string, endAt: string, fileKey: string | null) =>
-    setPlaying((current) => ({ startAt, endAt, fileKey, nonce: (current?.nonce ?? 0) + 1 }));
-  const playFile = (file: RecordingFile) => {
+  const selection = rangeError === null
+    ? { startAt: fromBangkokLocalInput(fromField), endAt: fromBangkokLocalInput(toField) }
+    : null;
+  const selectFile = (file: RecordingFile) => {
     const clip = clipToDay(file, dayRange(date));
     setFromField(bangkokLocalInput(clip.startAt));
     setToField(bangkokLocalInput(clip.endAt));
-    play(clip.startAt, clip.endAt, `${file.startAt}|${file.endAt}`);
+    setActiveKey(`${file.startAt}|${file.endAt}`);
   };
-  // a press with an unchanged range plays it again (the player remounts), e.g. after the server closed an idle one
+  // Replaying an unchanged range deliberately remounts a server-closed player.
   const playRange = () => {
-    if (!canPlay) return;
-    const startAt = fromBangkokLocalInput(fromField);
-    const endAt = fromBangkokLocalInput(toField);
-    // an unchanged range replays the same file, so it stays highlighted
-    const sameClip = playing?.startAt === startAt && playing.endAt === endAt;
-    play(startAt, endAt, sameClip ? playing.fileKey : null);
+    if (!canPlay || !selection) return;
+    setPlaying((current) => ({ ...selection, nonce: (current?.nonce ?? 0) + 1 }));
   };
+  const isPlayingSelection = playing !== null && selection !== null
+    && playing.startAt === selection.startAt && playing.endAt === selection.endAt;
 
   const canExport = usePermission('evidence:export');
   const exportPolicy = useQuery({
@@ -178,7 +179,6 @@ export function EvidencePage() {
     const label = formatDayMonthYear(new Date(`${ymd}T12:00:00+07:00`), language);
     return index === 0 ? `${t('evidence.today')} · ${label}` : label;
   };
-  const activeKey = playing?.fileKey ?? null;
 
   const noRecordings = segments.kind === 'ready' && segments.files.length === 0;
   const selectedFile = segments.kind === 'ready'
@@ -190,10 +190,10 @@ export function EvidencePage() {
         [bangkokLocalInput(file.startAt).slice(11), bangkokLocalInput(file.endAt).slice(11), file.workOrder?.workOrderNo ?? t('evidence.unlinked')]
           .some((value) => value.toLocaleLowerCase().includes(filter))) }
     : segments;
-  const playingLabel = playing
-    ? bangkokDateOf(new Date(playing.startAt)) === bangkokDateOf(new Date(playing.endAt))
-      ? `${bangkokLocalInput(playing.startAt).slice(11)} – ${bangkokLocalInput(playing.endAt).slice(11)}`
-      : `${formatDateTime(playing.startAt, language, { seconds: true })} – ${formatDateTime(playing.endAt, language, { seconds: true })}`
+  const selectionLabel = selection
+    ? bangkokDateOf(new Date(selection.startAt)) === bangkokDateOf(new Date(selection.endAt))
+      ? `${bangkokLocalInput(selection.startAt).slice(11)} – ${bangkokLocalInput(selection.endAt).slice(11)}`
+      : `${formatDateTime(selection.startAt, language, { seconds: true })} – ${formatDateTime(selection.endAt, language, { seconds: true })}`
     : '—';
 
   return (
@@ -242,85 +242,98 @@ export function EvidencePage() {
             <Empty role="status" aria-label={t('evidence.player.stage')} className="stream-stage aspect-video w-full gap-0 rounded-none">
               <EmptyHeader className="max-w-lg">
                 <EmptyMedia>
-                  {noRecordings
+                  {!selection
                     ? <VideoOff aria-hidden="true" size={44} strokeWidth={1.5} className="stream-stage__icon" />
                     : <Play aria-hidden="true" size={44} strokeWidth={1.5} className="stream-stage__icon" />}
                 </EmptyMedia>
                 <EmptyTitle className="stream-stage__title text-control font-medium">
-                  {t(noRecordings ? 'evidence.player.empty' : 'evidence.player.idleTitle')}
+                  {t(selection ? 'evidence.player.idleTitle' : 'evidence.player.empty')}
                 </EmptyTitle>
                 <EmptyDescription className="stream-stage__hint text-caption">
-                  {t(noRecordings ? 'evidence.player.emptyHint' : device ? 'evidence.player.chooseFile' : 'evidence.player.chooseCamera')}
+                  {t(selection ? 'evidence.player.selectionReady' : noRecordings ? 'evidence.player.emptyHint' : device ? 'evidence.player.chooseFile' : 'evidence.player.chooseCamera')}
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
           )}
         </div>
 
-        <section aria-labelledby="evidence-selection-title" className="evidence-inspector flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-4">
-          <h2 id="evidence-selection-title" className="text-control font-semibold">{t('evidence.selection.title')}</h2>
-          <dl aria-live="polite" className="flex flex-col gap-2 text-control">
-            <div className="flex flex-wrap justify-between gap-x-3 gap-y-1">
-              <dt className="text-muted-foreground">{t('evidence.selection.range')}</dt>
-              <dd className="font-medium tabular-nums">{playingLabel}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-muted-foreground">{t('evidence.selection.duration')}</dt>
-              <dd className="font-medium tabular-nums">{playing ? formatDuration((Date.parse(playing.endAt) - Date.parse(playing.startAt)) / 1000) : '—'}</dd>
-            </div>
-            <div className="flex flex-wrap justify-between gap-x-3 gap-y-1">
-              <dt className="text-muted-foreground">{t('evidence.selection.workOrder')}</dt>
-              <dd className="min-w-0 break-all font-medium">{selectedFile ? selectedFile.workOrder?.workOrderNo ?? t('evidence.unlinked') : '—'}</dd>
-            </div>
-          </dl>
+        <section aria-labelledby="evidence-selection-title" className="evidence-inspector flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <div className="evidence-inspector-section">
+            <h2 id="evidence-selection-title" className="text-control font-semibold">{t('evidence.selection.title')}</h2>
+            <dl aria-live="polite" className="mt-3 flex flex-col gap-2 text-control">
+              <div className="flex flex-wrap justify-between gap-x-3 gap-y-1">
+                <dt className="text-muted-foreground">{t('evidence.selection.range')}</dt>
+                <dd className="font-medium tabular-nums">{selectionLabel}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">{t('evidence.selection.duration')}</dt>
+                <dd className="font-medium tabular-nums">{selection ? formatDuration((Date.parse(selection.endAt) - Date.parse(selection.startAt)) / 1000) : '—'}</dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-x-3 gap-y-1">
+                <dt className="text-muted-foreground">{t('evidence.selection.workOrder')}</dt>
+                <dd className="min-w-0 break-all font-medium">{selectedFile ? selectedFile.workOrder?.workOrderNo ?? t('evidence.unlinked') : '—'}</dd>
+              </div>
+            </dl>
+          </div>
           <Separator />
           <section aria-labelledby="evidence-range-title">
-            <h3 id="evidence-range-title" className="text-control font-semibold">{t('evidence.range.title')}</h3>
-            <FieldGroup className="mt-3 gap-3">
-              <Field orientation="horizontal" data-disabled={!device} data-invalid={!!rangeProblem} className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)]">
-                <FieldLabel htmlFor="evidence-from">{t('evidence.range.from')}</FieldLabel>
-                <Input id="evidence-from" type="datetime-local" step={1} max={`${today}T23:59:59`} value={fromField}
-                  disabled={!device} onChange={(e) => setFromField(e.target.value)} className="min-w-0 max-w-full"
-                  aria-invalid={!!rangeProblem} aria-describedby={rangeProblem ? 'evidence-range-error' : undefined} />
-              </Field>
-              <Field orientation="horizontal" data-disabled={!device} data-invalid={!!rangeProblem} className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)]">
-                <FieldLabel htmlFor="evidence-to">{t('evidence.range.to')}</FieldLabel>
-                <Input id="evidence-to" type="datetime-local" step={1} value={toField} disabled={!device}
-                  onChange={(e) => setToField(e.target.value)} className="min-w-0 max-w-full"
-                  aria-invalid={!!rangeProblem} aria-describedby={rangeProblem ? 'evidence-range-error' : undefined} />
-              </Field>
+            <div className="evidence-inspector-section">
+              <h3 id="evidence-range-title" className="text-control font-semibold">{t('evidence.range.title')}</h3>
+              <FieldGroup className="mt-3 gap-3">
+                <Field orientation="horizontal" data-disabled={!device} data-invalid={!!rangeProblem} className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)]">
+                  <FieldLabel htmlFor="evidence-from">{t('evidence.range.from')}</FieldLabel>
+                  <Input id="evidence-from" type="datetime-local" step={1} max={`${today}T23:59:59`} value={fromField}
+                    disabled={!device} onChange={(e) => { setFromField(e.target.value); setActiveKey(null); }} className="min-w-0 max-w-full"
+                    aria-invalid={!!rangeProblem} aria-describedby={rangeProblem ? 'evidence-range-error' : undefined} />
+                </Field>
+                <Field orientation="horizontal" data-disabled={!device} data-invalid={!!rangeProblem} className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)]">
+                  <FieldLabel htmlFor="evidence-to">{t('evidence.range.to')}</FieldLabel>
+                  <Input id="evidence-to" type="datetime-local" step={1} value={toField} disabled={!device}
+                    onChange={(e) => { setToField(e.target.value); setActiveKey(null); }} className="min-w-0 max-w-full"
+                    aria-invalid={!!rangeProblem} aria-describedby={rangeProblem ? 'evidence-range-error' : undefined} />
+                </Field>
+              </FieldGroup>
+            </div>
+            <Separator />
+            <div className="evidence-inspector-section">
+              <RecordingFileList state={visibleSegments} activeKey={activeKey} filtered={!!filter} onSelect={selectFile} onRetry={search} />
+            </div>
+            <Separator />
+            <div className="evidence-inspector-section bg-muted/25">
               <div className={cn('grid gap-2', canExport && 'grid-cols-2')}>
-              <Button type="button" className="min-h-11 w-full" onClick={playRange} disabled={!canPlay}>
-                <Play aria-hidden="true" className="size-4" />{t('evidence.play')}
-              </Button>
-              <Can permission="evidence:export">
-                <Button type="button" variant="outline" className="min-h-11 w-full" onClick={requestExport} disabled={exportBlocked || download.requesting}>
-                  <Download aria-hidden="true" className="size-4" />{t('evidence.download.button')}
+                <Button type="button" className="min-h-11 w-full" onClick={playRange} disabled={!canPlay}>
+                  <Play aria-hidden="true" className="size-4" />{t('evidence.play')}
                 </Button>
-              </Can>
+                <Can permission="evidence:export">
+                  <Button type="button" variant="outline" className="min-h-11 w-full" onClick={requestExport} disabled={exportBlocked || download.requesting}>
+                    <Download aria-hidden="true" className="size-4" />{t('evidence.download.button')}
+                  </Button>
+                </Can>
               </div>
-            </FieldGroup>
-            <Can permission="evidence:export">
-              <EvidenceDownloadStatus download={download} blocked={exportBlocked} onRequest={requestExport} />
-            </Can>
-            <p className="mt-3 text-caption leading-relaxed text-muted-foreground">{t('evidence.range.description')}</p>
-            <Can permission="evidence:export">
-              {maxMinutes !== null ? (
+              <Can permission="evidence:export">
+                <EvidenceDownloadStatus download={download} blocked={exportBlocked} onRequest={requestExport} />
+              </Can>
+              <p className="mt-3 text-caption leading-relaxed text-muted-foreground">{t('evidence.range.description')}</p>
+              <Can permission="evidence:export">
+                {maxMinutes !== null ? (
+                  <p className="mt-2 text-caption text-muted-foreground">
+                    {t('evidence.download.cap', { n: maxMinutes })}
+                  </p>
+                ) : null}
+              </Can>
+              {rangeProblem ? (
+                <p id="evidence-range-error" role="alert" className="mt-2 text-caption text-destructive">{t(rangeProblem)}</p>
+              ) : selection ? (
                 <p className="mt-2 text-caption text-muted-foreground">
-                  {t('evidence.download.cap', { n: maxMinutes })}
+                  {t(isPlayingSelection ? 'evidence.player.replay' : 'evidence.player.selectionReady')}
                 </p>
               ) : null}
-            </Can>
-            {rangeProblem ? (
-              <p id="evidence-range-error" role="alert" className="mt-2 text-caption text-destructive">{t(rangeProblem)}</p>
-            ) : playing ? <p className="mt-2 text-caption text-muted-foreground">{t('evidence.player.replay')}</p> : null}
+            </div>
           </section>
-          <Separator className="my-1" />
-          <RecordingFileList state={visibleSegments} activeKey={activeKey} filtered={!!filter} onPlay={playFile} onRetry={search} />
         </section>
       </div>
 
-      <RecordingSegmentsPanel state={visibleSegments} date={date} activeKey={activeKey} onPlay={playFile} />
+      <RecordingSegmentsPanel state={visibleSegments} date={date} activeKey={activeKey} onSelect={selectFile} />
     </div>
   );
 }

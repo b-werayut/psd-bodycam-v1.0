@@ -70,7 +70,7 @@ const renderAt = (search = '') =>
     </MemoryRouter>,
   );
 
-/** The range row's play button (segment rows are also "ดูย้อนหลัง" buttons, but carry a time in their name). */
+/** The explicit playback action; file and timeline buttons only select a range. */
 const rangePlay = () => screen.getByRole('button', { name: 'ดูย้อนหลัง' });
 const fileButtons = () => within(screen.getByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' })).getAllByRole('button');
 
@@ -120,19 +120,19 @@ describe('EvidencePage', () => {
     vi.mocked(streamingApi.recordings).mockResolvedValue({ data: [], from: '', to: '' });
     renderAt(`?deviceId=1&date=${NOW_DAY}`);
     expect(await screen.findByText('ไม่พบวิดีโอของกล้องนี้ในวันที่เลือก')).toBeInTheDocument();
-    expect(screen.getByRole('status', { name: 'จอวิดีโอย้อนหลัง' })).toHaveTextContent('ยังไม่มีวิดีโอให้เล่น');
+    expect(screen.getByRole('status', { name: 'จอวิดีโอย้อนหลัง' })).toHaveTextContent('ยังไม่มีไฟล์วิดีโอ');
     expect(rangePlay()).toBeDisabled();
   });
 
   it('explains how to open a clip before any video is playing', async () => {
     renderAt();
     const stage = screen.getByRole('status', { name: 'จอวิดีโอย้อนหลัง' });
-    expect(stage).toHaveTextContent('ดูวิดีโอย้อนหลัง');
+    expect(stage).toHaveTextContent('ยังไม่มีไฟล์วิดีโอ');
     expect(stage).toHaveTextContent('เลือกกล้องและวัน');
     expect(screen.queryByTestId('player')).toBeNull();
   });
 
-  it('opens the same recording from its timeline bar and fills the range and selected metadata', async () => {
+  it('selects a recording from its timeline bar and waits for Watch before playing', async () => {
     vi.mocked(streamingApi.recordings).mockResolvedValue({
       data: [file(at('09:05'), at('09:23'), { workOrder: { id: '9', workOrderNo: 'WO-015' } })],
       from: '', to: '',
@@ -142,28 +142,81 @@ describe('EvidencePage', () => {
     const interval = await within(timeline).findByRole('button', { name: /09:05/ });
     interval.focus();
     await userEvent.keyboard('{Enter}');
-    expect(await screen.findByTestId('player')).toHaveAttribute('data-start', at('09:05'));
+    expect(screen.queryByTestId('player')).toBeNull();
     expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${NOW_DAY}T09:23`);
     expect(interval).toHaveAttribute('aria-pressed', 'true');
     const selected = screen.getByRole('region', { name: 'ช่วงวิดีโอที่เลือก' });
     expect(selected).toHaveTextContent('WO-015');
     expect(selected).toHaveTextContent('18:00');
+    await userEvent.click(rangePlay());
+    expect(await screen.findByTestId('player')).toHaveAttribute('data-start', at('09:05'));
   });
 
   it('selects a recording from the inspector list and keeps the timeline in sync', async () => {
     renderAt(`?deviceId=1&date=${NOW_DAY}`);
     const inspector = screen.getByRole('region', { name: 'ช่วงวิดีโอที่เลือก' });
     const list = await within(inspector).findByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' });
+    const stage = screen.getByRole('status', { name: 'จอวิดีโอย้อนหลัง' });
+    expect(stage).toHaveTextContent('ยังไม่มีไฟล์วิดีโอ');
     const recording = within(list).getByRole('button', { name: /00:30/ });
     await userEvent.click(recording);
 
-    expect(await screen.findByTestId('player')).toHaveAttribute('data-start', at('00:30'));
+    expect(screen.queryByTestId('player')).toBeNull();
+    expect(stage).not.toHaveTextContent('ยังไม่มีไฟล์วิดีโอ');
+    expect(stage).toHaveTextContent('กดดูย้อนหลัง');
     expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${NOW_DAY}T00:45`);
     expect(recording).toHaveAttribute('aria-pressed', 'true');
     const timeline = screen.getByRole('region', { name: 'ช่วงวิดีโอในวันที่เลือก' });
     expect(within(timeline).getByRole('button', { name: /00:30/ })).toHaveAttribute('aria-pressed', 'true');
     expect(within(timeline).queryByRole('list')).toBeNull();
     expect(screen.getAllByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' })).toHaveLength(1);
+  });
+
+
+  it('keeps the current player while rapidly selecting files and timeline ranges until Watch is pressed', async () => {
+    vi.mocked(streamingApi.recordings).mockResolvedValue({
+      data: [file(at('09:05'), at('09:23')), file(at('10:00'), at('10:30'))],
+      from: '', to: '',
+    });
+    renderAt(`?deviceId=1&date=${NOW_DAY}`);
+    await screen.findByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' });
+    await userEvent.click(fileButtons()[0]!);
+    await userEvent.click(rangePlay());
+    const current = await screen.findByTestId('player');
+    const timeline = screen.getByRole('group', { name: 'ช่วงไฟล์บนแถบเวลา' });
+
+    await userEvent.click(fileButtons()[1]!);
+    await userEvent.click(within(timeline).getByRole('button', { name: /09:05/ }));
+    await userEvent.click(fileButtons()[1]!);
+    expect(screen.getByTestId('player')).toBe(current);
+    expect(current).toHaveAttribute('data-start', at('09:05'));
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue(`${NOW_DAY}T10:00`);
+    expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${NOW_DAY}T10:30`);
+    expect(fileButtons()[1]).toHaveAttribute('aria-pressed', 'true');
+
+    await userEvent.click(rangePlay());
+    const next = await screen.findByTestId('player');
+    expect(next).not.toBe(current);
+    expect(next).toHaveAttribute('data-start', at('10:00'));
+    expect(next).toHaveAttribute('data-end', at('10:30'));
+    expect(current).not.toBeInTheDocument();
+  });
+
+  it('clears the selected file highlight when its times are edited without replacing the current player', async () => {
+    renderAt(`?deviceId=1&date=${NOW_DAY}`);
+    await screen.findByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' });
+    await userEvent.click(fileButtons()[0]!);
+    await userEvent.click(rangePlay());
+    const current = await screen.findByTestId('player');
+
+    fireEvent.change(screen.getByLabelText('สิ้นสุด'), { target: { value: `${NOW_DAY}T00:40:00` } });
+    expect(screen.getByTestId('player')).toBe(current);
+    expect(fileButtons()[0]).toHaveAttribute('aria-pressed', 'false');
+    const timeline = screen.getByRole('group', { name: 'ช่วงไฟล์บนแถบเวลา' });
+    expect(within(timeline).getByRole('button', { name: /00:30/ })).toHaveAttribute('aria-pressed', 'false');
+
+    await userEvent.click(rangePlay());
+    expect(await screen.findByTestId('player')).toHaveAttribute('data-end', at('00:40'));
   });
 
   it('filters recorded intervals locally without triggering an audited camera search', async () => {
@@ -195,7 +248,7 @@ describe('EvidencePage', () => {
     expect(streamingApi.recordings).toHaveBeenCalledTimes(2);
   });
 
-  it('plays a clicked segment at once, clipped to the picked day when it crosses midnight', async () => {
+  it('clips a selected midnight-crossing file to the day and plays it only on Watch', async () => {
     const dayStart = at('00:00');
     vi.mocked(streamingApi.recordings).mockResolvedValue({
       data: [file(new Date(Date.parse(dayStart) - 30 * 60_000).toISOString(), at('00:20'))],
@@ -205,6 +258,9 @@ describe('EvidencePage', () => {
     renderAt(`?deviceId=1&date=${NOW_DAY}`);
     await screen.findByText('ไม่ผูกใบงาน');
     await userEvent.click(fileButtons()[0]!);
+    expect(screen.queryByTestId('player')).toBeNull();
+    expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${NOW_DAY}T00:20`);
+    await userEvent.click(rangePlay());
     const player = await screen.findByTestId('player');
     expect(player).toHaveAttribute('data-device', 'CAM-1');
     expect(player).toHaveAttribute('data-start', dayStart);
@@ -244,6 +300,7 @@ describe('EvidencePage', () => {
     renderAt(`?deviceId=1&date=${NOW_DAY}`);
     await screen.findByText('ไม่ผูกใบงาน');
     await userEvent.click(fileButtons()[0]!);
+    await userEvent.click(rangePlay());
     const first = await screen.findByTestId('player');
     await userEvent.click(rangePlay());
     await waitFor(() => expect(screen.getByTestId('player')).not.toBe(first));
@@ -254,6 +311,7 @@ describe('EvidencePage', () => {
     renderAt(`?deviceId=1&date=${NOW_DAY}`);
     await screen.findByText('ไม่ผูกใบงาน');
     await userEvent.click(fileButtons()[0]!);
+    await userEvent.click(rangePlay());
     const player = await screen.findByTestId('player');
     const yesterday = shiftDay(NOW_DAY, -1);
     await userEvent.selectOptions(screen.getByLabelText('วัน'), yesterday);
@@ -268,6 +326,7 @@ describe('EvidencePage', () => {
     renderAt(`?deviceId=1&date=${NOW_DAY}`);
     await screen.findByText('ไม่ผูกใบงาน');
     await userEvent.click(fileButtons()[0]!);
+    await userEvent.click(rangePlay());
     const player = await screen.findByTestId('player');
     await userEvent.click(screen.getByLabelText('กล้อง'));
     await userEvent.click(await screen.findByRole('option', { name: /CAM-2/ }));
@@ -306,7 +365,7 @@ describe('EvidencePage', () => {
     const rows = fileButtons();
     expect(rows[0]).not.toHaveClass('bg-accent');
     await userEvent.click(rows[0]!);
-    await screen.findByTestId('player');
+    expect(screen.queryByTestId('player')).toBeNull();
     expect(fileButtons()[0]).toHaveClass('bg-accent');
     expect(fileButtons()[1]).not.toHaveClass('bg-accent');
   });

@@ -123,3 +123,19 @@ final result: passed
 - Latest instruction supersedes the persistent MP4 section: the recording list is the only lower inspector section. Download feedback appears immediately below the action buttons only after a request, and disappears when its range is reset.
 - Verified hidden idle feedback and two real recording rows in the browser. Pending request, queue/progress/ready, error/retry, permission and expiry behavior pass in the focused tests (43 tests including translation checks); ESLint and TypeScript/production build passed.
 - Screenshot: `C:/Users/WERAYU~1/AppData/Local/Temp/codex-evidence-qa/recordings-only-idle.jpg`. Restored the default viewport; no new real MP4 export was requested.
+
+### Select a range before playback — 27 November 2026
+
+- Moved recorded files directly below the end-time field, with a separator above the list and the playback/download buttons below it.
+- File and timeline selections fill the range and update selected metadata/highlights without mounting or replacing the video. Watch is the only action that starts or switches playback. Manual edits clear the file highlight; camera/day changes reset selection and playback.
+- Browser: rapid selections initially left zero video elements; pressing Watch opened the real recording (readyState 4). Further rapid file/timeline selections retained the same nonempty video source while updating the draft range. Test playback was stopped afterward.
+- Verified field/list/button order at 1680px and 390px, natural 16:9 video, and no horizontal overflow at 390px. Restored the default viewport. Screenshots: `C:/Users/WERAYU~1/AppData/Local/Temp/codex-evidence-qa/select-before-watch-desktop.jpg` and `select-before-watch-mobile.jpg` in the same directory.
+- Evidence/player/translation tests: 90 passed. TypeScript/production build and ESLint passed; existing bundle-size advisories remain.
+
+### Empty player and inspector sections — 27 November 2026
+
+- Before selecting a recording or entering a valid range, the player shows “ยังไม่มีไฟล์วิดีโอ” with a video-off icon. Selecting a range changes it to the Watch prompt without starting playback.
+- Grouped the inspector into summary, time fields, recorded files, and actions, separated by full-width rules. Each group has 12px desktop / 16px mobile padding; the actions have a subtle surface tint.
+- Browser checked with two real recordings: initial empty message, selection prompt, zero video elements before Watch, and unchanged 16:9 ratio. At 390px the content has no horizontal overflow; file rows, separators and keyboard-focused actions remain visible and aligned.
+- Screenshots in `C:/Users/WERAYU~1/AppData/Local/Temp/codex-evidence-qa/`: `empty-player-sections-desktop.png`, `empty-player-sections-mobile-actions.jpg`. Default viewport restored and the page left with no selection.
+- Evidence/player/translation tests: 90 passed. TypeScript/production build and ESLint passed.

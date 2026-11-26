@@ -1,4 +1,4 @@
-import { Play, TriangleAlert, VideoOff } from 'lucide-react';
+import { FileVideo, TriangleAlert, VideoOff } from 'lucide-react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -10,11 +10,11 @@ import { formatDuration } from '../evidenceRange';
 import { recordingClock } from '../recordingPresentation';
 import type { SegmentsState } from './RecordingSegmentsPanel';
 
-export function RecordingFileList({ state, activeKey, filtered, onPlay, onRetry }: {
+export function RecordingFileList({ state, activeKey, filtered, onSelect, onRetry }: {
   state: SegmentsState;
   activeKey: string | null;
   filtered: boolean;
-  onPlay: (file: RecordingFile) => void;
+  onSelect: (file: RecordingFile) => void;
   onRetry: () => void;
 }) {
   const { t, language } = useLanguage();
@@ -54,9 +54,9 @@ export function RecordingFileList({ state, activeKey, filtered, onPlay, onRetry 
             const key = `${file.startAt}|${file.endAt}`;
             return (
               <li key={key} className="min-w-0">
-                <button type="button" aria-pressed={activeKey === key} onClick={() => onPlay(file)}
+                <button type="button" aria-pressed={activeKey === key} onClick={() => onSelect(file)}
                   className={cn('flex min-h-14 w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none', activeKey === key && 'bg-accent text-primary')}>
-                  <Play aria-hidden="true" className="size-4 shrink-0" />
+                  <FileVideo aria-hidden="true" className="size-4 shrink-0" />
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-control font-medium tabular-nums">{recordingClock(file, language)}</span>
                     <span className="flex flex-wrap gap-x-2 text-caption text-muted-foreground">
