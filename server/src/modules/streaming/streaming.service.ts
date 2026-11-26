@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { AuthUser } from '../../common/auth/auth-user';
 import { PermissionCheckService } from '../../common/auth/permission-check.service';
-import type { RoleCode } from '../../common/auth/permission-catalog';
+import type { PermissionCode, RoleCode } from '../../common/auth/permission-catalog';
 import { AppException } from '../../common/errors/app-exception';
 import { SettingsService } from '../../common/settings/settings.service';
 import { DRIZZLE } from '../../db/db.constants';
@@ -11,6 +11,8 @@ import type { DrizzleDB } from '../../db/db.types';
 import { Devices, Roles, StreamingSessions as Sessions, Users } from '../../db/schema';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { LiveStreamProvider } from './live-stream.provider';
+import { RecordingProvider } from './recording-provider';
+import { assertRecordingRange } from './recording-range';
 import { looksLikePlaylist, rewritePlaylist } from './hls-rewrite';
 import { openUrl, sealUrl, streamUrlKey } from './url-seal';
 
@@ -28,6 +30,7 @@ export class StreamingService implements OnModuleInit, OnModuleDestroy {
     private readonly settings: SettingsService,
     private readonly permissions: PermissionCheckService,
     private readonly provider: LiveStreamProvider,
+    private readonly recordings: RecordingProvider,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -43,42 +46,53 @@ export class StreamingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Media bearer tickets are checked against the current account/grants on every fetch. */
-  private async currentAccess(userId: bigint): Promise<boolean> {
+  private async currentAccess(userId: bigint, sessionType: number): Promise<boolean> {
+    return this.hasPermission(userId, sessionType === 2 ? 'playback:view' : 'streaming:view-live');
+  }
+
+  private async hasPermission(userId: bigint, permission: PermissionCode): Promise<boolean> {
     const [user] = await this.db.select({ roleId: Users.RoleId, roleCode: Roles.Code })
       .from(Users).innerJoin(Roles, eq(Roles.Id, Users.RoleId))
       .where(and(eq(Users.Id, userId), eq(Users.Status, 1), eq(Users.IsDeleted, false)));
     if (!user || user.roleCode === 'TEAM_LEADER') return false; // mobile scope arrives with its assignment API
     const grants = await this.permissions.roleGrants(user.roleId, user.roleCode as RoleCode);
-    return grants.includes('streaming:view-live');
+    return grants.includes(permission);
+  }
+
+  async searchRecordings(user: AuthUser, query: { deviceId: string; from: string; to: string }) {
+    const from = new Date(query.from);
+    const to = new Date(query.to);
+    assertRecordingRange(from, to);
+    if (!await this.hasPermission(user.id, 'playback:view')) throw new AppException(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดูวิดีโอย้อนหลัง');
+    const [device] = await this.db.select({ vendorDeviceId: Devices.VendorDeviceId }).from(Devices)
+      .where(and(eq(Devices.Id, BigInt(query.deviceId)), eq(Devices.IsDeleted, false)));
+    if (!device) throw new AppException(404, 'DEVICE_NOT_FOUND', 'ไม่พบกล้อง');
+    try {
+      const files = await this.recordings.search(device.vendorDeviceId, from, to);
+      return {
+        data: files.map((f) => ({ startAt: f.startAt.toISOString(), endAt: f.endAt.toISOString(), durationSeconds: f.durationSeconds, workOrder: null })),
+        from: from.toISOString(),
+        to: to.toISOString(),
+      };
+    } catch {
+      // Vendor payloads and URLs may contain credentials; do not include them in logs or responses.
+      this.logger.warn('DSS recording search failed');
+      throw new AppException(502, 'RECORDING_SEARCH_FAILED', 'ค้นหาวิดีโอย้อนหลังจาก DSS ไม่สำเร็จ กรุณาลองอีกครั้ง');
+    }
   }
 
   async startLive(user: AuthUser, deviceCode: string, channel = 1) {
     if (!await this.settings.getBool('streaming.enabled')) throw new AppException(403, 'STREAMING_DISABLED', 'ระบบปิดการดูภาพสดไว้');
-    if (!await this.currentAccess(user.id)) throw new AppException(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดูภาพสด');
+    if (!await this.hasPermission(user.id, 'streaming:view-live')) throw new AppException(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดูภาพสด');
     const [device] = await this.db.select().from(Devices).where(and(eq(Devices.DeviceCode, deviceCode), eq(Devices.IsDeleted, false)));
     if (!device) throw new AppException(404, 'DEVICE_NOT_FOUND', 'ไม่พบกล้อง');
     if (!device.StreamingEnabled || device.Status === 4) throw new AppException(403, 'DEVICE_STREAM_DISABLED', 'กล้องนี้ไม่อนุญาตให้ดูภาพสด');
-    const limit = await this.settings.getInt('streaming.max-concurrent-per-user');
-    await this.expireIdle();
-    // One lock per viewer, shared by every API replica. Vendor I/O is outside the transaction.
-    const reserved = await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`bwc-stream:${user.id}`}, 0))`);
-      const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(Sessions).where(and(eq(Sessions.UserId, user.id), inArray(Sessions.Status, OPEN)));
-      if (count.n >= limit) throw new AppException(429, 'STREAM_QUOTA_EXCEEDED', `เปิดดูพร้อมกันได้ไม่เกิน ${limit} จอ`, { limit });
-      const [row] = await tx.insert(Sessions).values({ DeviceId: device.Id, UserId: user.id, Channel: channel, SessionToken: randomBytes(32).toString('base64url'), Protocol: 1 }).returning();
-      return row;
-    });
+    const reserved = await this.reserve(user, device.Id, channel, {});
     try {
       const ticket = await this.provider.requestLive(device.VendorDeviceId, channel);
-      const [active] = await this.db.update(Sessions).set({ Status: 2, VendorSessionId: ticket.vendorSessionId, StartedAt: new Date(), LastAccessAt: new Date() })
-        .where(and(eq(Sessions.Id, reserved.Id), eq(Sessions.Status, 1))).returning();
-      if (!active) throw gone();
-      this.notify(active);
-      return { sessionToken: active.SessionToken, protocol: 1, device: { id: String(device.Id), deviceCode: device.DeviceCode, deviceName: device.Name }, channel,
-        playbackUrl: this.proxyUrl(active.SessionToken, ticket.vendorUrl, true), idleTimeoutSeconds: await this.settings.getInt('streaming.url-ttl-seconds') };
+      return await this.activate(reserved.Id, device, channel, ticket);
     } catch (error) {
-      await this.db.update(Sessions).set({ Status: 4, EndedAt: new Date(), EndReason: 3, ErrorMessage: 'DSS ไม่สามารถเปิดภาพสดได้' })
-        .where(and(eq(Sessions.Id, reserved.Id), eq(Sessions.Status, 1)));
+      await this.fail(reserved.Id, 'DSS ไม่สามารถเปิดภาพสดได้');
       if (error instanceof AppException) throw error;
       // Vendor payloads and URLs may contain credentials; do not include them in logs or responses.
       this.logger.warn('DSS failed to open live stream');
@@ -86,10 +100,70 @@ export class StreamingService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** Quota check + REQUESTED row under one per-viewer lock shared by every API replica (live and playback count together). */
+  private async reserve(user: AuthUser, deviceId: bigint, channel: number, extra: { sessionType?: number; playbackStartAt?: Date; playbackEndAt?: Date }): Promise<SessionRow> {
+    const limit = await this.settings.getInt('streaming.max-concurrent-per-user');
+    await this.expireIdle();
+    // Vendor I/O stays outside the transaction.
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`bwc-stream:${user.id}`}, 0))`);
+      const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(Sessions).where(and(eq(Sessions.UserId, user.id), inArray(Sessions.Status, OPEN)));
+      if (count.n >= limit) throw new AppException(429, 'STREAM_QUOTA_EXCEEDED', `เปิดดูพร้อมกันได้ไม่เกิน ${limit} จอ`, { limit });
+      const [row] = await tx.insert(Sessions).values({
+        DeviceId: deviceId, UserId: user.id, Channel: channel, SessionToken: randomBytes(32).toString('base64url'), Protocol: 1,
+        SessionType: extra.sessionType ?? 1, PlaybackStartAt: extra.playbackStartAt, PlaybackEndAt: extra.playbackEndAt,
+      }).returning();
+      return row;
+    });
+  }
+
+  private async fail(reservedId: bigint, message: string): Promise<void> {
+    await this.db.update(Sessions).set({ Status: 4, EndedAt: new Date(), EndReason: 3, ErrorMessage: message })
+      .where(and(eq(Sessions.Id, reservedId), eq(Sessions.Status, 1)));
+  }
+
+  /** REQUESTED -> ACTIVE (guarded), push, and the one response shape shared by live and playback. */
+  private async activate(reservedId: bigint, device: typeof Devices.$inferSelect, channel: number, ticket: { vendorUrl: string; vendorSessionId: string }) {
+    const [active] = await this.db.update(Sessions).set({ Status: 2, VendorSessionId: ticket.vendorSessionId, StartedAt: new Date(), LastAccessAt: new Date() })
+      .where(and(eq(Sessions.Id, reservedId), eq(Sessions.Status, 1))).returning();
+    if (!active) throw gone();
+    this.notify(active);
+    return { sessionToken: active.SessionToken, protocol: 1, device: { id: String(device.Id), deviceCode: device.DeviceCode, deviceName: device.Name }, channel,
+      playbackUrl: this.proxyUrl(active.SessionToken, ticket.vendorUrl, true), idleTimeoutSeconds: await this.settings.getInt('streaming.url-ttl-seconds') };
+  }
+
+  async startPlayback(user: AuthUser, input: { deviceCode: string; startAt: string; endAt: string; channel?: number }) {
+    const channel = input.channel ?? 1;
+    const startAt = new Date(input.startAt);
+    const endAt = new Date(input.endAt);
+    assertRecordingRange(startAt, endAt);
+    if (!await this.settings.getBool('streaming.enabled')) throw new AppException(403, 'STREAMING_DISABLED', 'ระบบปิดการดูวิดีโอไว้');
+    if (!await this.hasPermission(user.id, 'playback:view')) throw new AppException(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดูวิดีโอย้อนหลัง');
+    const [device] = await this.db.select().from(Devices).where(and(eq(Devices.DeviceCode, input.deviceCode), eq(Devices.IsDeleted, false)));
+    if (!device) throw new AppException(404, 'DEVICE_NOT_FOUND', 'ไม่พบกล้อง');
+    // Retired cameras keep their recordings on the platform, so only the per-device switch blocks playback.
+    if (!device.StreamingEnabled) throw new AppException(403, 'DEVICE_STREAM_DISABLED', 'กล้องนี้ไม่อนุญาตให้ดูภาพ');
+    const reserved = await this.reserve(user, device.Id, channel, { sessionType: 2, playbackStartAt: startAt, playbackEndAt: endAt });
+    try {
+      const ticket = await this.recordings.requestPlayback(device.VendorDeviceId, startAt, endAt);
+      if (ticket === 'no-recordings') {
+        await this.fail(reserved.Id, 'ไม่พบไฟล์บันทึกในช่วงเวลานี้');
+        throw new AppException(404, 'RECORDING_NOT_FOUND', 'ไม่พบไฟล์บันทึกในช่วงเวลานี้');
+      }
+      return await this.activate(reserved.Id, device, channel, ticket);
+    } catch (error) {
+      await this.fail(reserved.Id, 'DSS ไม่สามารถเปิดวิดีโอย้อนหลังได้');
+      if (error instanceof AppException) throw error;
+      // Vendor payloads and URLs may contain credentials; do not include them in logs or responses.
+      this.logger.warn('DSS failed to open playback');
+      throw new AppException(502, 'PLAYBACK_START_FAILED', 'เปิดวิดีโอย้อนหลังจาก DSS ไม่สำเร็จ กรุณาลองอีกครั้ง');
+    }
+  }
+
   async mySessions(user: AuthUser) {
     await this.expireIdle();
     const rows = await this.db.select().from(Sessions).where(and(eq(Sessions.UserId, user.id), inArray(Sessions.Status, OPEN)));
-    return { data: rows.map((r) => ({ sessionToken: r.SessionToken, deviceId: String(r.DeviceId), channel: r.Channel, protocol: 1, status: r.Status, requestedAt: r.RequestedAt, startedAt: r.StartedAt, lastAccessAt: r.LastAccessAt, endedAt: r.EndedAt, durationSeconds: r.DurationSeconds, endReason: r.EndReason, errorMessage: r.ErrorMessage })), limit: await this.settings.getInt('streaming.max-concurrent-per-user') };
+    return { data: rows.map((r) => ({ sessionToken: r.SessionToken, deviceId: String(r.DeviceId), channel: r.Channel, protocol: 1, sessionType: r.SessionType, status: r.Status, requestedAt: r.RequestedAt, startedAt: r.StartedAt, lastAccessAt: r.LastAccessAt, endedAt: r.EndedAt, durationSeconds: r.DurationSeconds, endReason: r.EndReason, errorMessage: r.ErrorMessage })), limit: await this.settings.getInt('streaming.max-concurrent-per-user') };
   }
 
   async stop(user: AuthUser, token: string) {
@@ -124,7 +198,7 @@ export class StreamingService implements OnModuleInit, OnModuleDestroy {
     const seconds = await this.settings.getInt('streaming.url-ttl-seconds');
     if (Date.now() - (row.LastAccessAt ?? row.StartedAt ?? row.RequestedAt).getTime() > seconds * 1000) { await this.end(row, 2); throw gone(); }
     const [device] = await this.db.select({ enabled: Devices.StreamingEnabled, status: Devices.Status, deleted: Devices.IsDeleted }).from(Devices).where(eq(Devices.Id, row.DeviceId));
-    if (!device || device.deleted || !device.enabled || device.status === 4 || !await this.settings.getBool('streaming.enabled') || !await this.currentAccess(row.UserId)) {
+    if (!device || device.deleted || !device.enabled || (row.SessionType === 1 && device.status === 4) || !await this.settings.getBool('streaming.enabled') || !await this.currentAccess(row.UserId, row.SessionType)) {
       await this.end(row, 4); throw gone();
     }
     let url: string;

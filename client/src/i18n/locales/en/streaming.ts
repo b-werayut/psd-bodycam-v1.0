@@ -53,7 +53,7 @@ export const streaming = {
   'streaming.playbackFailed': 'Playback failed',
   'streaming.unsupported': 'This browser cannot play HLS live video — try Chrome, Edge or Safari',
   'streaming.videoLabel': 'Live camera view',
-  'streaming.idleHint': 'The player closes itself after {seconds} seconds without playback',
+  'streaming.idleHint': 'If this screen receives no video for over {seconds} seconds (e.g. the network drops or the computer sleeps), the system closes it',
   'streaming.quota': 'Watching {open} of {limit} screens',
   'streaming.channelLive': 'LIVE · CH {channel}',
   'streaming.channelPlayback': 'PLAYBACK · CH {channel}',

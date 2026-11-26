@@ -5,6 +5,7 @@ import {
   dayBoundsBangkok,
   formatDateTime,
   formatDayMonth,
+  formatDayMonthYear,
   formatTime,
 } from './time';
 
@@ -65,6 +66,11 @@ describe('time helpers (Asia/Bangkok)', () => {
       expect(formatDayMonth(new Date(LATE_UTC), 'en')).toBe('5 Nov');
       expect(formatDayMonth(new Date(LATE_UTC), 'th')).toBe('5 พ.ย.');
       expect(formatDayMonth(new Date('2026-11-04T16:59:59.000Z'), 'en')).toBe('4 Nov');
+    });
+
+    it('day, month and year: Buddhist year in Thai, Gregorian in English', () => {
+      expect(formatDayMonthYear(new Date(LATE_UTC), 'th')).toBe('5 พ.ย. 2569');
+      expect(formatDayMonthYear(new Date(LATE_UTC), 'en')).toBe('5 Nov 2026');
     });
   });
 });

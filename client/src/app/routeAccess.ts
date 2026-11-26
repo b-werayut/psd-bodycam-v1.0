@@ -7,7 +7,7 @@ export type RouteAccess = {
 
 /**
  * Keyed by path without a leading slash; the empty key is the dashboard.
- * `evidence` is the video playback page (work order -> camera -> playback / MP4 download).
+ * `evidence` is the video playback page (camera + day -> recorded segments -> playback); the camera list needs devices:read.
  */
 export const ROUTE_ACCESS = {
   '': { anyOf: ['dashboard:view'] },
@@ -16,7 +16,7 @@ export const ROUTE_ACCESS = {
   'live-wall': { anyOf: ['streaming:live-wall'], allOf: ['streaming:view-live'] },
   'work-orders': { anyOf: ['work-orders:read'] },
   'work-orders/:id': { anyOf: ['work-orders:read'] },
-  evidence: { anyOf: ['playback:view'], allOf: ['work-orders:read'] },
+  evidence: { anyOf: ['playback:view'], allOf: ['devices:read'] },
   users: { anyOf: ['users:read'] },
   'entra-users': { anyOf: ['users:manage'] },
   notifications: { anyOf: ['notifications:read', 'alerts:view'] },

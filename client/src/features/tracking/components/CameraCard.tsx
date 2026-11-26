@@ -1,4 +1,4 @@
-import { Camera, Copy, MapPin, Radio, Route, Video, X } from 'lucide-react';
+import { Camera, Copy, MapPin, Route, Video, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { DeviceStateBadge } from '@/components/status/DeviceStateBadge';
@@ -8,6 +8,7 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { usePermission } from '@/lib/usePermission';
 import { cn } from '@/lib/utils';
 import type { LiveDevice } from '../liveMerge';
+import { historyViewHref } from '../trackingView';
 import { isStaleFix, positionAge } from '../positionAge';
 
 /** Adapted from Internal-BodyCam's DeviceTrackingCard. */
@@ -17,7 +18,8 @@ export function CameraCard({ device, now, fixActiveSeconds, selected, onSelect, 
 }) {
   const { t } = useLanguage();
   const canSeeHistory = usePermission('tracking:history');
-  const canWatch = usePermission('streaming:view-live') && device.platformState === 'online' && onWatch !== undefined;
+  // shown to every viewer with the permission; only an online camera can be opened (reference card)
+  const canWatch = usePermission('streaming:view-live') && onWatch !== undefined;
   const age = device.lastFixAt ? positionAge(device.lastFixAt, now) : null;
   const statusAge = device.platformStatusFetchedAt ? positionAge(device.platformStatusFetchedAt, now) : null;
   const coordinates = device.lat !== null && device.lng !== null
@@ -79,15 +81,16 @@ export function CameraCard({ device, now, fixActiveSeconds, selected, onSelect, 
           ) : null}
         </div>
         {canWatch || canSeeHistory ? (
-          <div className="flex gap-2">
+          <div data-slot="camera-card-actions" className={cn('grid w-full gap-2', canWatch && canSeeHistory ? 'grid-cols-2' : 'grid-cols-1')}>
             {canWatch ? (
-              <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={onWatch}>
-                <Radio aria-hidden="true" />{t('tracking.card.watch')}
+              <Button type="button" variant="outline" size="sm" className="w-full text-xs"
+                disabled={device.platformState !== 'online'} onClick={onWatch}>
+                <Video aria-hidden="true" />{t('tracking.card.watch')}
               </Button>
             ) : null}
             {canSeeHistory ? (
-              <Button asChild variant="outline" size="sm" className="flex-1 text-xs">
-                <Link to={`/tracking/history?deviceId=${encodeURIComponent(device.id)}`}>
+              <Button asChild variant="outline" size="sm" className="w-full text-xs">
+                <Link to={historyViewHref(device.id)}>
                   <Route aria-hidden="true" />{t('tracking.card.history')}
                 </Link>
               </Button>

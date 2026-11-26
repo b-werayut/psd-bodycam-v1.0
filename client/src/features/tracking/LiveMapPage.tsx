@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { ListFilter, RotateCw, TriangleAlert } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import bodycamOffline from '@/assets/markers/bodycam-offline.png';
 import bodycamOnline from '@/assets/markers/bodycam-online.png';
@@ -12,7 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { LiveStreamDialog } from '@/features/streaming/components/LiveStreamDialog';
 import { useLanguage } from '@/i18n/useLanguage';
-import { CameraListPanel, type StateFilter } from './components/CameraListPanel';
+import type { DeviceStateFilterValue } from '@/components/status/DeviceStateFilter';
+import { CameraDirectoryPanel } from './components/CameraDirectoryPanel';
+import { CameraPopup, CameraPopupContent } from './components/CameraPopup';
 import { LiveMapViewport } from './components/LiveMapViewport';
 import type { LiveDevice } from './liveMerge';
 import { isStaleFix } from './positionAge';
@@ -52,10 +54,23 @@ export function LiveMapPage() {
   const { t } = useLanguage();
   const { devices, fixActiveSeconds, isPending, isError, refetch } = useLivePositions();
   const [search, setSearch] = useState('');
-  const [state, setState] = useState<StateFilter>('all');
+  const [state, setState] = useState<DeviceStateFilterValue>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [watching, setWatching] = useState<LiveDevice | null>(null);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+  const [focusRequest, setFocusRequest] = useState(0);
+  const [focusSelection, setFocusSelection] = useState(false);
+  const selectCamera = useCallback((id: string) => {
+    setSelectedId(id);
+    setFocusSelection(true);
+    setFocusRequest((request) => request + 1);
+    const device = devices.find((item) => item.id === id);
+    if (device && device.lat !== null && device.lng !== null) setDirectoryOpen(false);
+  }, [devices]);
+  const selectMarker = useCallback((id: string) => {
+    setSelectedId(id);
+    setFocusSelection(false);
+  }, []);
   // a stopped pipeline sends nothing: markers must still dim as their fix ages (review #7)
   const now = useNow(15_000);
 
@@ -80,48 +95,52 @@ export function LiveMapPage() {
                 lng: d.lng,
                 title: d.deviceCode,
                 icon: markerIcon(d.platformState, isStaleFix(d.lastFixAt, fixActiveSeconds, now), d.id === selectedId),
-                onClick: () => setSelectedId(d.id),
+                onClick: () => selectMarker(d.id),
               },
             ],
       ),
-    [filtered, fixActiveSeconds, selectedId, now],
+    [filtered, fixActiveSeconds, selectedId, now, selectMarker],
   );
 
-  const listPanel = (
-    <CameraListPanel
-      devices={filtered} allDevices={devices} search={search}
+  const counts = { all: devices.length, online: 0, offline: 0, unknown: 0 };
+  for (const device of devices) counts[device.platformState] += 1;
+  const selectedDevice = selectedId ? filtered.find((device) => device.id === selectedId) : undefined;
+  const hasSelectedPosition = selectedDevice && selectedDevice.lat !== null && selectedDevice.lng !== null;
+  const closeSelected = () => setSelectedId((current) => current === selectedDevice?.id ? null : current);
+  const directory = (
+    <CameraDirectoryPanel devices={filtered} total={devices.length} counts={counts} search={search}
       onSearch={(value) => { setSearch(value); setSelectedId(null); }}
       state={state} onState={(value) => { setState(value); setSelectedId(null); }}
-      selectedId={selectedId}
-      onSelect={(id) => { setSelectedId(id); setMobilePanelOpen(false); }}
-      onClearSelection={() => setSelectedId(null)}
-      onWatch={(device) => { setWatching(device); setMobilePanelOpen(false); }} now={now} fixActiveSeconds={fixActiveSeconds} isPending={isPending}
-    />
+      selectedId={selectedId} onSelect={selectCamera}
+      isPending={isPending} unlocatedDetails={selectedDevice && !hasSelectedPosition ? (
+        <section aria-label={t('tracking.popup.label', { code: selectedDevice.deviceCode })} className="rounded-lg border border-border bg-card p-3">
+          <CameraPopupContent device={selectedDevice} now={now} fixActiveSeconds={fixActiveSeconds}
+            onWatch={() => setWatching(selectedDevice)} onClose={closeSelected} />
+        </section>
+      ) : null} />
   );
 
   return (
     <>
-    <Dialog open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
-      <section aria-labelledby="tracking-page-title" className="relative isolate min-h-0 flex-1 overflow-hidden bg-muted">
-        <h1 id="tracking-page-title" className="sr-only">{t('navigation.tracking')}</h1>
-        <div className="absolute inset-0 z-0">
+    <Dialog open={directoryOpen} onOpenChange={setDirectoryOpen}>
+      <section aria-label={t('navigation.tracking')} aria-busy={isPending} className="relative isolate flex min-h-0 min-w-0 flex-1 overflow-hidden bg-muted">
+        <aside aria-label={t('tracking.list.label')} className="hidden min-h-0 w-80 shrink-0 flex-col overflow-hidden border-r border-border bg-card lg:flex">{directory}</aside>
+        <div className="relative isolate min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="absolute inset-0 z-0" aria-label={t('tracking.list.mapTitle')}>
           <MapCanvas zoomControlPosition="topright" className="tracking-live-map">
             <MarkerClusterLayer markers={markers} />
-            <LiveMapViewport markers={markers} selectedId={selectedId} />
+            <LiveMapViewport markers={markers} selectedId={selectedId} focusRequest={focusRequest} focusSelection={focusSelection}
+              topPadding={80} />
+            {selectedDevice && hasSelectedPosition ? <CameraPopup key={selectedDevice.id} device={selectedDevice}
+              now={now} fixActiveSeconds={fixActiveSeconds} focusRequest={focusRequest}
+              onWatch={() => setWatching(selectedDevice)} onClose={closeSelected} /> : null}
           </MapCanvas>
         </div>
-        <aside aria-busy={isPending} className="absolute bottom-5 left-5 top-5 z-[500] hidden w-[380px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:flex">
-          {listPanel}
-        </aside>
-        <div className="absolute inset-x-3 top-3 z-[500] flex flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-sm lg:hidden">
-          <div>
-            <p className="text-lg font-semibold">{t('navigation.tracking')}</p>
-            <p className="text-xs text-muted-foreground">{t('tracking.list.count', { shown: filtered.length, total: devices.length })}</p>
-          </div>
-          <DialogTrigger asChild><Button type="button" className="w-full"><ListFilter aria-hidden="true" />{t('tracking.list.open')}</Button></DialogTrigger>
+        <div className="absolute left-3 top-3 z-[500] lg:hidden">
+          <DialogTrigger asChild><Button type="button" variant="outline" className="bg-card shadow-sm"><ListFilter aria-hidden="true" />{t('tracking.list.label')}</Button></DialogTrigger>
         </div>
         {isError ? (
-          <Alert variant="destructive" className="absolute bottom-3 right-3 z-[500] w-[calc(100%-1.5rem)] bg-card lg:max-w-sm">
+          <Alert variant="destructive" className="absolute right-3 top-16 lg:top-4 z-[500] w-[calc(100%-1.5rem)] bg-card sm:max-w-sm">
             <TriangleAlert aria-hidden="true" />
             <div>
               <AlertTitle>{t('tracking.loadFailed')}</AlertTitle>
@@ -131,13 +150,11 @@ export function LiveMapPage() {
             </div>
           </Alert>
         ) : null}
+        </div>
       </section>
-      <DialogContent closeLabel={t('tracking.list.close')} className="max-h-[88dvh] overflow-hidden p-0 lg:hidden">
-        <DialogHeader className="shrink-0 px-4 pt-4">
-          <DialogTitle>{t('tracking.list.label')}</DialogTitle>
-          <DialogDescription className="sr-only">{t('tracking.live.description')}</DialogDescription>
-        </DialogHeader>
-        {listPanel}
+      <DialogContent closeLabel={t('tracking.list.close')} className="flex h-[80dvh] max-h-[80dvh] flex-col gap-0 overflow-hidden p-0 [&_[data-slot=directory-heading]]:min-h-10 [&_[data-slot=directory-heading]]:items-center [&_[data-slot=directory-heading]]:pr-12">
+        <DialogHeader className="sr-only"><DialogTitle>{t('tracking.list.open')}</DialogTitle><DialogDescription>{t('tracking.live.description')}</DialogDescription></DialogHeader>
+        {directory}
       </DialogContent>
     </Dialog>
     {watching ? (

@@ -1,5 +1,6 @@
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   char,
   check,
@@ -614,5 +615,40 @@ export const TalkSessions = pgTable(
     uniqueIndex('UX_Talk_Device_Open').on(t.DeviceId).where(sql`${t.Status} in (1, 2)`),
     uniqueIndex('UX_Talk_User_Open').on(t.UserId).where(sql`${t.Status} in (1, 2)`),
     uniqueIndex('UX_Talk_Ticket').on(t.TicketHash),
+  ],
+);
+
+// MP4 files the worker converts from DSS playback. Kept temporarily (ExpiresAt), the file is then deleted and the row stays as a trace.
+export const EvidenceExports = pgTable(
+  'EvidenceExports',
+  {
+    Id: pkId(),
+    DeviceId: ref('DeviceId', () => Devices.Id).notNull(),
+    Channel: smallint('Channel').notNull().default(1),
+    // context for file name / audit only; stays null (no work-order link in this phase)
+    WorkOrderId: ref('WorkOrderId', () => WorkOrders.Id),
+    StartAt: tstz('StartAt').notNull(),
+    EndAt: tstz('EndAt').notNull(),
+    // 1 Queued, 2 Processing, 3 Ready, 4 Failed, 5 Expired
+    Status: smallint('Status').notNull().default(1),
+    Progress: smallint('Progress').notNull().default(0),
+    MediaSeconds: integer('MediaSeconds'),
+    FilePath: varchar('FilePath', { length: 500 }),
+    FileName: varchar('FileName', { length: 200 }),
+    FileSizeBytes: bigint('FileSizeBytes', { mode: 'bigint' }),
+    Checksum: varchar('Checksum', { length: 64 }),
+    ErrorMessage: varchar('ErrorMessage', { length: 500 }),
+    RequestedBy: userRef('RequestedBy').notNull(),
+    RequestedAt: tstz('RequestedAt').notNull().defaultNow(),
+    StartedAt: tstz('StartedAt'),
+    CompletedAt: tstz('CompletedAt'),
+    ExpiresAt: tstz('ExpiresAt'),
+    CreatedAt: createdAt(),
+    UpdatedAt: updatedAt(),
+  },
+  (t) => [
+    index('IX_EvidenceExport_Range').on(t.DeviceId, t.Channel, t.StartAt, t.EndAt),
+    index('IX_EvidenceExport_Status').on(t.Status, t.ExpiresAt),
+    index('IX_EvidenceExport_User').on(t.RequestedBy, t.RequestedAt),
   ],
 );

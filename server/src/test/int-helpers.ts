@@ -114,6 +114,7 @@ export async function dropTestUsers(sql: TestSql, patterns: string[]): Promise<v
   await sql`delete from "PushTokens" where "UserId" in ${sql(ids)}`;
   await sql`delete from "RefreshTokens" where "UserId" in ${sql(ids)}`;
   await sql`delete from "UserDevices" where "UserId" in ${sql(ids)}`;
+  await sql`delete from "EvidenceExports" where "RequestedBy" in ${sql(ids)}`;
   await sql`delete from "TalkSessions" where "UserId" in ${sql(ids)}`;
   await sql`delete from "StreamingSessions" where "UserId" in ${sql(ids)}`;
   await sql`delete from "Users" where "Id" in ${sql(ids)}`;
@@ -135,6 +136,7 @@ export async function bearerFor(
  * marks any local camera missing from its vendor list, so each device test starts from no cameras.
  */
 export async function resetDevices(sql: TestSql): Promise<void> {
+  await sql`delete from "EvidenceExports"`;
   await sql`delete from "TalkSessions"`;
   await sql`delete from "StreamingSessions"`;
   await sql`delete from "Alerts" where "DeviceId" is not null or "DedupeKey" like '13:device:%'`;

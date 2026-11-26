@@ -5,6 +5,10 @@ export const BOOKING_INBOX = 'booking-inbox';
 
 export type BookingInboxJob = { inboxId: string };
 
+export const EVIDENCE_EXPORT = 'evidence-export';
+
+export type EvidenceExportJob = { exportId: string };
+
 /** `bq-{database}` — dev (`bwc`) and tests (`bwc_test`) share one Redis without sharing queues. */
 export function queuePrefix(env: Record<string, string | undefined> = process.env): string {
   return `bq-${databaseName(env) ?? 'default'}`;

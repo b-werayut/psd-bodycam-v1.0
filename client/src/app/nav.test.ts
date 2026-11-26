@@ -44,6 +44,7 @@ describe('NAV_ITEMS', () => {
       '/',
       '/live-wall',
       '/work-orders',
+      '/evidence',
       '/tracking',
       '/tracking/history',
       '/users',
@@ -66,7 +67,7 @@ describe('NAV_ITEMS', () => {
       'navigation.dashboard': { any: ['dashboard:view'], all: [] },
       'navigation.liveWall': { any: ['streaming:live-wall'], all: ['streaming:view-live'] },
       'navigation.workOrders': { any: ['work-orders:read'], all: [] },
-      'navigation.playback': { any: ['playback:view'], all: ['work-orders:read'] },
+      'navigation.playback': { any: ['playback:view'], all: ['devices:read'] },
       'navigation.tracking': { any: ['tracking:view'], all: [] },
       'navigation.trackingHistory': { any: ['tracking:history'], all: [] },
       'navigation.users': { any: ['users:read'], all: [] },
@@ -115,11 +116,12 @@ describe('visibleNavItems', () => {
     expect(canSee(wall, ['streaming:live-wall', 'streaming:view-live'], 'OPERATOR')).toBe(true);
   });
 
-  it('video playback needs playback:view plus work-orders:read', () => {
+  it('video playback links to /evidence and needs playback:view plus devices:read', () => {
     const playback = NAV_ITEMS.find((i) => i.labelKey === 'navigation.playback')!;
+    expect(playback.to).toBe('/evidence');
     expect(canSee(playback, ['playback:view'], 'OPERATOR')).toBe(false);
-    expect(canSee(playback, ['work-orders:read'], 'OPERATOR')).toBe(false);
-    expect(canSee(playback, ['playback:view', 'work-orders:read'], 'OPERATOR')).toBe(true);
+    expect(canSee(playback, ['devices:read'], 'OPERATOR')).toBe(false);
+    expect(canSee(playback, ['playback:view', 'devices:read'], 'OPERATOR')).toBe(true);
   });
 
   it('notifications accept either permission', () => {

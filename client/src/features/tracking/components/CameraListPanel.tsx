@@ -10,6 +10,7 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { cn } from '@/lib/utils';
 import type { LiveDevice } from '../liveMerge';
 import { CameraCard } from './CameraCard';
+import { TrackingViewSwitch } from './TrackingViewSwitch';
 
 export type StateFilter = DeviceStateFilterValue;
 
@@ -50,6 +51,7 @@ export function CameraListPanel({
           <h2 aria-hidden="true" className="text-lg font-semibold tracking-tight">{t('navigation.tracking')}</h2>
           <p className="mt-1 text-xs text-muted-foreground">{t('tracking.live.description')}</p>
         </div>
+        <TrackingViewSwitch current="live" />
         <dl className={cn('grid divide-x divide-border rounded-md border border-border bg-muted/40', summary.length > 3 ? 'grid-cols-4' : 'grid-cols-3')}>
           {summary.map(({ label, value, icon: Icon, tone }) => (
             <div key={label} className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">

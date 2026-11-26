@@ -1,0 +1,96 @@
+
+> psd-bodycam-client@0.0.1 build
+> tsc --noEmit && vite build
+
+vite v6.4.5 building for production...
+transforming...
+✓ 4142 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                    1.21 kB │ gzip:   0.59 kB
+dist/assets/capture.worklet-qD0NQI3k.js                            2.29 kB
+dist/assets/playback.worklet-CjJ-j6Q9.js                           3.30 kB
+dist/assets/bodycam-offline-BcplmevG.png                          11.86 kB
+dist/assets/bodycam-online-4s7Xr84o.png                           12.75 kB
+dist/assets/noto-sans-thai-latin-ext-wght-normal-DH1q_yQ5.woff2   15.94 kB
+dist/assets/noto-sans-thai-thai-wght-normal-CtQSZ1tK.woff2        26.92 kB
+dist/assets/noto-sans-thai-latin-wght-normal-Bi3VDbYN.woff2       30.75 kB
+dist/assets/psd-sentinel-favicon-DJkZIPAJ.png                     43.80 kB
+dist/assets/psd-light-login-W4a6i_Rx.png                          77.26 kB
+dist/assets/psd-dark-login-vmEEvX0Y.png                           79.19 kB
+dist/assets/bodycam-security-reference-background-B1pEzhcQ.jpg   114.28 kB
+dist/assets/psd-dark-CvbKvK1i.png                                430.16 kB
+dist/assets/TrackingViews-3yaWYNWa.css                             1.20 kB │ gzip:   0.37 kB
+dist/assets/MapCanvas-Dgihpmma.css                                15.04 kB │ gzip:   6.38 kB
+dist/assets/index-DvK1S2-W.css                                    85.45 kB │ gzip:  16.55 kB
+dist/assets/usePermission-Djth4zjE.js                              0.26 kB │ gzip:   0.23 kB
+dist/assets/chevron-down-dLsQWNTu.js                               0.33 kB │ gzip:   0.26 kB
+dist/assets/chevron-left-DVG1v4-2.js                               0.34 kB │ gzip:   0.27 kB
+dist/assets/circle-OChszHA9.js                                     0.34 kB │ gzip:   0.26 kB
+dist/assets/x-BpFhuXst.js                                          0.36 kB │ gzip:   0.28 kB
+dist/assets/search-D_qokDFi.js                                     0.37 kB │ gzip:   0.29 kB
+dist/assets/copy-CRnA4WBd.js                                       0.44 kB │ gzip:   0.33 kB
+dist/assets/video-CP5e_AEk.js                                      0.45 kB │ gzip:   0.34 kB
+dist/assets/eye-D-j9mMkr.js                                        0.46 kB │ gzip:   0.32 kB
+dist/assets/route-BbR87B39.js                                      0.46 kB │ gzip:   0.33 kB
+dist/assets/triangle-alert-CxBbIBVn.js                             0.50 kB │ gzip:   0.35 kB
+dist/assets/refresh-cw-C2yXWy8R.js                                 0.53 kB │ gzip:   0.35 kB
+dist/assets/monitor-play-DbrGjmKB.js                               0.56 kB │ gzip:   0.39 kB
+dist/assets/index-BuWgfY8P.js                                      0.60 kB │ gzip:   0.43 kB
+dist/assets/StatusBadge-CezKRSiz.js                                0.63 kB │ gzip:   0.36 kB
+dist/assets/eye-off-8JCogpFG.js                                    0.64 kB │ gzip:   0.40 kB
+dist/assets/input-7TA07tzH.js                                      0.77 kB │ gzip:   0.44 kB
+dist/assets/HomeRoute-Cy7Oez4_.js                                  0.87 kB │ gzip:   0.51 kB
+dist/assets/select-7jcimD7H.js                                     0.93 kB │ gzip:   0.54 kB
+dist/assets/time-DZiwZ0j9.js                                       0.99 kB │ gzip:   0.53 kB
+dist/assets/DeviceStateFilter-B4zIa2Uw.js                          1.32 kB │ gzip:   0.76 kB
+dist/assets/ToolButton-2dEOPD2a.js                                 1.45 kB │ gzip:   0.71 kB
+dist/assets/empty-BtY1a6sw.js                                      1.49 kB │ gzip:   0.58 kB
+dist/assets/action-toast-ZtTYpdn3.js                               1.71 kB │ gzip:   0.86 kB
+dist/assets/field-390NNm0v.js                                      1.86 kB │ gzip:   0.82 kB
+dist/assets/queryErrorCopy-DU3jNVAO.js                             2.11 kB │ gzip:   1.01 kB
+dist/assets/historyRange-CxDcEvrQ.js                               2.40 kB │ gzip:   0.97 kB
+dist/assets/WorkOrderDetailPage-_eh41eCc.js                        2.40 kB │ gzip:   1.24 kB
+dist/assets/useMutation-Dc_36GTB.js                                3.17 kB │ gzip:   1.28 kB
+dist/assets/DataToolbar-DPeQZA08.js                                3.57 kB │ gzip:   1.22 kB
+dist/assets/auth.api-Cz56_xLv.js                                   3.59 kB │ gzip:   1.60 kB
+dist/assets/table-B8vemK87.js                                      3.64 kB │ gzip:   1.39 kB
+dist/assets/DeviceStateBadge-CcVSF7OW.js                           3.95 kB │ gzip:   1.65 kB
+dist/assets/tabs-BC-4fDy7.js                                       4.00 kB │ gzip:   1.68 kB
+dist/assets/search-select-BZcpsUWo.js                              4.61 kB │ gzip:   2.07 kB
+dist/assets/checkbox-CQyrEuSr.js                                   4.80 kB │ gzip:   2.07 kB
+dist/assets/nav-B2J3VQzp.js                                        6.02 kB │ gzip:   1.87 kB
+dist/assets/SettingsPage-DmZVb72j.js                               6.33 kB │ gzip:   2.67 kB
+dist/assets/WorkOrderSiteMap-CBxkzsGo.js                           6.63 kB │ gzip:   4.94 kB
+dist/assets/motion-xkTI8C2l.js                                     6.68 kB │ gzip:   2.92 kB
+dist/assets/dialog-iF_EJ9YP.js                                     7.81 kB │ gzip:   2.79 kB
+dist/assets/index-Ar6qDjXz.js                                      8.12 kB │ gzip:   3.03 kB
+dist/assets/StreamPlayer-CFwb4RXf.js                               9.27 kB │ gzip:   3.59 kB
+dist/assets/WorkOrdersPage-DsDDWevm.js                             9.52 kB │ gzip:   3.55 kB
+dist/assets/useQuery-Bd-3wIkn.js                                   9.53 kB │ gzip:   3.41 kB
+dist/assets/EvidencePage-DuTNa6E_.js                              10.41 kB │ gzip:   3.85 kB
+dist/assets/UserFormDialog-DyifevwN.js                            11.97 kB │ gzip:   4.35 kB
+dist/assets/useWorkOrderLiveWatch-Drx27ULr.js                     12.05 kB │ gzip:   4.09 kB
+dist/assets/index-CyK5lr0X.js                                     13.42 kB │ gzip:   4.95 kB
+dist/assets/deviceName-pqqcmckh.js                                13.42 kB │ gzip:   5.48 kB
+dist/assets/HistoryPage-BfhobLuU.js                               14.39 kB │ gzip:   4.94 kB
+dist/assets/LoginPage-CYWrizXH.js                                 14.91 kB │ gzip:   5.25 kB
+dist/assets/AppLayout-BWaWcJwV.js                                 18.23 kB │ gzip:   6.51 kB
+dist/assets/UsersPage-DVnlGXYy.js                                 20.32 kB │ gzip:   7.08 kB
+dist/assets/EntraUsersPage-CgOWHgkH.js                            22.95 kB │ gzip:   7.18 kB
+dist/assets/index-0sw7nmo4.js                                     24.24 kB │ gzip:   8.79 kB
+dist/assets/RealtimeProvider-DBsOCdMc.js                          43.10 kB │ gzip:  13.64 kB
+dist/assets/dropdown-menu-D5aqdJdL.js                             48.86 kB │ gzip:  16.55 kB
+dist/assets/TrackingViews-CDpAVBBf.js                             52.74 kB │ gzip:  15.27 kB
+dist/assets/LiveWallPage-DJ7cDWgd.js                              68.82 kB │ gzip:  21.60 kB
+dist/assets/AuditLogsPage-IeU6oLty.js                            101.48 kB │ gzip:  29.70 kB
+dist/assets/MapCanvas-DRlc286F.js                                156.20 kB │ gzip:  45.96 kB
+dist/assets/index-Br_rUoKE.js                                    271.91 kB │ gzip:  68.70 kB
+dist/assets/hls-CWrIGcEr.js                                      524.95 kB │ gzip: 162.43 kB
+dist/assets/index-BiH7To0t.js                                    604.57 kB │ gzip: 189.51 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 17.58s

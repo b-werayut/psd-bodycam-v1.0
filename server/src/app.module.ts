@@ -25,6 +25,7 @@ import { TrackingModule } from './modules/tracking/tracking.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SettingsAdminModule } from './modules/settings/settings-admin.module';
 import { UsersModule } from './modules/users/users.module';
+import { EvidenceExportModule } from './modules/evidence-export/evidence-export.module';
 import { StreamingModule } from './modules/streaming/streaming.module';
 import { TalkModule } from './modules/talk/talk.module';
 import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
@@ -49,6 +50,7 @@ import { WorkOrdersModule } from './modules/work-orders/work-orders.module';
     AuditLogsModule,
     UsersModule,
     StreamingModule,
+    EvidenceExportModule,
     TalkModule,
     BookingIntegrationModule,
     WorkOrdersModule,

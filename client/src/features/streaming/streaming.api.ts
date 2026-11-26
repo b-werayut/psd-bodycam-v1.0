@@ -26,8 +26,18 @@ export type StreamSessionRow = {
   sessionToken: string; deviceId: string; status: number; channel: number; protocol: number;
   requestedAt: string; startedAt: string | null; lastAccessAt: string | null; endedAt: string | null;
   durationSeconds: number | null; endReason: number | null; errorMessage: string | null;
+  /** 1 = live, 2 = playback */
+  sessionType: 1 | 2;
 };
 export type StreamStatusEvent = Pick<StreamSessionRow, 'sessionToken' | 'deviceId' | 'status'> & { endReason?: number | null };
+
+export type RecordingFile = {
+  startAt: string;
+  endAt: string;
+  durationSeconds: number;
+  workOrder: { id: string; workOrderNo: string } | null;
+};
+export type RecordingsResult = { data: RecordingFile[]; from: string; to: string };
 
 export const streamingApi = {
   devices: async (): Promise<WallDevice[]> => {
@@ -42,6 +52,8 @@ export const streamingApi = {
     api.post<LiveSession>('/streams/live', { deviceCode: payload.DeviceCode, channel: payload.Channel ?? 1 }).then((response) => response.data),
   startPlayback: (payload: { DeviceCode: string; StartAt: string; EndAt: string; Channel?: number }) =>
     api.post<LiveSession>('/streams/playback', { deviceCode: payload.DeviceCode, startAt: payload.StartAt, endAt: payload.EndAt, channel: payload.Channel ?? 1 }).then((response) => response.data),
+  recordings: (query: { deviceId: string; from: string; to: string }) =>
+    api.get<RecordingsResult>('/streams/recordings', { params: query }).then((response) => response.data),
   stopLive: (token: string) => api.post<{ success: boolean }>(`/streams/${encodeURIComponent(token)}/stop`).then((response) => response.data),
   mySessions: () => api.get<{ data: StreamSessionRow[]; limit: number }>('/streams/sessions').then((response) => response.data),
 };

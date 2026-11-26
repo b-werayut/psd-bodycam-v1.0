@@ -106,6 +106,22 @@ API ทุก replica ต้องใช้ `STREAM_URL_SECRET` เดียว�
 - เริ่มสายใช้เวลา ~11 วินาที (DSS จับมือ) · ความยาวสูงสุดตั้งที่ `streaming.talk-max-seconds` (เริ่มต้น 600)
 - ลองจากทั้ง 3 จุด: การ์ดกล้องบนแผนที่ติดตาม, ตารางใบงาน, รายละเอียดใบงาน (ผู้ใช้ต้องมี `streaming:view-live` + `streaming:talk`) · ปิด dialog แล้วสายต้องหยุด
 
+### ทดสอบ วิดีโอย้อนหลัง (`/evidence` · DL87)
+
+- ต้องต่อ VPN และตั้ง `DSS_DRIVER=dss` ใน `server/.env` (โหมด `mock` คืนไฟล์ตายตัว 2 ไฟล์ ใช้ใน test อัตโนมัติเท่านั้น) · ไม่มี env ใหม่: ใช้ `DSS_BASE_URL` / `DSS_API_KEY` ชุดเดิม
+- เปิดเมนู วิดีโอย้อนหลัง → เลือกกล้อง `1000027` (มีไฟล์ตั้งแต่ 2026-11-03) + วัน เช่น 2026-11-25 → ค้นหา → คลิกไฟล์แล้วต้องเล่นทันที · เลือกวันได้ย้อนหลัง 30 วัน
+- ปิดหน้าหรือเปลี่ยนไฟล์แล้ว session ต้องหยุด (`POST /api/streams/:token/stop`) · หยุดเล่นนานเกิน `streaming.url-ttl-seconds` session จะจบ — กด ดูย้อนหลัง เพื่อเล่นใหม่
+- ทุกไฟล์แสดง "ไม่ผูกใบงาน" จนกว่าจะทำ P2
+
+### ทดสอบ ดาวน์โหลด MP4 (`/evidence` · DL88)
+
+- ต้องรัน worker ที่มี role `media`: ตั้ง `WORKER_ROLES=tracking,integration,media` ใน `server/.env` (หรือ `WORKER_ROLES=media` แยกตัว) แล้ว `npm run start:worker:dev` · ต้องต่อ VPN + `DSS_DRIVER=dss` และมี Redis (คิว BullMQ `evidence-export`)
+- ต้องมี `ffmpeg` ใน PATH (dev: `C:\ffmpeg\bin`) หรือตั้ง `FFMPEG_PATH=C:\ffmpeg\bin\ffmpeg.exe` · ตรวจด้วย `ffmpeg -version`
+- ไฟล์อยู่ที่ `STORAGE_LOCAL_DIR/evidence` (`STORAGE_DRIVER=local`, dev `./storage`) · ลบเองหลัง 24 ชม. โดย `EvidenceCleanup` (รันทุก 60 วินาที)
+- ลอง: เมนู วิดีโอย้อนหลัง → กล้อง `1000027` วัน 2026-11-25 → ปรับช่วงเป็น 17:06:30–17:11:30 (5 นาที) → กด ดาวน์โหลด MP4 → เห็น รอคิว / กำลังแปลง n% → พร้อม → กดดาวน์โหลด แล้วเปิดไฟล์ต้องเล่นได้ · สั่งช่วงเดิมซ้ำต้องได้ไฟล์เดิมทันที ไม่แปลงใหม่
+- ช่วงเกิน 120 นาทีกดไม่ได้ (ปรับที่ `streaming.download-max-minutes` ในหน้า ตั้งค่าระบบ · 5–1440) · ผู้ใช้ต้องมี `evidence:export` (ปุ่ม) และ `evidence:download` (ดาวน์โหลดไฟล์) · ถ้าไม่รัน worker `media` งานจะค้างสถานะ รอคิว
+- env ที่เกี่ยวข้อง (ดู `.env.example`): `EVIDENCE_EXPORT_CONCURRENCY`, `EVIDENCE_EXPORT_TIMEOUT_MINUTES`, `EVIDENCE_EXPORT_RATE_LIMIT_PER_HOUR` (ต่อผู้ใช้), `EVIDENCE_DOWNLOAD_RATE_LIMIT_PER_MIN` (ต่อ IP)
+
 ### โปรเซสสำหรับพัฒนา
 
 เปิด 3 terminal:

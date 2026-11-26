@@ -15,6 +15,8 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { apiErrorOf } from '@/lib/apiError';
 import { formatDayMonth, formatTime } from '@/lib/time';
 import { RouteLayers } from './components/RouteLayers';
+import { TrackingViewSwitch } from '../tracking/components/TrackingViewSwitch';
+import { VIEW_PARAM } from '../tracking/trackingView';
 import { historyApi } from './history.api';
 import {
   HISTORY_MAX_HOURS,
@@ -45,7 +47,11 @@ const PROBLEM_KEY: Record<RangeProblem, TranslationKey> = {
  * ประวัติเส้นทาง: one camera over a Bangkok start–end window of at most 36 h (a whole day by default).
  * The fields are a draft: only Show route (or whole day / previous / next / camera) loads — every load is audited.
  */
-export function HistoryPage() {
+/**
+ * `viewSwitch`: shown as the history tab of แผนที่ติดตาม (with the ตำแหน่งปัจจุบัน | ประวัติเส้นทาง tabs).
+ * The ประวัติเส้นทาง menu itself shows only the route history, with no tabs.
+ */
+export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {}) {
   const { t, language } = useLanguage();
   const [params, setParams] = useSearchParams();
   const query = useMemo(() => parseHistoryQuery(params), [params]);
@@ -81,7 +87,11 @@ export function HistoryPage() {
     setFocus(null);
     const window = next.window ?? { from: query.from, to: query.to };
     setDraft(rangeFieldsOf(window));
-    setParams(historySearch({ deviceId: next.deviceId === undefined ? query.deviceId : next.deviceId, ...window }));
+    const search = new URLSearchParams(historySearch({ deviceId: next.deviceId === undefined ? query.deviceId : next.deviceId, ...window }));
+    // opened as a tab of แผนที่ติดตาม (`?view=history`): stay in that view
+    const view = params.get(VIEW_PARAM);
+    if (view) search.set(VIEW_PARAM, view);
+    setParams(search);
   };
 
   // valid fields that differ from what is loaded: the results below are not for them yet
@@ -109,6 +119,7 @@ export function HistoryPage() {
           <p aria-hidden="true" className="text-lg font-semibold tracking-tight">{t('navigation.trackingHistory')}</p>
           <p className="mt-1 text-xs text-muted-foreground">{t('tracking.history.description')}</p>
         </div>
+        {viewSwitch ? <TrackingViewSwitch current="history" /> : null}
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
       <div className="flex flex-col gap-3">
@@ -329,6 +340,7 @@ export function HistoryPage() {
             <p className="text-lg font-semibold">{t('navigation.trackingHistory')}</p>
             {route ? <p className="text-xs text-muted-foreground">{t('tracking.history.summary', { points: route.pointCount, stops })}</p> : null}
           </div>
+          {viewSwitch ? <TrackingViewSwitch current="history" /> : null}
           <DialogTrigger asChild>
             <Button type="button" className="w-full"><ListFilter aria-hidden="true" />{t('tracking.history.openPanel')}</Button>
           </DialogTrigger>

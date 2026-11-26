@@ -15,6 +15,11 @@ describe('setting spec', () => {
     expect(SETTING_BOUNDS['streaming.talk-max-seconds']).toEqual({ min: 60, max: 3600 });
   });
 
+  it('download max minutes default and bounds', () => {
+    expect(SETTING_DEFAULTS['streaming.download-max-minutes']).toBe(120);
+    expect(SETTING_BOUNDS['streaming.download-max-minutes']).toEqual({ min: 5, max: 1440 });
+  });
+
   it('lockout defaults: 3 wrong passwords, 15 minutes', () => {
     expect(SETTING_DEFAULTS['auth.max-failed-logins']).toBe(3);
     expect(SETTING_DEFAULTS['auth.lockout-minutes']).toBe(15);

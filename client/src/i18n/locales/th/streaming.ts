@@ -49,7 +49,7 @@ export const streaming = {
   'streaming.playbackFailed': 'เล่นภาพไม่ได้',
   'streaming.unsupported': 'เบราว์เซอร์นี้เล่นภาพสด (HLS) ไม่ได้ — ลองใช้ Chrome, Edge หรือ Safari',
   'streaming.videoLabel': 'ภาพสดจากกล้อง',
-  'streaming.idleHint': 'ไม่มีการเล่นต่อเนื่องเกิน {seconds} วินาที ระบบจะปิดจอให้เอง',
+  'streaming.idleHint': 'ถ้าจอไม่ได้รับภาพนานเกิน {seconds} วินาที (เช่น เน็ตหลุด หรือเครื่องพักหน้าจอ) ระบบจะปิดจอให้เอง',
   'streaming.quota': 'เปิดดูอยู่ {open} จาก {limit} จอ',
   'streaming.channelLive': 'สด · CH {channel}',
   'streaming.channelPlayback': 'ย้อนหลัง · CH {channel}',

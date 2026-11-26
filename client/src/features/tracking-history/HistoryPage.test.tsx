@@ -67,7 +67,7 @@ function LocationProbe() {
   return <output data-testid="location">{location.search}</output>;
 }
 
-const renderAt = (search = '') =>
+const renderAt = (search = '', { viewSwitch = false } = {}) =>
   renderWithProviders(
     <MemoryRouter initialEntries={[`/tracking/history${search}`]}>
       <Routes>
@@ -75,7 +75,7 @@ const renderAt = (search = '') =>
           path="/tracking/history"
           element={
             <>
-              <HistoryPage />
+              <HistoryPage viewSwitch={viewSwitch} />
               <LocationProbe />
             </>
           }
@@ -124,6 +124,34 @@ describe('HistoryPage', () => {
     await waitFor(() => expect(historyApi.history).toHaveBeenCalledTimes(1));
     expect(historyApi.history).toHaveBeenCalledWith('1', today.from, today.to);
     expect(screen.getByTestId('location').textContent).toBe(q(today));
+  });
+
+  it('opened as a tab of แผนที่ติดตาม (?view=history), picking a camera keeps that view in the URL', async () => {
+    const user = userEvent.setup();
+    renderAt('?view=history');
+    const select = screen.getByLabelText('กล้อง');
+    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(3));
+    await user.selectOptions(select, '1');
+    await waitFor(() => expect(historyApi.history).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('location').textContent).toBe(`${q(today)}&view=history`);
+  });
+
+  it('the ประวัติเส้นทาง menu has no view tabs, even for a user who may open both views', () => {
+    signOut();
+    signIn(['tracking:history', 'tracking:view', 'devices:read']);
+    renderAt();
+    expect(screen.queryByRole('navigation', { name: 'มุมมองแผนที่' })).not.toBeInTheDocument();
+  });
+
+  it('as the history tab of แผนที่ติดตาม it shows the tabs (only with tracking:view as well)', () => {
+    renderAt('', { viewSwitch: true });
+    expect(screen.queryByRole('navigation', { name: 'มุมมองแผนที่' })).not.toBeInTheDocument();
+    signOut();
+    signIn(['tracking:history', 'tracking:view', 'devices:read']);
+    renderAt('', { viewSwitch: true });
+    const tabs = screen.getAllByRole('navigation', { name: 'มุมมองแผนที่' })[0];
+    expect(within(tabs).getByRole('link', { name: 'ประวัติเส้นทาง' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: 'ตำแหน่งปัจจุบัน' })).toHaveAttribute('href', '/tracking?view=live');
   });
 
   it('enables range controls only after selecting a camera and disables them again when cleared', async () => {

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AxiosError, type AxiosResponse } from 'axios';
 import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { useAuthStore } from '@/stores/authStore';
 import { StreamPlayer } from './StreamPlayer';
@@ -292,7 +293,7 @@ describe('StreamPlayer — ส่วนที่สายคุยผ่าน�
       { wrapper },
     );
 
-    await screen.findByLabelText('ภาพสดจากกล้อง');
+    await screen.findByLabelText('วิดีโอย้อนหลังจากกล้อง Bodytest');
     expect(onSessionChange).not.toHaveBeenCalledWith(expect.objectContaining({ channel: 1 }));
   });
 
@@ -386,5 +387,72 @@ describe('StreamPlayer — จอย่อยและการคืนโค�
     } finally {
       useAuthStore.setState({ accessToken: null });
     }
+  });
+});
+
+describe('StreamPlayer — ถ้อยคำของโหมดย้อนหลัง', () => {
+  const PLAYBACK = { startAt: '2026-09-24T01:00:00.000Z', endAt: '2026-09-24T01:10:00.000Z' };
+  const rejected = (status: number, message: string) =>
+    new AxiosError('failed', 'ERR_BAD_REQUEST', undefined, undefined, {
+      status,
+      data: { code: 'RECORDING_NOT_FOUND', message },
+    } as AxiosResponse);
+
+  it('ระหว่างเปิดวิดีโอ ใช้ข้อความย้อนหลัง ไม่ใช่ภาพสด และ video label เป็นของย้อนหลัง', async () => {
+    render(<StreamPlayer device={DEVICE} playback={PLAYBACK} />, { wrapper });
+
+    const video = await screen.findByLabelText('วิดีโอย้อนหลังจากกล้อง Bodytest');
+    expect(screen.getByText('กำลังเปิดวิดีโอย้อนหลัง…')).toBeInTheDocument();
+    expect(screen.queryByText('กำลังขอภาพสดจากแพลตฟอร์มกล้อง…')).toBeNull();
+    expect(screen.getByText(/ไม่ได้รับวิดีโอนานเกิน 300 วินาที/)).toBeInTheDocument();
+    fireEvent.loadedData(video);
+    expect(screen.queryByText('กำลังเปิดวิดีโอย้อนหลัง…')).toBeNull();
+  });
+
+  it('เปิดไม่สำเร็จ: หัวข้อเป็นของย้อนหลัง แสดงข้อความจาก server และไม่บอกว่ากล้องออฟไลน์', async () => {
+    vi.mocked(streamingApi.startPlayback).mockRejectedValue(
+      rejected(404, 'ไม่พบไฟล์บันทึกในช่วงเวลานี้'),
+    );
+    render(<StreamPlayer device={DEVICE} playback={PLAYBACK} />, { wrapper });
+
+    expect(await screen.findByText('เปิดวิดีโอย้อนหลังไม่สำเร็จ')).toBeInTheDocument();
+    expect(screen.getAllByText('ไม่พบไฟล์บันทึกในช่วงเวลานี้').length).toBeGreaterThan(0);
+    expect(screen.queryByText('ขอภาพสดไม่สำเร็จ')).toBeNull();
+    expect(screen.queryByText(/กล้องออฟไลน์/)).toBeNull();
+    expect(screen.queryByText('ไม่มีสัญญาณวีดีโอ')).toBeNull();
+  });
+
+  it('server ปิดจอย้อนหลังแล้ว: เวทีบอก "เล่นจบแล้ว" ไม่ใช่กล้องออฟไลน์', async () => {
+    render(<StreamPlayer device={DEVICE} playback={PLAYBACK} />, { wrapper });
+    await screen.findByLabelText('วิดีโอย้อนหลังจากกล้อง Bodytest');
+
+    act(() =>
+      realtime.listeners.get('stream:status')?.({
+        sessionToken: 'tok-pb',
+        deviceId: SESSION.device.id,
+        status: STREAM_STATUS.ENDED,
+        endReason: STREAM_END_REASON.EXPIRED,
+      }),
+    );
+
+    expect(await screen.findByText('เล่นจบแล้ว')).toBeInTheDocument();
+    expect(screen.queryByText(/กล้องออฟไลน์/)).toBeNull();
+    expect(screen.queryByText('ไม่มีสัญญาณวีดีโอ')).toBeNull();
+  });
+
+  it('โหมดภาพสดยังใช้ถ้อยคำเดิมทุกจุด', async () => {
+    vi.mocked(streamingApi.startLive).mockRejectedValue(rejected(502, 'ขอภาพไม่ได้'));
+    renderPlayer();
+
+    expect(await screen.findByText('ขอภาพสดไม่สำเร็จ')).toBeInTheDocument();
+    expect(screen.getByText('ไม่มีสัญญาณวีดีโอ')).toBeInTheDocument();
+    expect(screen.getByText('กล้องออฟไลน์ · ยังไม่ได้เชื่อมต่อแหล่งสัญญาณ')).toBeInTheDocument();
+  });
+
+  it('โหมดภาพสดระหว่างเปิดยังบอกว่ากำลังขอภาพสด', async () => {
+    renderPlayer();
+    await screen.findByLabelText('ภาพสดจากกล้อง');
+    expect(screen.getByText('กำลังขอภาพสดจากแพลตฟอร์มกล้อง…')).toBeInTheDocument();
+    expect(screen.getByText(/ไม่ได้รับภาพนานเกิน 300 วินาที/)).toBeInTheDocument();
   });
 });

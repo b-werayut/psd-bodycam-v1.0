@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
+import type { AuthUser } from '../auth/auth-user';
 import { AppException } from '../errors/app-exception';
 import { RATE_LIMIT_KEY } from './rate-limit.decorator';
 import { rateLimitKey, rateLimitSpec, type RateLimitName } from './rate-limit-specs';
@@ -24,9 +25,9 @@ export class RateLimitGuard implements CanActivate {
     ]);
     if (!name) return true;
 
-    const req = context.switchToHttp().getRequest<Request>();
+    const req = context.switchToHttp().getRequest<Request & { user?: AuthUser }>();
     const spec = rateLimitSpec(name, process.env);
-    const key = rateLimitKey(name, req.ip);
+    const key = rateLimitKey(name, req.ip, spec.keyBy === 'user' ? req.user?.id : undefined);
     const hit = await this.limiter.hit(key, spec.limit, spec.windowSeconds);
     if (hit.allowed) return true;
 

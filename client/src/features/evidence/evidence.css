@@ -1,0 +1,53 @@
+/* Use the available page width and keep the picture at its natural ratio. */
+.evidence-player .stream-stage {
+  aspect-ratio: 16 / 9;
+  flex: none;
+}
+
+@media (min-width: 1024px) {
+  .evidence-workspace {
+    align-items: stretch;
+  }
+
+  .evidence-player {
+    min-height: 0;
+  }
+
+  /* The video determines row height; long export feedback scrolls in the inspector. */
+  .evidence-inspector {
+    contain: size;
+    min-height: 0;
+    gap: 8px;
+    padding: 12px;
+    overflow-y: auto;
+  }
+
+  .evidence-inspector > * {
+    flex-shrink: 0;
+  }
+
+  .evidence-recordings {
+    flex-shrink: 0;
+    gap: 8px;
+    max-height: 208px;
+    padding: 12px;
+  }
+
+  /* Selection is already shown in the inspector and file buttons. */
+  .evidence-timeline-description,
+  .evidence-timeline-selection {
+    display: none;
+  }
+
+  .evidence-recordings > header,
+  .evidence-recordings > div {
+    flex-shrink: 0;
+  }
+
+  /* Long result sets scroll independently while the video stays in view. */
+  .evidence-recordings > ul {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+}

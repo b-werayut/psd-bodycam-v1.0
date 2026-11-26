@@ -83,9 +83,13 @@ export const appRoutes: RouteObject[] = [
         const { LiveWallPage } = await import('@/features/streaming/LiveWallPage');
         return LiveWallPage;
       }),
+      guardedLazy('evidence', async () => {
+        const { EvidencePage } = await import('@/features/evidence/EvidencePage');
+        return EvidencePage;
+      }),
       guardedLazy('tracking', async () => {
-        const { LiveMapPage } = await import('@/features/tracking/LiveMapPage');
-        return LiveMapPage;
+        const { TrackingRoute } = await import('@/features/tracking/TrackingViews');
+        return TrackingRoute;
       }),
       guardedLazy('tracking/history', async () => {
         const { HistoryPage } = await import('@/features/tracking-history/HistoryPage');

@@ -3,7 +3,9 @@ import { rateLimitKey, rateLimitSpec, type RateLimitName } from './rate-limit-sp
 
 describe('rate limit specs (P0: auth only)', () => {
   it('defaults: login 60, sso 60, refresh 120, booking-inbound 600 per minute, keyed by IP', () => {
-    const expected: Record<RateLimitName, number> = { 'auth-login': 60, 'auth-sso': 60, 'auth-refresh': 120, 'booking-inbound': 600 };
+    const expected: Record<Exclude<RateLimitName, 'evidence-export' | 'evidence-download'>, number> = { 'auth-login': 60, 'auth-sso': 60, 'auth-refresh': 120, 'booking-inbound': 600 };
+    expect(rateLimitSpec('evidence-export', {})).toEqual({ limit: 30, windowSeconds: 3600, keyBy: 'user' });
+    expect(rateLimitSpec('evidence-download', {})).toEqual({ limit: 60, windowSeconds: 60 });
     for (const [name, limit] of Object.entries(expected) as [RateLimitName, number][]) {
       expect(rateLimitSpec(name, {})).toEqual({ limit, windowSeconds: 60 });
     }
@@ -24,5 +26,7 @@ describe('rate limit specs (P0: auth only)', () => {
   it('keys by name + IP, with a stable placeholder when the IP is unknown', () => {
     expect(rateLimitKey('auth-login', '203.0.113.5')).toBe('auth-login:ip:203.0.113.5');
     expect(rateLimitKey('auth-refresh', undefined)).toBe('auth-refresh:ip:unknown');
+    expect(rateLimitKey('evidence-export', '203.0.113.5', 7n)).toBe('evidence-export:user:7');
+    expect(rateLimitSpec('evidence-download', {}).keyBy).toBeUndefined();
   });
 });

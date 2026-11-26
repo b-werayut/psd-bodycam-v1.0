@@ -266,6 +266,7 @@ export function StreamPlayer({
     start.mutate();
   };
   const failed = Boolean(error || playbackError);
+  const connectingText = t(playback ? 'evidence.player.connecting' : 'streaming.connecting');
 
   return (
     <div className={cn('flex flex-col', fill && 'relative h-full min-h-0', className)}>
@@ -282,7 +283,7 @@ export function StreamPlayer({
             <Alert variant="destructive" feedbackScope="operational">
               <TriangleAlert aria-hidden="true" />
               <div>
-                <AlertTitle>{t('streaming.startFailed')}</AlertTitle>
+                <AlertTitle>{t(playback ? 'evidence.error.playback' : 'streaming.startFailed')}</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
                 <Button
                   type="button"
@@ -327,14 +328,18 @@ export function StreamPlayer({
             playsInline
             onLoadedData={markMediaReady}
             onPlaying={markMediaReady}
-            aria-label={t('streaming.videoLabel')}
+            aria-label={
+              playback
+                ? t('evidence.player.videoLabel', { camera: device.deviceName || device.deviceCode })
+                : t('streaming.videoLabel')
+            }
           />
         ) : (
           <div className="flex flex-col items-center px-6 text-center">
             {start.isPending && !error ? (
               <>
                 <Loader2 aria-hidden="true" className="size-9 animate-spin" />
-                <p className="mt-3 text-caption">{t('streaming.connecting')}</p>
+                <p className="mt-3 text-caption">{connectingText}</p>
               </>
             ) : quietErrors && failed ? (
               <>
@@ -365,11 +370,17 @@ export function StreamPlayer({
                   className="stream-stage__icon"
                 />
                 <p className="stream-stage__title mt-4 text-control font-medium">
-                  {t('streaming.noSignal')}
+                  {playback
+                    ? ended
+                      ? t('evidence.player.ended')
+                      : (error ?? playbackError ?? t('evidence.error.playback'))
+                    : t('streaming.noSignal')}
                 </p>
-                <p className="stream-stage__hint mt-1.5 text-caption">
-                  {t('streaming.noSignalHint')}
-                </p>
+                {playback ? null : (
+                  <p className="stream-stage__hint mt-1.5 text-caption">
+                    {t('streaming.noSignalHint')}
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -380,7 +391,7 @@ export function StreamPlayer({
             className="stream-stage absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center"
           >
             <Loader2 aria-hidden="true" className="size-9 animate-spin" />
-            <p className="mt-3 text-caption">{t('streaming.connecting')}</p>
+            <p className="mt-3 text-caption">{connectingText}</p>
           </div>
         ) : null}
       </div>
@@ -421,7 +432,9 @@ export function StreamPlayer({
 
       {session && !compact ? (
         <p className="px-4 py-2 text-caption text-muted-foreground">
-          {t('streaming.idleHint', { seconds: session.idleTimeoutSeconds })}
+          {t(playback ? 'evidence.player.idleHint' : 'streaming.idleHint', {
+            seconds: session.idleTimeoutSeconds,
+          })}
         </p>
       ) : null}
     </div>

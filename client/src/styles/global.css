@@ -348,11 +348,61 @@ body {
   height: 50px;
 }
 
-/* Keep zoom controls below the compact command panel on narrow screens. */
-@media (max-width: 1023px) {
-  .tracking-live-map .leaflet-top.leaflet-right {
-    top: 210px;
-  }
+.tracking-marker[data-selected][data-state='online'] .tracking-marker__pin {
+  filter: hue-rotate(70deg);
+}
+
+/* Marker popup follows the theme: Leaflet's own wrapper is always white, which hides dark-theme text. */
+.tracking-camera-popup {
+  margin-bottom: 0;
+}
+
+.tracking-camera-popup--offscreen {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.tracking-camera-popup .leaflet-popup-tip-container {
+  left: calc(50% - var(--tracking-popup-shift-x, 0px));
+}
+
+.tracking-camera-popup--below .leaflet-popup-tip-container {
+  top: -19px;
+  margin-top: 0;
+  transform: rotate(180deg);
+}
+
+.tracking-camera-popup--overlap .leaflet-popup-tip-container {
+  display: none;
+}
+
+.tracking-camera-popup .leaflet-popup-content-wrapper,
+.tracking-camera-popup .leaflet-popup-tip {
+  background: oklch(var(--card));
+  color: oklch(var(--card-foreground));
+  box-shadow: 0 6px 20px oklch(var(--foreground) / 0.18);
+}
+
+.tracking-camera-popup .leaflet-popup-content-wrapper {
+  border: 1px solid oklch(var(--border));
+  border-radius: var(--radius);
+}
+
+.tracking-camera-popup .leaflet-popup-content {
+  margin: 12px 14px;
+}
+
+.tracking-camera-popup a.leaflet-popup-close-button {
+  color: oklch(var(--muted-foreground));
+}
+
+/* Leaflet colours every link in the map #0078A8; the route link uses the theme's primary instead. */
+.tracking-camera-popup .leaflet-popup-content a {
+  color: oklch(var(--primary));
+}
+
+.tracking-camera-popup .leaflet-popup-content button.bg-primary {
+  color: oklch(var(--primary-foreground));
 }
 
 .stream-stage {

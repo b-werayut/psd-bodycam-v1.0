@@ -9,6 +9,7 @@ import { settings } from './settings';
 import { tracking } from './tracking';
 import { streaming } from './streaming';
 import { talk } from './talk';
+import { evidence } from './evidence';
 import { users } from './users';
 
 export const th = {
@@ -24,6 +25,7 @@ export const th = {
   ...tracking,
   ...streaming,
   ...talk,
+  ...evidence,
 } as const;
 
 export type TranslationKey = keyof typeof th;

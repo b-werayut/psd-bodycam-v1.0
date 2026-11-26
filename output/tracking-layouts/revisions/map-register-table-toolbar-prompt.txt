@@ -1,0 +1,16 @@
+Mode: built-in image_gen.imagegen
+Date: 2026-11-26 (Asia/Bangkok)
+
+Use case: ui-mockup / precise layout edit.
+Edit the attached PSD Body worn camera Tracking UI screenshot. The image is the edit target, not general inspiration. Produce ONE revised full-screen desktop interface image. Preserve its visual identity, Thai copy, typography, logo, colors, global header and sidebar, selected map camera popup, map-over-table hierarchy, table columns and row data. The user requests one specific change: MOVE THE SEARCH FIELD AND FOUR STATUS FILTER SEGMENTS DOWN TO THE DATATABLE AREA BELOW THE MAP.
+
+Concrete layout:
+- Keep the top main page-title row "แผนที่ติดตาม", description and counts "ทั้งหมด 8", "ออนไลน์ 6", "ออฟไลน์ 1", "ไม่ทราบ 1".
+- REMOVE the search/filter toolbar from between that page-title row and the map. No search or filter controls may remain above the map. Close the vacated gap cleanly; let map begin directly below the title row with 16-20px spacing.
+- Keep the large wide pale Thailand map immediately under the page title, with the same camera pins, selected blue Bodytest marker and anchored Bodytest details popup. Keep map visually dominant and readable, existing generous rounded frame. Expand its height slightly if useful to absorb the removed toolbar space without changing the overall screen height.
+- BELOW the map, make a clean DATATABLE TOOLBAR on one horizontal row. At LEFT: "รายการกล้อง" and a small "8 ตัว" count badge. At RIGHT of this same toolbar: the search input with magnifier and exact placeholder "รหัสหรือชื่อกล้อง", then a small gap and the segmented filters "ทั้งหมด", "ออนไลน์", "ออฟไลน์", "ไม่ทราบ". The toolbar belongs to the table section, separated from the map by 20px. Search width approx280-330px, filters approx340-380px, readable and comfortable. Selected filter "ทั้งหมด" pale cobalt.
+- Put the table header immediately BELOW that datatable toolbar, aligned with full table width. Table columns remain "ชื่อกล้อง", "รหัสกล้อง", "สถานะ", "GPS", "พิกัดล่าสุด", "อัปเดตล่าสุด", "การดำเนินการ". All four existing data rows remain fully visible: Bodytest selected paleblue, Bodycam02, Bodycam03, Bodycam04 offline. Preserve camera codes, coordinates, connectivity labels and ดูภาพสด / เส้นทาง buttons.
+- No extra title, controls, menus, cards, new functionality, layout variant, or explanatory caption.
+Maintain the same wide desktop aspect ratio of the source (1476 x786 logical screen pixels; native output can be larger at the same proportion). Full frame app content only, straight-on, no browser chrome, outer mockup, collage, perspective, cropping, warping or unnecessary whitespace.
+Use crisp readable Noto Sans Thai, graphite sidebar, white/lightgray content and PSD cobalt accents from source. Current date anchor26November2026 (26พ.ย.2569), time16:12, all already in source.
+The ONLY intended design change is relocating the search and filters into the camera datatable toolbar beneath the map; preserve the rest as closely as possible.

@@ -9,6 +9,7 @@ import { settings } from './settings';
 import { tracking } from './tracking';
 import { streaming } from './streaming';
 import { talk } from './talk';
+import { evidence } from './evidence';
 import { users } from './users';
 import type { TranslationKey } from '../th';
 
@@ -25,4 +26,5 @@ export const en = {
   ...tracking,
   ...streaming,
   ...talk,
+  ...evidence,
 } as const satisfies Record<TranslationKey, string>;

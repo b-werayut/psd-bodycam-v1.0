@@ -48,6 +48,16 @@ export function formatDayMonth(value: string | Date, locale: Language): string {
   }).format(toDate(value));
 }
 
+/** Day, short month and year in Bangkok in the display calendar (th = Buddhist year), e.g. `5 พ.ย. 2569` / `5 Nov 2026`. */
+export function formatDayMonthYear(value: string | Date, locale: Language): string {
+  return new Intl.DateTimeFormat(LOCALE_TAG[locale], {
+    timeZone: DISPLAY_TIME_ZONE,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(toDate(value));
+}
+
 /**
  * UTC ISO instants of 00:00:00.000 and 23:59:59.999 Bangkok time on `dateYmd` (`yyyy-MM-dd`),
  * e.g. `2026-11-04` → `2026-11-03T17:00:00.000Z` .. `2026-11-04T16:59:59.999Z`.

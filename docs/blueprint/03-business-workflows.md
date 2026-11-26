@@ -548,6 +548,7 @@ User flow (DL47):
 | `booking.stale-after-minutes` | 15 | 5–240 | **ความหมายใหม่ (DL46)**: อายุของแถว `IntegrationInbox` ที่ยัง `Pending` / `Failed` ที่เก่าที่สุด (backlog ของ processor) เกินค่านี้ ⇒ ผล `ProjectionStale` + banner + alert 10 `BOOKING_SYNC_STALE` |
 | `booking.inbound-silence-alert-hours` | 24 | 0–168 (0 = ปิด) | ไม่มี POST จาก Smart Booking ที่รับได้นานเกินนี้ ⇒ alert 17 `BOOKING_INBOUND_SILENT` (DL46) |
 | `booking.rematch-horizon-hours` | 72 | 1–336 | re-match |
+| `streaming.download-max-minutes` | 120 | 5–1440 | เพดานความยาวช่วงที่ดาวน์โหลด MP4 ได้ต่อครั้ง (DL88) · เกิน ⇒ 400 `INVALID_RANGE` · ไม่กระทบ playback (≤ 24 ชม.) |
 
 ไม่มี setting ของใบรวม / auto-void / SLA คิวตรวจสอบแล้ว (DL33) · ตัด `booking.sync-interval-seconds` (ไม่มี pull ทุก 2 นาทีแล้ว — DL46 · ยังไม่มีโค้ด จึงลบได้เลย)
 

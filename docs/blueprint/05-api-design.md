@@ -124,19 +124,26 @@ read API ของ Smart Booking (`fetchJob` / `fetchWindow`) มีหรือ
 | Method | Path | Permission |
 |---|---|---|
 | POST | `/streams/live` `{ deviceCode }` | `streaming:view-live` (อย่างเดียว — ไม่ต้องมี `streaming:live-wall` · หน้า `/live-wall` ฝั่ง client ยังต้องมี `streaming:live-wall` · DL86) |
-| POST | `/streams/playback` `{ deviceCode, startAt, endAt }` (≤ 24 ชม.) | `playback:view` |
+| POST | `/streams/playback` `{ deviceCode, startAt, endAt, channel: 1 }` (≤ 24 ชม.) | `playback:view` (audit `START_PLAYBACK` · สร้าง `StreamingSessions` `SessionType = 2` + `PlaybackStartAt/EndAt` · ตอบเหมือน `/streams/live` · HLS proxy, lock ต่อผู้ใช้, โควตา `streaming.max-concurrent-per-user` (นับ live + playback) และ idle expiry (`streaming.url-ttl-seconds`) ร่วมกับ live · กล้อง retire เล่นย้อนหลังได้ · DL87) |
 | GET | `/streams/:token/playlist.m3u8`, `/streams/:token/segment` | Public (sealed token) |
-| POST | `/streams/:token/stop` · GET `/streams/sessions` | `streaming:view-live` |
-| GET | `/streams/recordings?deviceId&from&to` · `?workOrderId=` | `playback:view` · `?deviceId&from&to` (ช่วง ≤ 24 ชม.) = หน้า วิดีโอย้อนหลัง รายกล้อง: ไฟล์ทุกช่วงของกล้อง แต่ละรายการมี `workOrder: { id, workOrderNo } \| null` (ใบงานของ session กล้องเดียวกันที่ทับช่วงไฟล์และผูกแล้ว — DL59) · `?workOrderId=` = dialog ดูวิดีโอของใบงาน: เฉพาะไฟล์ที่ทับ `workWindow` ของกล้องในใบงาน (sessions + `DeviceRefs`) · ใบที่ยังไม่ check-in ⇒ รายการว่าง |
+| POST | `/streams/:token/stop` · GET `/streams/sessions` | `@LoginOnly` (เจ้าของแถวเท่านั้น — session ของคนอื่น ⇒ 404 · แถวมี `sessionType` · DL87) |
+| GET | `/streams/recordings?deviceId&from&to` · `?workOrderId=` | `playback:view` (audit `SEARCH_RECORDINGS` / `Devices`) · `?deviceId&from&to` (ช่วง ≤ 24 ชม.) = หน้า วิดีโอย้อนหลัง รายกล้อง: ค้น DSS middleware `/api/v1/recording/search` สดทุกครั้ง (`daysBack = min(30, ceil((now − from)/1 วัน) + 1)` แล้วกรองไฟล์ที่ทับ [from, to)) → `{ data: [{ startAt, endAt, durationSeconds, workOrder }], from, to }` · `workOrder` เป็น `null` ทุกแถวจนกว่า P2 จะมี `RecordingSegments` + recording index ที่ติดป้ายใบงาน (รูปแบบ `{ id, workOrderNo }` ของ session กล้องเดียวกันที่ทับช่วงไฟล์และผูกแล้ว — DL59, DL87) · `from` ย้อนได้ถึง 00:00 Bangkok ของวันที่ 29 วันก่อนวันนี้ (DL87) · `?workOrderId=` = dialog ดูวิดีโอของใบงาน: เฉพาะไฟล์ที่ทับ `workWindow` ของกล้องในใบงาน (sessions + `DeviceRefs`) · ใบที่ยังไม่ check-in ⇒ รายการว่าง |
 | GET / PATCH | `/streams/role-access` | `roles:manage` |
-| GET | `/evidence-exports/policy` · POST `/evidence-exports` · GET `/evidence-exports/:id` | `evidence:export` |
-| POST | `/evidence-exports/:id/download-ticket` · GET `/evidence-exports/download?ticket=` | `evidence:download` / Public (ticket) |
+| GET | `/evidence-exports/policy` | `evidence:export` · ตอบ `{ maxMinutes }` จาก `streaming.download-max-minutes` (DL88) |
+| POST | `/evidence-exports` `{ deviceCode, startAt, endAt, channel? }` | `evidence:export` · audit `REQUEST_EVIDENCE_EXPORT` / `EvidenceExports` · rate limit `evidence-export` (ต่อผู้ใช้) · ช่วง ≤ `streaming.download-max-minutes`, ไม่อยู่ในอนาคตเกิน 5 นาที, ไม่เก่ากว่า 30 วัน · กล้อง retire ได้ · ใช้แถวเดิมข้ามผู้ใช้เมื่อ device + channel + start/end ตรงกันพอดีและ Queued / Processing / Ready ไม่หมดอายุ ไม่งั้นสร้างแถว Queued + เข้าคิว `evidence-export` · ตอบ view ของแถว (DL88) |
+| GET | `/evidence-exports/:id` | `evidence:export` · ไม่ audit (client poll ทุก 2 วินาที) · `{ id, status, progress, fileName, fileSizeBytes, expiresAt, errorMessage? }` |
+| POST | `/evidence-exports/:id/download-ticket` | `evidence:download` · audit `DOWNLOAD_EVIDENCE_EXPORT` · เฉพาะแถว Ready ไม่หมดอายุ · ticket อายุ 60 วินาที ผูก `exportId` + `userId` ใช้ซ้ำได้ภายใน 60 วินาที · ตอบ `{ url }` |
+| GET | `/evidence-exports/download?ticket=` | Public (ticket) · rate limit `evidence-download` (ต่อ IP) · ตอนเปิดไฟล์ตรวจผู้ใช้ยัง active + มี `evidence:download` · stream `video/mp4` แบบ attachment รองรับ Range · ticket ผิด / หมดอายุ / ไฟล์หาย ⇒ 404 (DL88) |
 | POST | `/talk/sessions` `{ streamSessionToken }` · WS `/api/talk/ws?ticket=` | `streaming:talk` (audit `START_TALK`) · ตอบ `{ talkSessionId, wsUrl, uplinkSampleRate, downlinkSampleRate, frameMs, maxSeconds }` · ใช้ได้กับทุก live session บน web: ภาพสดหลายจอ และ dialog ดูสดทุกจุด (DL62) |
 | POST | `/talk/sessions/:id/stop` | `@LoginOnly` (เจ้าของสายวางสายได้เสมอ แม้ถูกถอน `streaming:talk` แล้ว · audit `STOP_TALK` · สายของคนอื่น ⇒ 404) |
 
 `POST /evidence-exports` ใช้ job เดิมเมื่อ device + channel + start/end ตรงกันพอดีและ job ยัง `Queued` / `Processing` / `Ready` ที่ยังไม่หมดอายุ — ไม่งั้นสร้าง job ใหม่ (port `evidence-export-rules.ts` · ใช้จาก dialog ดูวิดีโอของใบงาน — DL36, DL53)
 
 **Talk error codes (DL86)**: 403 `FORBIDDEN` · 403 `STREAMING_DISABLED` · 403 `DEVICE_STREAM_DISABLED` · 404 `TALK_LIVE_NOT_FOUND` (live session ไม่พบ / จบแล้ว) · 404 `TALK_NOT_FOUND` · 409 `TALK_DEVICE_BUSY` (ข้อความระบุชื่อผู้ใช้ที่กำลังพูด) · 409 `TALK_ALREADY_STARTING` (สายของตัวเองบนกล้องนี้ยังเชื่อมต่ออยู่) · 409 `TALK_USER_BUSY` (กำลังคุยกับกล้องอื่นอยู่) · 502 `TALK_START_FAILED` (ข้อความไทยเท่านั้น ไม่ส่งข้อความของ middleware) · ตรวจซ้ำทุก 15 วินาทีและวางสายเมื่อ: ผู้ใช้ถูกระงับ/ลบ, role ไม่มี `streaming:talk` หรือเป็น `TEAM_LEADER`, กล้องปิดสตรีม/retire/ลบ, `streaming.enabled` = false, หรือ live ที่ผูกอยู่จบแล้ว (close 4006) · อ่าน DB ไม่ได้ = คุยต่อ รอบหน้าตรวจใหม่ · ปิดสายตามเวลา `streaming.talk-max-seconds`
+
+**Evidence export error codes (DL88)**: 400 `INVALID_RANGE` (เกิน `streaming.download-max-minutes` · เวลาสิ้นสุดอยู่ในอนาคตเกิน 5 นาที · เก่ากว่า 30 วัน · end ไม่มากกว่า start) · 403 `STREAMING_DISABLED` · 403 `DEVICE_STREAM_DISABLED` · 403 `FORBIDDEN` (ผู้ใช้ไม่มี `evidence:download` ตอนขอหรือเปิด ticket) · 404 `DEVICE_NOT_FOUND` (กล้องถูกลบ · retire ดาวน์โหลดได้) · 404 `EXPORT_NOT_FOUND` (ไม่พบรายการ / ticket ผิดหรือหมดอายุ / ไฟล์หาย) · 404 `EXPORT_NOT_READY` (ขอ ticket ตอนยังไม่ Ready) · 404 `EXPORT_EXPIRED` (ไฟล์หมดอายุแล้ว ขอใหม่) · 416 `RANGE_NOT_SATISFIABLE` (Range ไม่ถูกต้อง) · 429 จาก rate limit (`evidence-export` ต่อผู้ใช้ · `evidence-download` ต่อ IP) · ข้อความไทยเท่านั้น · `TEAM_LEADER` ไม่มีสิทธิ์ทั้งสอง
+
+**Playback / recordings error codes (DL87)**: 400 `INVALID_RANGE` (ช่วงเกิน 24 ชม. · `from` ก่อน 00:00 Bangkok ของวันที่ 29 วันก่อนวันนี้ · อนาคตเกิน 5 นาที) · 403 `STREAMING_DISABLED` · 403 `DEVICE_STREAM_DISABLED` · 404 `DEVICE_NOT_FOUND` (กล้องถูกลบ · retire ยังค้น/เล่นได้) · 404 `RECORDING_NOT_FOUND` (ไม่พบไฟล์บันทึกในช่วงเวลานี้) · 429 `STREAM_QUOTA_EXCEEDED` · 502 `RECORDING_SEARCH_FAILED` · 502 `PLAYBACK_START_FAILED` (ข้อความไทยเท่านั้น ไม่ส่งข้อความของ middleware) · media ของ session `SessionType` 2 ต้องมี `playback:view` อย่างเดียว ส่วน `SessionType` 1 ยังต้องมี `streaming:view-live` · `TEAM_LEADER` ถูกปฏิเสธทั้งสอง endpoint
 
 `TEAM_LEADER` ใช้ได้เฉพาะ `POST /streams/live` (+ `/streams/:token/stop` ของตัวเอง) กับกล้องใน scope `team` — ไม่มี playback / export / talk / live wall (DL47 · §5.4)
 
@@ -500,10 +507,10 @@ Catalog มี **24 permission** (DL53) · ทุก role web ใช้ scope `a
 | `users:read` | ✓ | ✓ | | | | ผู้ใช้ระบบ (+ matrix สิทธิ์แบบอ่านอย่างเดียว) |
 | `users:manage` | ✓ | ✓ (ไม่เห็นบัญชี `SUPER_ADMIN` — DL55) | | | | จัดการผู้ใช้ · ผู้ใช้จาก Entra |
 | `roles:manage` | ✓ | ✕ | | | | แก้ matrix สิทธิ์ · `/streams/role-access` |
-| `streaming:view-live` | ✓ | ✓ | ✓ | | ✓ | ปุ่ม ดูสด · `/streams/live` · `/streams/sessions` · `/streams/:token/stop` · live ในแอป |
+| `streaming:view-live` | ✓ | ✓ | ✓ | | ✓ | ปุ่ม ดูสด · `/streams/live` · live ในแอป (`/streams/sessions` กับ `/streams/:token/stop` เป็น `@LoginOnly` — DL87) |
 | `streaming:live-wall` | ✓ | ✓ | ✓ | | | เมนู / หน้า ภาพสดหลายจอ (ฝั่ง client เท่านั้น — API ไม่ตรวจ) |
 | `streaming:talk` | ✓ | ✓ | ✓ | | | talk ในภาพสดหลายจอ และทุก dialog ดูสดบน web (DL62) |
-| `playback:view` | ✓ | ✓ | ✓ | | | ปุ่ม ดูย้อนหลัง ของใบงาน · วิดีโอย้อนหลัง (รายกล้อง) |
+| `playback:view` | ✓ | ✓ | ✓ | | | ปุ่ม ดูย้อนหลัง ของใบงาน · วิดีโอย้อนหลัง (รายกล้อง) · `/streams/recordings` · `/streams/playback` (DL87) |
 | `evidence:export` | ✓ | ✓ | ✓ | | | สร้างไฟล์ MP4 |
 | `evidence:download` | ✓ | ✓ | ✓ | | | ดาวน์โหลด MP4 |
 | `notifications:read` | ✓ | ✓ | ✓ | ✓ | ✓ | แจ้งเตือน · push token |

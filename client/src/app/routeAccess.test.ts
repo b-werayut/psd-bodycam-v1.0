@@ -37,10 +37,10 @@ describe('ROUTE_ACCESS', () => {
     expect(ROUTE_ACCESS['notifications'].anyOf).toEqual(['notifications:read', 'alerts:view']);
   });
 
-  it('video playback (evidence) needs playback:view plus work-orders:read', () => {
+  it('video playback (evidence) needs playback:view plus devices:read', () => {
     expect(ROUTE_ACCESS['evidence']).toEqual({
       anyOf: ['playback:view'],
-      allOf: ['work-orders:read'],
+      allOf: ['devices:read'],
     });
   });
 
