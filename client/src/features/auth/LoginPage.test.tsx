@@ -349,7 +349,7 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('รหัสผ่าน')).toHaveClass('auth-glass-field');
   });
 
-  it('ใช้ภาพพื้นหลังอ้างอิงสีน้ำเงินเพียงชั้นเดียวและซ่อนจาก accessibility tree', async () => {
+  it('ใช้พื้นหลัง Prism Glass เพียงชั้นเดียวและซ่อนจาก accessibility tree', async () => {
     const { container } = renderLogin();
     await screen.findByRole('button', { name: /เข้าสู่ระบบด้วยบัญชีองค์กร/ });
 
@@ -360,17 +360,12 @@ describe('LoginPage', () => {
     expect(backdrop).toBeInTheDocument();
     expect(backdrop).toHaveAttribute('alt', '');
     expect(backdrop).toHaveAttribute('aria-hidden', 'true');
-    expect(backdrop).toHaveAttribute('data-visual', 'reference-security-blue');
+    expect(backdrop).toHaveAttribute('data-visual', 'prism-glass');
     expect(backdrop).toHaveAttribute(
       'src',
-      expect.stringContaining('bodycam-security-reference-background.jpg'),
+      expect.stringContaining('prism-glass-background.webp'),
     );
     expect(backdrop).toHaveClass('auth-security-backdrop');
-
-    const gradient = container.querySelector('[data-slot="auth-security-gradient"]');
-    expect(gradient).toBeInTheDocument();
-    expect(gradient).toHaveAttribute('aria-hidden', 'true');
-    expect(gradient).toHaveClass('auth-security-gradient');
   });
 
   it('ใช้การ์ดกระจกบางและปรับภาพพื้นหลังเดิมตาม dark mode โดยไม่สลับเป็นภาพชุดที่สอง', async () => {

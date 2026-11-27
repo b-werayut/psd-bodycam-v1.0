@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import bodycamSecurityReferenceBackground from '@/assets/auth/bodycam-security-reference-background.jpg';
+import prismGlassBackground from '@/assets/auth/prism-glass-background.webp';
 import { useLanguage } from '@/i18n/useLanguage';
 import { resetRefreshState } from '@/lib/apiClient';
 import { apiErrorOf } from '@/lib/apiError';
@@ -265,16 +265,11 @@ export function LoginPage() {
     >
       <img
         data-slot="auth-security-backdrop"
-        data-visual="reference-security-blue"
-        src={bodycamSecurityReferenceBackground}
+        data-visual="prism-glass"
+        src={prismGlassBackground}
         alt=""
         aria-hidden="true"
         className="auth-security-backdrop auth-security-backdrop--theme-responsive"
-      />
-      <div
-        data-slot="auth-security-gradient"
-        aria-hidden="true"
-        className="auth-security-gradient"
       />
 
       <div className="relative z-10 flex items-center justify-end">
@@ -589,7 +584,7 @@ export function LoginPage() {
             )}
           </div>
 
-          <footer className="auth-login-card-footer flex items-start gap-2 border-t border-white/35 bg-card/20 px-6 sm:px-8">
+          <footer className="auth-login-card-footer flex items-start gap-2 border-t px-6 sm:px-8">
             <ShieldCheck
               className="mt-0.5 size-4 shrink-0 text-muted-foreground"
               aria-hidden="true"

@@ -139,3 +139,44 @@ final result: passed
 - Browser checked with two real recordings: initial empty message, selection prompt, zero video elements before Watch, and unchanged 16:9 ratio. At 390px the content has no horizontal overflow; file rows, separators and keyboard-focused actions remain visible and aligned.
 - Screenshots in `C:/Users/WERAYU~1/AppData/Local/Temp/codex-evidence-qa/`: `empty-player-sections-desktop.png`, `empty-player-sections-mobile-actions.jpg`. Default viewport restored and the page left with no selection.
 - Evidence/player/translation tests: 90 passed. TypeScript/production build and ESLint passed.
+
+## Login: Prism Glass — 27 November 2026
+
+final result: passed
+
+### Visual truth and evidence
+
+- Selected visual: `C:/Git/psd-bodycam-v1.0/output/login-concepts-2026-11-27/03-prism-glass.png` (1823x863 pixels).
+- User adjustments: genuine glass card; replace the indigo button with a complementary color; implement in the existing application.
+- Implementation: `http://127.0.0.1:5173/login`, Codex in-app browser. Desktop CSS viewport 1824x864, devicePixelRatio 1; source differs by one pixel in each dimension. No stretched reference was used.
+- Evidence directory: `C:/Users/WERAYU~1/AppData/Local/Temp/psd-login-qa-20261127/`.
+- Desktop captures: `desktop-light.jpg`, `desktop-dark.jpg`; mobile: `mobile-light.jpg`, `mobile-dark.jpg` (390x844); compact viewport 320x640: `mobile-compact.jpg` (310x749 full-page image, excluding the scrollbar).
+- Full-view comparison: `comparison-full.jpg`; focused form comparison: `comparison-card.jpg`. Source and implementation were opened together and the real form regions were also compared without stretching either card.
+
+### Required fidelity surfaces
+
+- Typography: existing local Noto Sans Thai Variable retained. Title is 20px/28px; labels, inputs and helper copy retain the application's semantic type scale. Fonts reported loaded; title, card and main page have no foreground blur or transform after arrival. Browser JPEG captures soften fine lettering, so DOM font measurements and the unchanged source logo were also checked.
+- Layout: single original 430px card retained rather than the generated mock's approximately 467px card. Desktop measured x697, y124.5, width430, height663. Same logo, title, SSO, divider, credential fields, submit button and audit footer hierarchy. Mobile card is 350x635 at a 390x844 viewport; no horizontal document overflow. Short screens scroll naturally and keep the submit button reachable.
+- Colors/materials: pale blue ribbon background matches the selected reference; 44% white card, 32px backdrop blur, saturation, white edge highlights and restrained shadows make the glass surface. The user's requested button deviation is solid muted navy `#16466a` (dark theme `#215b82`) with white text and distinct hover/active states. The former indigo treatment is absent. Dark theme retains the same source image with a darker filter and a translucent navy card.
+- Assets: real existing PSD light/dark logos, Microsoft mark and Lucide controls retained. Generated background-only asset `src/assets/auth/prism-glass-background.webp`, 1920x1080, 27,028 bytes. It has no baked-in form, text, logo, lens or map. No additional dependency was installed.
+- Copy: existing Thai/English translations and audit message retained. All authentication logic and conditional SSO/password flows remain connected to the existing API.
+
+### Interaction and validation
+
+- Page identity: `/login`, title `PSD — Body Worn Camera`; meaningful login form rendered; no framework overlay.
+- Required-field interaction: empty submission marks both credential fields invalid, shows Thai field errors and focuses username without issuing a login request.
+- Password visibility: synthetic preview-only text switches to type=text and back to password; cleared afterward without submitting.
+- Language: TH to EN updates labels, Microsoft SSO, helper copy and footer, then restored to TH.
+- Theme: light/dark switches card, image treatment, logo, dock, fields and button; restored light theme afterward.
+- Responsive checks: desktop 1824x864, mobile 390x844 and compact 320x640. Default browser viewport override reset after validation.
+- Console: an initial React 18 warning caused by an optional fetchPriority prop was corrected by removing the prop. A fresh reload and all subsequent interactions produced no new warning/error entries.
+- Focused auth/theme/design tests: 4 files, 63 tests passed. `npm run build` (TypeScript + production build), `npm run lint` and `git diff --check` passed. Existing large-chunk build advisory remains.
+- Production authentication, an actual Microsoft redirect and credentials were not submitted during visual QA; existing automated login tests cover the authentication states.
+
+No actionable P0/P1/P2 visual or interaction findings remain. Intentional deviations are the requested navy action color, the original 430px card width and the established application typography. JPEG capture softness limits pixel-level glyph comparison; responsive geometry and live text styles were verified independently.
+
+### Background generation
+
+Built-in Imagegen, grounded in the selected third concept; WebP encoded at quality 92. Native output: `C:/Users/Werayut Jaisue/.codex/generated_images/01a21c6f-7f10-7ee2-8940-701427841636/exec-51ffc282-2d5c-4126-a5de-5971b9e6e663.png`.
+
+Prompt: Create a background image asset for a premium desktop SaaS login, target 1920x1080 landscape. The attached image is the selected visual reference. Reproduce only its background art, faithfully matching the soft pale ice-blue/cool-white and slight periwinkle atmosphere. Broad softly flowing translucent satin/light ribbons in the extreme upper-right and lower-left corners, with fine luminous white edges and graceful curves. Center is quiet, pale, low contrast, luminous and open for a real glass login card placed later in HTML. Large calm negative space, subtle frosted atmospheric depth. No harsh purple, saturated rainbow, objects, camera or world map. Background only: omit all UI, central card or rectangular shape, logos, text, fields, buttons and language/theme controls. No ghost outlines, central card shadow, border or watermark. Seamless full-bleed background, no device or presentation framing.
