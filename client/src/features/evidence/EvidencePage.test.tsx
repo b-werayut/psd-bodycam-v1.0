@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bangkokDateOf, shiftDay } from '@/features/tracking-history/historyRange';
 import { apiError, renderWithProviders, signIn, signOut } from '@/test/renderPage';
 import { streamingApi, type RecordingFile, type WallDevice } from '../streaming/streaming.api';
+import { workOrdersApi, type WorkOrderRow } from '../work-orders/workOrders.api';
 import { EvidencePage } from './EvidencePage';
 import { bangkokLocalInput } from './evidenceRange';
 
@@ -24,6 +25,18 @@ vi.mock('../streaming/components/StreamPlayer', () => ({
 vi.mock('../streaming/streaming.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../streaming/streaming.api')>();
   return { ...actual, streamingApi: { ...actual.streamingApi, devices: vi.fn(), recordings: vi.fn() } };
+});
+
+vi.mock('../work-orders/workOrders.api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../work-orders/workOrders.api')>();
+  return { ...actual, workOrdersApi: { ...actual.workOrdersApi, list: vi.fn() } };
+});
+
+const workOrder = (id: string, from: string, to: string | null, deviceId = '1', title = 'ตรวจพื้นที่'): WorkOrderRow => ({
+  id, workOrderNo: `WO-${id}`, title, status: 2, needsReview: false, team: null, leader: null,
+  booking: { id, externalJobNo: null, doNo: null, shNo: null, plannedStartAt: null, plannedEndAt: null, siteName: null, detail: false },
+  workWindow: { from, to }, openedAt: from, closedAt: to, lastActivityAt: null, rowVersion: 1,
+  cameras: [{ deviceId, deviceRef: `CAM-${deviceId}`, deviceCode: `CAM-${deviceId}`, name: null, platformState: 'online', platformStatusFetchedAt: null, fromSession: false }],
 });
 
 const device = (id: string, code: string, extra: Partial<WallDevice> = {}): WallDevice => ({
@@ -76,7 +89,8 @@ const fileButtons = () => within(screen.getByRole('list', { name: 'ไฟล์�
 
 describe('EvidencePage', () => {
   beforeEach(() => {
-    signIn(['playback:view', 'devices:read']);
+    signIn(['playback:view', 'devices:read', 'work-orders:read']);
+    vi.mocked(workOrdersApi.list).mockResolvedValue({ data: [], page: 1, pageSize: 100, total: 0 });
     vi.mocked(streamingApi.devices).mockResolvedValue([
       device('1', 'CAM-1'),
       device('2', 'CAM-2', { status: 4 }),
@@ -98,6 +112,7 @@ describe('EvidencePage', () => {
     expect(streamingApi.recordings).toHaveBeenCalledTimes(1);
     expect(vi.mocked(streamingApi.recordings).mock.calls[0]![0].deviceId).toBe('1');
     expect(screen.getByText('พบ 1 ช่วง')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'ค้นหาวิดีโอ' })).toBeNull();
   });
 
   it('shows the work order number of a linked segment', async () => {
@@ -112,7 +127,7 @@ describe('EvidencePage', () => {
 
   it('does not search before a camera is chosen', async () => {
     renderAt();
-    expect(await screen.findByText('เลือกกล้องและวัน แล้วกดค้นหาวิดีโอ')).toBeInTheDocument();
+    expect(await screen.findByText('เลือกกล้องและวันเพื่อดูรายการวิดีโอ')).toBeInTheDocument();
     expect(streamingApi.recordings).not.toHaveBeenCalled();
   });
 
@@ -152,10 +167,10 @@ describe('EvidencePage', () => {
     expect(await screen.findByTestId('player')).toHaveAttribute('data-start', at('09:05'));
   });
 
-  it('selects a recording from the inspector list and keeps the timeline in sync', async () => {
+  it('selects a recording below the timeline and fills the range without starting playback', async () => {
     renderAt(`?deviceId=1&date=${NOW_DAY}`);
-    const inspector = screen.getByRole('region', { name: 'ช่วงวิดีโอที่เลือก' });
-    const list = await within(inspector).findByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' });
+    const timeline = screen.getByRole('region', { name: 'ช่วงวิดีโอในวันที่เลือก' });
+    const list = await within(timeline).findByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' });
     const stage = screen.getByRole('status', { name: 'จอวิดีโอย้อนหลัง' });
     expect(stage).toHaveTextContent('ยังไม่มีไฟล์วิดีโอ');
     const recording = within(list).getByRole('button', { name: /00:30/ });
@@ -166,9 +181,10 @@ describe('EvidencePage', () => {
     expect(stage).toHaveTextContent('กดดูย้อนหลัง');
     expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${NOW_DAY}T00:45`);
     expect(recording).toHaveAttribute('aria-pressed', 'true');
-    const timeline = screen.getByRole('region', { name: 'ช่วงวิดีโอในวันที่เลือก' });
-    expect(within(timeline).getByRole('button', { name: /00:30/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(within(timeline).queryByRole('list')).toBeNull();
+    const bars = within(timeline).getByRole('group', { name: 'ช่วงไฟล์บนแถบเวลา' });
+    expect(within(bars).getByRole('button', { name: /00:30/ })).toHaveAttribute('aria-pressed', 'true');
+    const selected = screen.getByRole('region', { name: 'ช่วงวิดีโอที่เลือก' });
+    expect(within(selected).queryByRole('list')).toBeNull();
     expect(screen.getAllByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' })).toHaveLength(1);
   });
 
@@ -219,22 +235,74 @@ describe('EvidencePage', () => {
     expect(await screen.findByTestId('player')).toHaveAttribute('data-end', at('00:40'));
   });
 
-  it('filters recorded intervals locally without triggering an audited camera search', async () => {
+  it('searches actual work orders for the camera/day and filters files by their work period without autoplay', async () => {
     vi.mocked(streamingApi.recordings).mockResolvedValue({
+      data: [file(at('09:05'), at('09:23')), file(at('10:00'), at('10:30'))], from: '', to: '',
+    });
+    vi.mocked(workOrdersApi.list).mockResolvedValue({
       data: [
-        file(at('09:05'), at('09:23'), { workOrder: { id: '9', workOrderNo: 'WO-015' } }),
-        file(at('10:00'), at('10:30'), { workOrder: { id: '10', workOrderNo: 'WO-016' } }),
-      ], from: '', to: '',
+        workOrder('015', at('09:00'), at('09:30'), '1', 'ตรวจอาคาร A'),
+        workOrder('016', at('10:05'), at('10:25'), '1', 'ตรวจอาคาร B'),
+        workOrder('OTHER', at('10:00'), at('10:30'), '2'),
+        workOrder('OLD', at('10:00', shiftDay(NOW_DAY, -1)), at('10:30', shiftDay(NOW_DAY, -1))),
+      ], page: 1, pageSize: 100, total: 4,
     });
     renderAt(`?deviceId=1&date=${NOW_DAY}`);
-    await screen.findByText('WO-015');
-    const filter = screen.getByRole('searchbox', { name: 'ค้นหาไฟล์หรือใบงาน' });
-    await userEvent.type(filter, 'WO-016');
-    expect(screen.queryByText('WO-015')).toBeNull();
-    expect(screen.getByText('WO-016')).toBeInTheDocument();
+    await screen.findByRole('list', { name: 'ไฟล์วิดีโอที่บันทึกไว้' });
+    const picker = await screen.findByRole('combobox', { name: 'ใบงานของกล้อง' });
+    await waitFor(() => expect(picker).toBeEnabled());
+    await userEvent.click(picker);
+    expect(screen.queryByRole('option', { name: /WO-OTHER/ })).toBeNull();
+    expect(screen.queryByRole('option', { name: /WO-OLD/ })).toBeNull();
+    await userEvent.type(picker, 'อาคาร B');
+    await userEvent.click(await screen.findByRole('option', { name: /WO-016/ }));
+    expect(workOrdersApi.list).toHaveBeenCalledWith({ deviceId: '1', page: 1, pageSize: 100 });
+    expect(fileButtons()).toHaveLength(1);
+    expect(fileButtons()[0]).toHaveTextContent('10:00–10:30');
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue(`${NOW_DAY}T10:05`);
+    expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${NOW_DAY}T10:25`);
+    expect(screen.queryByTestId('player')).toBeNull();
     expect(streamingApi.recordings).toHaveBeenCalledTimes(1);
-    await userEvent.clear(filter);
-    expect(screen.getByText('WO-015')).toBeInTheDocument();
+
+    await userEvent.click(fileButtons()[0]!);
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue(`${NOW_DAY}T10:05`);
+    expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${NOW_DAY}T10:25`);
+    expect(screen.queryByTestId('player')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'ล้างใบงาน' }));
+    expect(fileButtons()).toHaveLength(2);
+  });
+
+  it('resets a work-order selection when the camera changes', async () => {
+    vi.mocked(workOrdersApi.list).mockResolvedValue({
+      data: [workOrder('015', at('00:30'), at('00:45'))], page: 1, pageSize: 100, total: 1,
+    });
+    renderAt(`?deviceId=1&date=${NOW_DAY}`);
+    const picker = await screen.findByRole('combobox', { name: 'ใบงานของกล้อง' });
+    await waitFor(() => expect(picker).toBeEnabled());
+    await userEvent.click(picker);
+    await userEvent.click(await screen.findByRole('option', { name: /WO-015/ }));
+    await userEvent.click(screen.getByLabelText('กล้อง'));
+    await userEvent.click(await screen.findByRole('option', { name: /CAM-2/ }));
+    await waitFor(() => expect(workOrdersApi.list).toHaveBeenCalledWith({ deviceId: '2', page: 1, pageSize: 100 }));
+    expect(picker).toHaveValue('');
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue('');
+    expect(screen.queryByTestId('player')).toBeNull();
+  });
+
+  it('does not load work orders without work-orders:read permission', async () => {
+    signIn(['playback:view', 'devices:read']);
+    renderAt(`?deviceId=1&date=${NOW_DAY}`);
+    expect(await screen.findByRole('combobox', { name: 'ใบงานของกล้อง' })).toBeDisabled();
+    expect(workOrdersApi.list).not.toHaveBeenCalled();
+  });
+
+  it('shows a work-order loading error with a retry independent of recording search', async () => {
+    vi.mocked(workOrdersApi.list).mockRejectedValueOnce(new Error('unavailable'))
+      .mockResolvedValueOnce({ data: [], page: 1, pageSize: 100, total: 0 });
+    renderAt(`?deviceId=1&date=${NOW_DAY}`);
+    await userEvent.click(await screen.findByRole('button', { name: 'ลองโหลดใบงานอีกครั้ง' }));
+    await waitFor(() => expect(workOrdersApi.list).toHaveBeenCalledTimes(2));
+    expect(streamingApi.recordings).toHaveBeenCalledTimes(1);
   });
 
   it('shows the error with a retry that searches again', async () => {
@@ -275,7 +343,7 @@ describe('EvidencePage', () => {
     const to = screen.getByLabelText('สิ้นสุด');
     fireEvent.change(from, { target: { value: `${shiftDay(NOW_DAY, -2)}T00:00:00` } });
     fireEvent.change(to, { target: { value: `${NOW_DAY}T00:10:00` } });
-    expect(screen.getByText('ดูย้อนหลังได้ครั้งละไม่เกิน 24 ชั่วโมง')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('ดูย้อนหลังได้ครั้งละไม่เกิน 24 ชั่วโมง');
     expect(rangePlay()).toBeDisabled();
     fireEvent.change(from, { target: { value: `${NOW_DAY}T00:10:00` } });
     fireEvent.change(to, { target: { value: `${NOW_DAY}T00:05:00` } });
@@ -334,13 +402,6 @@ describe('EvidencePage', () => {
     await waitFor(() => expect(streamingApi.recordings).toHaveBeenCalledTimes(2));
     expect(vi.mocked(streamingApi.recordings).mock.calls[1]![0].deviceId).toBe('2');
     expect(screen.getByTestId('location')).toHaveTextContent('deviceId=2');
-  });
-
-  it('searches again on the search button', async () => {
-    renderAt(`?deviceId=1&date=${NOW_DAY}`);
-    await screen.findByText('ไม่ผูกใบงาน');
-    await userEvent.click(screen.getByRole('button', { name: 'ค้นหาวิดีโอ' }));
-    await waitFor(() => expect(streamingApi.recordings).toHaveBeenCalledTimes(2));
   });
 
   it('keeps the segment list inside its own region', async () => {

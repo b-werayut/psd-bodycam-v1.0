@@ -82,13 +82,13 @@ describe('operations semantic theme', () => {
     expect(oklchToken(root, 'canvas')).toEqual([0.985, 0.004, 255]);
     expect(oklchToken(root, 'surface')).toEqual([0.995, 0.003, 255]);
     expect(root).toContain('--skeleton-highlight: 0.995 0.003 255');
-    expect(oklchToken(root, 'brand-primary')).toEqual([0.52, 0.2, 258]);
+    expect(oklchToken(root, 'brand-primary')).toEqual([0.44, 0.115, 249]);
     expect(oklchToken(dark, 'canvas')).toEqual([0.13, 0.025, 258]);
     expect(oklchToken(dark, 'surface')).toEqual([0.17, 0.028, 258]);
-    expect(oklchToken(dark, 'brand-primary')).toEqual([0.55, 0.2, 258]);
+    expect(oklchToken(dark, 'brand-primary')).toEqual([0.54, 0.12, 249]);
   });
 
-  it('uses an AA-safe cobalt for actions and focus', () => {
+  it('uses an AA-safe PSD blue for actions', () => {
     const primaryLuminance = relativeLuminance(
       oklchToLinearRgb(oklchToken(root, 'brand-primary')),
     );

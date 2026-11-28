@@ -1,0 +1,32 @@
+[
+  {
+    "overflowFlag": "true",
+    "parent": {
+      "overflowX": "visible",
+      "sw": 982,
+      "tabIndex": null,
+      "tag": "DIV",
+      "w": 982
+    },
+    "slot": "horizontal-scroll-viewport",
+    "sw": 1080,
+    "tabIndex": "0",
+    "tag": "DIV",
+    "w": 972
+  },
+  {
+    "overflowFlag": null,
+    "parent": {
+      "overflowX": "visible",
+      "sw": 1080,
+      "tabIndex": null,
+      "tag": "DIV",
+      "w": 972
+    },
+    "slot": null,
+    "sw": 1080,
+    "tabIndex": null,
+    "tag": "TABLE",
+    "w": 1080
+  }
+]

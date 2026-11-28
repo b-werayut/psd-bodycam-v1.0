@@ -1,8 +1,10 @@
 import { useLanguage } from '@/i18n/useLanguage';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { RecordingFile } from '../../streaming/streaming.api';
 import { formatDuration, recordingDayPosition } from '../evidenceRange';
 import { recordingClock } from '../recordingPresentation';
+import { RecordingFileList } from './RecordingFileList';
 
 export type SegmentsState =
   | { kind: 'idle' }
@@ -12,13 +14,15 @@ export type SegmentsState =
 
 const HOURS = Array.from({ length: 25 }, (_, hour) => hour);
 
-/** The ruler selects the same recording as the inspector list. */
-export function RecordingSegmentsPanel({ state, date, activeKey, onSelect }: {
+/** The ruler and the file list below it select the same draft range. */
+export function RecordingSegmentsPanel({ state, date, activeKey, filtered, onSelect, onRetry }: {
   state: SegmentsState;
   date: string;
   /** The original file's start/end, before clipping to the selected day. */
   activeKey: string | null;
+  filtered: boolean;
   onSelect: (file: RecordingFile) => void;
+  onRetry: () => void;
 }) {
   const { t, language } = useLanguage();
   const files = state.kind === 'ready' ? state.files : [];
@@ -78,7 +82,8 @@ export function RecordingSegmentsPanel({ state, date, activeKey, onSelect }: {
           })}
         </div>
       </div>
-
+      <Separator />
+      <RecordingFileList state={state} activeKey={activeKey} filtered={filtered} onSelect={onSelect} onRetry={onRetry} />
     </section>
   );
 }

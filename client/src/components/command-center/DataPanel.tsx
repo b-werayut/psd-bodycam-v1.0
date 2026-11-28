@@ -34,15 +34,15 @@ export function DataPanel({
     <Card
       role="region"
       aria-labelledby={titleId}
-      className={cn('overflow-hidden rounded-lg border border-border', className)}
+      className={cn('overflow-hidden rounded-xl border border-border', className)}
     >
-      <CardHeader className="min-h-11 flex-row items-center justify-between gap-4 border-b border-border bg-card px-4 py-3">
+      <CardHeader className="min-h-11 flex-row items-center justify-between gap-4 border-b border-border bg-card px-5 py-4">
         <div className="min-w-0">
           <CardTitle
             ref={titleRef}
             id={titleId}
             tabIndex={titleRef ? -1 : undefined}
-            className={titleRef ? 'scroll-mt-24' : undefined}
+            className={cn('text-subheading', titleRef && 'scroll-mt-24')}
           >
             {title}
           </CardTitle>

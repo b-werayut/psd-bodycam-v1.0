@@ -1,0 +1,137 @@
+{
+  "date": "2026-11-28",
+  "rendered_viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "mobile_rendered": false,
+  "super_admin_content_rendered": false,
+  "route_and_state_rows": 16,
+  "screenshots": 25,
+  "findings": {
+    "P0": 0,
+    "P1": 1,
+    "P2": 8,
+    "P3": 1
+  },
+  "score": 14,
+  "max_score": 20,
+  "client_build": "passed with bundle-size advisory",
+  "client_tests": {
+    "files": 108,
+    "tests": 953,
+    "failed": 0
+  },
+  "detector": {
+    "primary": 0,
+    "advisories": 26
+  },
+  "source_ui_changed_by_audit": false,
+  "image_validation": "all referenced local JPEGs exist, open, and are nonblank",
+  "screenshot_sizes": {
+    "overview.jpg": [
+      1600,
+      840
+    ],
+    "01-login-desktop.jpg": [
+      1280,
+      720
+    ],
+    "02-login-validation.jpg": [
+      1270,
+      753
+    ],
+    "03-home-desktop.jpg": [
+      1280,
+      720
+    ],
+    "04-work-orders-desktop.jpg": [
+      1270,
+      937
+    ],
+    "05-work-order-dialog.jpg": [
+      1280,
+      937
+    ],
+    "06-tracking-desktop.jpg": [
+      1280,
+      720
+    ],
+    "07-tracking-selection.jpg": [
+      1280,
+      720
+    ],
+    "08-history-linked-desktop.jpg": [
+      1280,
+      720
+    ],
+    "09-history-empty-desktop.jpg": [
+      1280,
+      720
+    ],
+    "10-evidence-idle-desktop.jpg": [
+      1270,
+      784
+    ],
+    "11-evidence-search-desktop.jpg": [
+      1270,
+      824
+    ],
+    "12-live-wall-desktop.jpg": [
+      1280,
+      720
+    ],
+    "13-live-wall-16-desktop.jpg": [
+      1280,
+      720
+    ],
+    "15-users-desktop.jpg": [
+      1280,
+      720
+    ],
+    "16-user-form.jpg": [
+      1280,
+      720
+    ],
+    "17-roles-permissions.jpg": [
+      1270,
+      714
+    ],
+    "18-entra-desktop.jpg": [
+      1270,
+      714
+    ],
+    "19-settings-access-state.jpg": [
+      1280,
+      720
+    ],
+    "20-audit-logs-access-state.jpg": [
+      1280,
+      720
+    ],
+    "21-work-order-detail-route.jpg": [
+      1270,
+      714
+    ],
+    "22-not-found.jpg": [
+      1280,
+      720
+    ],
+    "23-users-dark.jpg": [
+      1280,
+      720
+    ],
+    "24-tracking-dark.jpg": [
+      1280,
+      720
+    ],
+    "25-tracking-english.jpg": [
+      1280,
+      720
+    ],
+    "26-users-filtered-empty.jpg": [
+      1280,
+      720
+    ]
+  }
+}

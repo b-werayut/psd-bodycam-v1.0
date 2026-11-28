@@ -1,7 +1,4 @@
-import { m } from 'motion/react';
 import type { ReactNode } from 'react';
-
-import { pageVariants } from '@/lib/motion';
 
 export interface PageTransitionProps {
   transitionKey: string;
@@ -14,15 +11,7 @@ export function PageTransition({ transitionKey, disabled = false, children }: Pa
     return <>{children}</>;
   }
 
-  return (
-    <m.div
-      key={transitionKey}
-      variants={pageVariants}
-      initial="hidden"
-      animate="visible"
-      className="h-full"
-    >
-      {children}
-    </m.div>
-  );
+  // Frequent operational navigation should reveal usable content immediately.
+  // Keep the same wrapper (and full-bleed opt-out) without moving the workspace.
+  return <div key={transitionKey} className="h-full">{children}</div>;
 }

@@ -58,7 +58,7 @@ function HeaderClock() {
     <time
       role="timer"
       dateTime={now.toISOString()}
-      className="hidden h-10 shrink-0 items-center gap-2 rounded-full bg-secondary px-3 md:flex"
+      className="hidden h-10 shrink-0 items-center gap-2 px-2 md:flex"
     >
       <span className="text-sm font-semibold tabular-nums text-foreground">{time}</span>
       <span className="text-xs text-muted-foreground">{date}</span>
@@ -111,7 +111,7 @@ export function AppHeader({
   };
 
   return (
-    <header className="sticky top-0 z-header flex min-h-14 items-center gap-3 border-b border-border bg-background px-3 sm:px-5">
+    <header className="sticky top-0 z-header flex min-h-14 items-center gap-3 border-b border-border bg-card px-3 sm:px-5">
       <DialogTrigger asChild>
         <Button
           variant="ghost"

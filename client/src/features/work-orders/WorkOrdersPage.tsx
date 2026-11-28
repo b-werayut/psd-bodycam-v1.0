@@ -149,7 +149,7 @@ export function WorkOrdersPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
       <PageHeader title={t('workOrders.title')} description={t('workOrders.description')} />
 
       <DataToolbar label={t('workOrders.toolbar')}>
@@ -213,7 +213,7 @@ export function WorkOrdersPage() {
             <TableCaption className="sr-only">{t('workOrders.tableCaption')}</TableCaption>
             <TableHeader className="[&_th]:bg-muted">
               <TableRow>
-                <TableHead>{t('workOrders.column.workOrder')}</TableHead>
+                <TableHead className="min-w-[200px]">{t('workOrders.column.workOrder')}</TableHead>
                 <TableHead>{t('workOrders.column.refs')}</TableHead>
                 <TableHead>{t('workOrders.column.status')}</TableHead>
                 <TableHead>{t('workOrders.column.window')}</TableHead>
@@ -239,7 +239,7 @@ export function WorkOrdersPage() {
                         aria-haspopup="dialog"
                         onClick={(event) => openDetail(row, event.currentTarget)}
                         aria-label={t('workOrders.openRow', { no: row.workOrderNo })}
-                        className="work-order-id text-xs font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="work-order-id whitespace-nowrap text-control font-semibold text-link underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         {row.workOrderNo}
                       </button>

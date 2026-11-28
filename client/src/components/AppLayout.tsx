@@ -71,7 +71,7 @@ function AppLayoutContent() {
               // เหลือแถบว่างใต้แผนที่ (desktop รอดเพราะ lg:flex-row ยืด cross-axis ให้)
               isFullBleedRoute
                 ? 'flex min-h-0 flex-col overflow-hidden p-0 [&>*]:flex-1'
-                : 'p-4 sm:p-5 xl:p-6',
+                : 'px-4 py-6 sm:px-6 sm:py-7 xl:px-8 xl:py-8',
             )}
           >
             <PageTransition transitionKey={location.pathname} disabled={isFullBleedRoute}>

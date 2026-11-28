@@ -74,7 +74,7 @@ describe('Command Center patterns', () => {
     );
 
     const panel = screen.getByRole('region', { name: 'Recent events' });
-    expect(panel).toHaveClass('rounded-lg');
+    expect(panel).toHaveClass('rounded-xl');
     expect(panel).toHaveTextContent('Latest activity across the system');
     expect(panel).toHaveTextContent('Camera connected');
     expect(screen.getByRole('button', { name: 'View all' })).toBeInTheDocument();
@@ -169,8 +169,8 @@ describe('Command Center patterns', () => {
     const tableRegion = screen.getByRole('region', { name: 'Work orders' });
     expect(tableRegion).toHaveTextContent('WO-1048');
     expect(tableRegion).toHaveTextContent('1–10 of 22');
-    expect(tableRegion).toHaveClass('rounded-lg');
-    expect(tableRegion).not.toHaveClass('rounded-xl');
+    expect(tableRegion).toHaveClass('rounded-xl');
+    expect(tableRegion).not.toHaveClass('rounded-lg');
     expect(
       tableRegion.querySelector('[data-slot="horizontal-scroll-viewport"]'),
     ).not.toHaveAttribute('tabindex');
@@ -256,13 +256,13 @@ describe('Command Center patterns', () => {
 
     const toolbar = screen.getByRole('toolbar', { name: 'Device filters' });
     expect(toolbar).toHaveClass(
-      'gap-2',
-      '[@media(pointer:fine)]:[&_input]:h-9',
-      '[@media(pointer:fine)]:[&_input]:min-h-9',
-      '[@media(pointer:fine)]:[&_select]:h-9',
-      '[@media(pointer:fine)]:[&_select]:min-h-9',
-      '[@media(pointer:fine)]:[&_button:not([role=checkbox])]:h-9',
-      '[@media(pointer:fine)]:[&_button:not([role=checkbox])]:min-h-9',
+      'gap-3',
+      '[@media(pointer:fine)]:[&_input]:h-10',
+      '[@media(pointer:fine)]:[&_input]:min-h-10',
+      '[@media(pointer:fine)]:[&_select]:h-10',
+      '[@media(pointer:fine)]:[&_select]:min-h-10',
+      '[@media(pointer:fine)]:[&_button:not([role=checkbox])]:h-10',
+      '[@media(pointer:fine)]:[&_button:not([role=checkbox])]:min-h-10',
     );
     expect(screen.getByRole('searchbox', { name: 'Search devices' })).toHaveClass('min-h-11');
     expect(screen.getByRole('combobox', { name: 'Device type' })).toHaveClass('min-h-11');

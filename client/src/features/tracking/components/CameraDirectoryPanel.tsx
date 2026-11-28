@@ -38,10 +38,10 @@ export function CameraDirectoryPanel(props: CameraDirectoryPanelProps) {
   ];
   return (
     <div aria-busy={props.isPending} className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
-      <div className="flex shrink-0 flex-col gap-2.5 border-b border-border p-3">
-        <div data-slot="directory-heading" className="space-y-1">
-          <h1 className="text-base font-semibold">{t('navigation.tracking')}</h1>
-          <p className="text-xs text-muted-foreground">{t('tracking.directory.description')}</p>
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border p-4">
+        <div data-slot="directory-heading" className="flex flex-col gap-1.5">
+          <h1 className="text-title font-semibold">{t('navigation.tracking')}</h1>
+          <p className="text-caption leading-5 text-muted-foreground">{t('tracking.directory.description')}</p>
         </div>
         <TrackingViewSwitch current="live" />
         <dl className="grid grid-cols-3 divide-x divide-border rounded-md border border-border bg-muted/40">
@@ -71,15 +71,15 @@ export function CameraDirectoryPanel(props: CameraDirectoryPanelProps) {
             <h2 className="min-w-0 flex-1 truncate font-semibold">{t('tracking.directory.group')}</h2>
             <span className="text-xs tabular-nums text-muted-foreground">{t('liveWall.list.groupCount', { online: props.devices.filter((device) => device.platformState === 'online').length, total: props.devices.length })}</span>
           </div>
-          <ul aria-label={t('tracking.list.label')} className="space-y-2">
+          <ul aria-label={t('tracking.list.label')} className="flex flex-col gap-1">
             {props.devices.map((device) => {
               const selected = device.id === props.selectedId;
               return (
-                <li key={device.id} className={cn('overflow-hidden rounded-lg border border-border bg-card shadow-sm', selected && 'border-primary/50 bg-primary/5 ring-1 ring-primary/15')}>
+                <li key={device.id} className={cn('overflow-hidden rounded-lg border border-transparent bg-card', selected && 'border-primary/50 bg-primary/5 ring-1 ring-primary/15')}>
                   <button type="button" aria-label={t('tracking.card.viewOnMap', { code: device.deviceCode })}
                     aria-pressed={selected} onClick={() => props.onSelect(device.id)}
                     className="flex min-h-[72px] w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                    <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-primary/10 bg-primary/10 text-primary">
+                    <span className="inline-flex size-8 shrink-0 items-center justify-center text-muted-foreground">
                       <Camera aria-hidden="true" className="size-4" />
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col gap-1.5">

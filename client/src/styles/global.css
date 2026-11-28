@@ -102,7 +102,11 @@ body {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    /* A nonzero duration creates transitions even on otherwise static map panes. */
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
   }
 
   .nwl-skeleton-shimmer::after {

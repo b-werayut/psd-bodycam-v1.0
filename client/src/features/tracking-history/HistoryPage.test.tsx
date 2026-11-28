@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { formatDayMonth } from '@/lib/time';
+import { workOrdersApi, type WorkOrderRow } from '@/features/work-orders/workOrders.api';
 import { apiError, renderWithProviders, signIn, signOut } from '@/test/renderPage';
 import { historyApi, type RouteHistory } from './history.api';
 import { bangkokInstant, dayWindowOf, bangkokDateOf, shiftDay } from './historyRange';
@@ -22,6 +23,7 @@ vi.mock('./history.api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./history.api')>();
   return { ...actual, historyApi: { devices: vi.fn(), history: vi.fn() } };
 });
+vi.mock('@/features/work-orders/workOrders.api', () => ({ workOrdersApi: { list: vi.fn() } }));
 
 const route = (extra: Partial<RouteHistory> = {}): RouteHistory => ({
   device: { id: '1', code: 'SIM-0001', name: 'กล้องจำลอง 1' },
@@ -95,6 +97,19 @@ const d2 = shiftDay(todayYmd, -2);
 /** last night 20:00 → this morning 06:00, Bangkok */
 const night = { from: bangkokInstant(d1, '20:00')!, to: bangkokInstant(todayYmd, '06:00')! };
 const setField = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
+const chooseCamera = async (user: ReturnType<typeof userEvent.setup>, code: string) => {
+  const camera = screen.getByRole('combobox', { name: 'กล้อง' });
+  await waitFor(() => expect(camera).toBeEnabled());
+  await user.click(camera);
+  await user.click(await screen.findByRole('option', { name: new RegExp(code) }));
+};
+const workOrder = (id: string, from: string, to: string, deviceId = '1'): WorkOrderRow => ({
+  id, workOrderNo: `WO-${id}`, title: `ตรวจอาคาร ${id}`, status: 3, needsReview: false,
+  team: null, leader: null,
+  booking: { id, externalJobNo: null, doNo: null, shNo: null, plannedStartAt: null, plannedEndAt: null, siteName: null, detail: false },
+  workWindow: { from, to }, openedAt: from, closedAt: to, lastActivityAt: to, rowVersion: 1,
+  cameras: [{ deviceRef: deviceId, deviceId, deviceCode: `SIM-000${deviceId}`, name: null, platformState: 'unknown', platformStatusFetchedAt: null, fromSession: false }],
+});
 
 describe('HistoryPage', () => {
   beforeEach(() => {
@@ -104,34 +119,40 @@ describe('HistoryPage', () => {
       { id: '2', deviceCode: 'SIM-0002', name: null },
     ]);
     vi.mocked(historyApi.history).mockResolvedValue(route());
+    vi.mocked(workOrdersApi.list).mockResolvedValue({ data: [], page: 1, pageSize: 100, total: 0 });
   });
   afterEach(() => {
     signOut();
     vi.clearAllMocks();
   });
 
-  it('asks for a camera first; picking one loads today once', async () => {
+  it('asks for a camera and an explicit time range before loading the route', async () => {
     const user = userEvent.setup();
     renderAt();
     expect(screen.getByRole('heading', { name: 'ประวัติเส้นทาง' })).toBeInTheDocument();
     expect(screen.getByText('เลือกกล้องเพื่อดูเส้นทาง')).toBeInTheDocument();
     expect(historyApi.history).not.toHaveBeenCalled();
 
-    const select = screen.getByLabelText('กล้อง');
-    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(3));
-    await user.selectOptions(select, '1');
-
+    await chooseCamera(user, 'SIM-0001');
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue('');
+    expect(screen.getByLabelText('สิ้นสุด')).toHaveValue('');
+    expect(historyApi.history).not.toHaveBeenCalled();
+    setField('เริ่มต้น', `${todayYmd}T00:00`);
+    setField('สิ้นสุด', `${shiftDay(todayYmd, 1)}T00:00`);
+    await user.click(screen.getByRole('button', { name: 'ดูเส้นทาง' }));
     await waitFor(() => expect(historyApi.history).toHaveBeenCalledTimes(1));
     expect(historyApi.history).toHaveBeenCalledWith('1', today.from, today.to);
     expect(screen.getByTestId('location').textContent).toBe(q(today));
   });
 
-  it('opened as a tab of แผนที่ติดตาม (?view=history), picking a camera keeps that view in the URL', async () => {
+  it('opened as a tab of แผนที่ติดตาม (?view=history), choosing the camera and range keeps that view', async () => {
     const user = userEvent.setup();
     renderAt('?view=history');
-    const select = screen.getByLabelText('กล้อง');
-    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(3));
-    await user.selectOptions(select, '1');
+    await chooseCamera(user, 'SIM-0001');
+    expect(historyApi.history).not.toHaveBeenCalled();
+    setField('เริ่มต้น', `${todayYmd}T00:00`);
+    setField('สิ้นสุด', `${shiftDay(todayYmd, 1)}T00:00`);
+    await user.click(screen.getByRole('button', { name: 'ดูเส้นทาง' }));
     await waitFor(() => expect(historyApi.history).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('location').textContent).toBe(`${q(today)}&view=history`);
   });
@@ -162,15 +183,163 @@ describe('HistoryPage', () => {
     for (const control of controls) expect(control).toBeDisabled();
     expect(historyApi.history).not.toHaveBeenCalled();
 
-    const camera = screen.getByLabelText('กล้อง');
-    await waitFor(() => expect(within(camera).getAllByRole('option')).toHaveLength(3));
-    expect(camera).toBeEnabled();
-    await user.selectOptions(camera, '1');
+    await chooseCamera(user, 'SIM-0001');
     for (const control of controls) expect(control).toBeEnabled();
     await waitFor(() => expect(historyApi.history).toHaveBeenCalledTimes(1));
 
-    await user.selectOptions(camera, '');
+    await user.click(screen.getByRole('button', { name: 'ล้างตัวเลือก' }));
     for (const control of controls) expect(control).toBeDisabled();
+    expect(historyApi.history).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the datepicker range without a separate day selector and preserves the map history tab', async () => {
+    const user = userEvent.setup();
+    renderAt(`${q(today)}&view=history`);
+    await screen.findByTestId('route');
+    expect(screen.queryByRole('combobox', { name: 'วัน' })).not.toBeInTheDocument();
+    setField('เริ่มต้น', `${d1}T00:00`);
+    setField('สิ้นสุด', `${todayYmd}T00:00`);
+    expect(historyApi.history).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'ดูเส้นทาง' }));
+    await waitFor(() => expect(historyApi.history).toHaveBeenLastCalledWith('1', yesterday.from, yesterday.to));
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue(`${d1}T00:00`);
+    expect(screen.getByTestId('location')).toHaveTextContent(`${q(yesterday)}&view=history`);
+  });
+
+  it('loads work orders only after both times are chosen, with the picker after the time range', async () => {
+    const user = userEvent.setup();
+    signIn(['tracking:history', 'devices:read', 'work-orders:read']);
+    vi.mocked(workOrdersApi.list).mockResolvedValue({ data: [
+      workOrder('MATCH', bangkokInstant(d1, '08:30')!, bangkokInstant(d1, '09:30')!),
+      workOrder('OUTSIDE', bangkokInstant(d1, '10:00')!, bangkokInstant(d1, '11:00')!),
+    ], page: 1, pageSize: 100, total: 2 });
+    renderAt();
+    const picker = screen.getByRole('combobox', { name: 'ใบงานของกล้อง' });
+    expect(picker).toBeDisabled();
+    await chooseCamera(user, 'SIM-0001');
+    expect(picker).toBeDisabled();
+    expect(picker).toHaveAttribute('placeholder', 'เลือกช่วงเวลาเริ่มต้น–สิ้นสุดก่อนค้นหาใบงาน');
+    expect(workOrdersApi.list).not.toHaveBeenCalled();
+    setField('เริ่มต้น', `${d1}T08:00`);
+    expect(picker).toBeDisabled();
+    expect(workOrdersApi.list).not.toHaveBeenCalled();
+    setField('สิ้นสุด', `${d1}T09:00`);
+    await waitFor(() => expect(picker).toBeEnabled());
+    await user.click(screen.getByLabelText('สิ้นสุด'));
+    await user.tab();
+    expect(picker).toHaveFocus();
+    expect(screen.getByRole('option', { name: /WO-MATCH/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /WO-OUTSIDE/ })).not.toBeInTheDocument();
+    expect(workOrdersApi.list).toHaveBeenCalledTimes(1);
+    expect(historyApi.history).not.toHaveBeenCalled();
+  });
+
+  it('clips a work order to the draft datepicker range across midnight, loading only on confirmation', async () => {
+    const user = userEvent.setup();
+    signIn(['tracking:history', 'devices:read', 'work-orders:read']);
+    vi.mocked(workOrdersApi.list).mockResolvedValue({ data: [
+      workOrder('001', bangkokInstant(d2, '23:00')!, bangkokInstant(d1, '06:00')!),
+      workOrder('OTHER', bangkokInstant(d1, '08:00')!, bangkokInstant(d1, '09:00')!, '2'),
+      workOrder('OLD', bangkokInstant(d2, '08:00')!, bangkokInstant(d2, '09:00')!),
+    ], page: 1, pageSize: 100, total: 3 });
+    renderAt(q(yesterday));
+    await screen.findByTestId('route');
+    setField('เริ่มต้น', `${d2}T23:30`);
+    setField('สิ้นสุด', `${d1}T05:00`);
+    const picker = screen.getByRole('combobox', { name: 'ใบงานของกล้อง' });
+    await waitFor(() => expect(picker).toBeEnabled());
+    await user.click(picker);
+    expect(screen.queryByRole('option', { name: /WO-OTHER|WO-OLD/ })).not.toBeInTheDocument();
+    await user.type(picker, 'ตรวจอาคาร');
+    await user.click(await screen.findByRole('option', { name: /WO-001/ }));
+    expect(workOrdersApi.list).toHaveBeenCalledWith({ deviceId: '1', page: 1, pageSize: 100 });
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue(`${d2}T23:30`);
+    expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${d1}T05:00`);
+    expect(historyApi.history).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'ดูเส้นทาง' }));
+    await waitFor(() => expect(historyApi.history).toHaveBeenLastCalledWith('1', bangkokInstant(d2, '23:30'), bangkokInstant(d1, '05:00')));
+    expect(picker).toHaveValue('WO-001 · ตรวจอาคาร 001');
+    await user.click(screen.getByRole('button', { name: 'ล้างใบงาน' }));
+    expect(screen.getByLabelText('เริ่มต้น')).toHaveValue(`${d2}T23:30`);
+    expect(screen.getByLabelText('สิ้นสุด')).toHaveValue(`${d1}T05:00`);
+    expect(historyApi.history).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears the selected work order and filters immediately when editing times or changing camera', async () => {
+    const user = userEvent.setup();
+    signIn(['tracking:history', 'devices:read', 'work-orders:read']);
+    vi.mocked(workOrdersApi.list).mockResolvedValue({ data: [
+      workOrder('001', bangkokInstant(d1, '08:00')!, bangkokInstant(d1, '09:00')!),
+    ], page: 1, pageSize: 100, total: 1 });
+    renderAt(q(yesterday));
+    const picker = screen.getByRole('combobox', { name: 'ใบงานของกล้อง' });
+    await waitFor(() => expect(picker).toBeEnabled());
+    await user.click(picker);
+    await user.click(await screen.findByRole('option', { name: /WO-001/ }));
+    setField('เริ่มต้น', `${d1}T10:00`);
+    setField('สิ้นสุด', `${d1}T11:00`);
+    expect(picker).toHaveValue('');
+    await user.click(picker);
+    expect(screen.queryByRole('option', { name: /WO-001/ })).not.toBeInTheDocument();
+    expect(screen.getByText('ไม่พบใบงานที่ตรงกับคำค้นหาในช่วงเวลาที่เลือก')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    setField('เริ่มต้น', `${d1}T08:00`);
+    await user.click(picker);
+    await user.click(await screen.findByRole('option', { name: /WO-001/ }));
+    await chooseCamera(user, 'SIM-0002');
+    await waitFor(() => expect(workOrdersApi.list).toHaveBeenLastCalledWith({ deviceId: '2', page: 1, pageSize: 100 }));
+    expect(picker).toHaveValue('');
+  });
+
+  it('filters work orders using the unsubmitted overnight range and excludes touching boundaries', async () => {
+    const user = userEvent.setup();
+    signIn(['tracking:history', 'devices:read', 'work-orders:read']);
+    vi.mocked(workOrdersApi.list).mockResolvedValue({ data: [
+      workOrder('NIGHT', bangkokInstant(d2, '22:00')!, bangkokInstant(d1, '02:00')!),
+      workOrder('BEFORE', bangkokInstant(d2, '18:00')!, bangkokInstant(d2, '23:00')!),
+      workOrder('AFTER', bangkokInstant(d1, '05:00')!, bangkokInstant(d1, '06:00')!),
+    ], page: 1, pageSize: 100, total: 3 });
+    renderAt(q(yesterday));
+    await screen.findByTestId('route');
+    const picker = screen.getByRole('combobox', { name: 'ใบงานของกล้อง' });
+    await waitFor(() => expect(picker).toBeEnabled());
+    setField('เริ่มต้น', `${d2}T23:00`);
+    setField('สิ้นสุด', `${d1}T05:00`);
+    await user.click(picker);
+    expect(screen.getByRole('option', { name: /WO-NIGHT/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /WO-BEFORE|WO-AFTER/ })).not.toBeInTheDocument();
+    expect(workOrdersApi.list).toHaveBeenCalledTimes(1);
+    expect(historyApi.history).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables work-order selection until the datepicker range is valid', async () => {
+    signIn(['tracking:history', 'devices:read', 'work-orders:read']);
+    renderAt(q(yesterday));
+    const picker = screen.getByRole('combobox', { name: 'ใบงานของกล้อง' });
+    await waitFor(() => expect(picker).toBeEnabled());
+    setField('เริ่มต้น', '');
+    expect(picker).toBeDisabled();
+    setField('เริ่มต้น', `${todayYmd}T01:00`);
+    expect(picker).toBeDisabled();
+    setField('เริ่มต้น', `${d1}T00:00`);
+    expect(picker).toBeEnabled();
+  });
+
+  it('does not request work orders without permission', async () => {
+    renderAt(q(yesterday));
+    await screen.findByTestId('route');
+    expect(screen.getByRole('combobox', { name: 'ใบงานของกล้อง' })).toBeDisabled();
+    expect(workOrdersApi.list).not.toHaveBeenCalled();
+  });
+
+  it('can retry work orders without fetching the route again', async () => {
+    const user = userEvent.setup();
+    signIn(['tracking:history', 'devices:read', 'work-orders:read']);
+    vi.mocked(workOrdersApi.list).mockRejectedValueOnce(new Error('unavailable'));
+    renderAt(q(yesterday));
+    await user.click(await screen.findByRole('button', { name: 'ลองโหลดใบงานอีกครั้ง' }));
+    await waitFor(() => expect(workOrdersApi.list).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('โหลดใบงานของกล้องไม่สำเร็จ')).not.toBeInTheDocument();
     expect(historyApi.history).toHaveBeenCalledTimes(1);
   });
 
@@ -291,10 +460,7 @@ describe('HistoryPage', () => {
     await screen.findByTestId('route');
     setField('เริ่มต้น', `${d2}T20:00`);
     setField('สิ้นสุด', `${d1}T06:00`);
-    const select = screen.getByLabelText('กล้อง');
-    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(3));
-
-    await user.selectOptions(select, '2');
+    await chooseCamera(user, 'SIM-0002');
     await waitFor(() =>
       expect(historyApi.history).toHaveBeenLastCalledWith('2', bangkokInstant(d2, '20:00'), bangkokInstant(d1, '06:00')),
     );
@@ -306,10 +472,7 @@ describe('HistoryPage', () => {
     renderAt(q(today));
     await screen.findByTestId('route');
     setField('เริ่มต้น', '');
-    const select = screen.getByLabelText('กล้อง');
-    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(3));
-
-    await user.selectOptions(select, '2');
+    await chooseCamera(user, 'SIM-0002');
     await waitFor(() => expect(historyApi.history).toHaveBeenLastCalledWith('2', today.from, today.to));
     expect(screen.getByLabelText('เริ่มต้น')).toHaveValue(`${todayYmd}T00:00`);
   });

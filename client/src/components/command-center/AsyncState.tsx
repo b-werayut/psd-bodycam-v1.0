@@ -88,7 +88,7 @@ export function AsyncState({
     <Empty
       role="status"
       aria-label={title}
-      className={cn('min-h-56 border border-border', className)}
+      className={cn('min-h-56', className)}
     >
       <EmptyHeader>
         <EmptyMedia variant="icon">

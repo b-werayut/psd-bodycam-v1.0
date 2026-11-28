@@ -83,6 +83,7 @@ export type WorkOrderEvent = {
 };
 
 export type WorkOrderListParams = {
+  deviceId?: string;
   status?: WorkOrderStatus;
   q?: string;
   page: number;
@@ -94,6 +95,7 @@ export const workOrdersApi = {
     api
       .get<Paged<WorkOrderRow>>('/work-orders', {
         params: {
+          ...(params.deviceId ? { deviceId: params.deviceId } : {}),
           ...(params.status ? { status: params.status } : {}),
           ...(params.q ? { q: params.q } : {}),
           page: params.page,

@@ -36,7 +36,7 @@ export function WorkOrderDetailPage() {
     }
     const wo = query.data;
     const window = workWindowText(wo, language);
-    return <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4">
+    return <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6">
       <PageHeader title={`${wo.workOrderNo} · ${wo.title}`} description={t(window.key, window.params)}
         meta={<WorkOrderDetailStatus workOrder={wo} />} actions={backLink} />
       <WorkOrderDetailContent workOrder={wo} onWatch={onWatch} />

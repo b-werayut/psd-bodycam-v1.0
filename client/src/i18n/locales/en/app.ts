@@ -8,4 +8,5 @@ export const app = {
   'theme.switchToDark': 'Switch to dark mode',
   'theme.switchToLight': 'Switch to light mode',
   'app.home.title': 'Welcome',
+  'app.home.workspaces': 'Choose a workspace',
 } as const satisfies Record<string, string>;

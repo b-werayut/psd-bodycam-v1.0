@@ -1,11 +1,14 @@
 ---
 name: PSD Body worn camera Precision Plate
-description: A calm operational workspace built from a graphite command rail, compact neutral plates, and restrained cobalt states.
+description: A calm operational workspace built from a graphite command rail, compact neutral plates, and logo-derived PSD navy actions.
 colors:
-  cobalt: "oklch(0.52 0.2 258)"
-  cobalt-dark: "oklch(0.55 0.2 258)"
-  cobalt-link: "oklch(0.55 0.17 250)"
-  cobalt-link-dark: "oklch(0.7 0.14 248)"
+  brand-primary: "oklch(0.44 0.115 249)"
+  brand-primary-dark: "oklch(0.54 0.12 249)"
+  brand-link: "oklch(0.43 0.115 249)"
+  brand-link-dark: "oklch(0.76 0.095 249)"
+  brand-accent: "oklch(0.676 0.194 43)"
+  focus-ring: "oklch(0.6 0.13 249)"
+  focus-ring-dark: "oklch(0.74 0.12 249)"
   canvas: "oklch(0.985 0.004 255)"
   canvas-dark: "oklch(0.13 0.025 258)"
   surface: "oklch(0.995 0.003 255)"
@@ -18,9 +21,12 @@ colors:
   text-secondary-dark: "oklch(0.72 0.025 255)"
   hairline: "oklch(0.89 0.014 255)"
   hairline-dark: "oklch(0.3 0.035 258)"
-  graphite-rail: "oklch(0.18 0.035 258)"
-  graphite-rail-dark: "oklch(0.1 0.025 258)"
+  graphite-rail: "oklch(0.21 0.042 249)"
+  graphite-rail-dark: "oklch(0.15 0.03 249)"
   graphite-foreground: "oklch(0.82 0.02 255)"
+  sidebar-active: "oklch(0.3 0.02 258)"
+  sidebar-active-dark: "oklch(0.26 0.02 258)"
+  sidebar-active-foreground: "oklch(0.99 0 0)"
   success: "oklch(0.5 0.14 148)"
   warning: "oklch(0.73 0.16 82)"
   danger: "oklch(0.54 0.2 27)"
@@ -64,34 +70,34 @@ spacing:
   section: "24px"
   page: "32px"
   page-compact-mobile: "16px"
-  page-compact-tablet: "20px"
-  page-compact-wide: "24px"
+  page-compact-tablet: "24px"
+  page-compact-wide: "32px"
 touchTargets:
   coarse: "44px"
   fine-dense: "36-40px"
   adjacent-gap: "4-8px"
 components:
-  navigation-active:
-    backgroundColor: "{colors.cobalt}"
-    textColor: "{colors.surface}"
+  navigation-active-collapsed:
+    backgroundColor: "{colors.sidebar-active}"
+    textColor: "{colors.sidebar-active-foreground}"
     typography: "{typography.label}"
     rounded: "{rounded.medium}"
     padding: "8px 10px"
     height: "38px"
   application-header:
-    backgroundColor: "{colors.canvas}"
+    backgroundColor: "{colors.surface}"
     textColor: "{colors.text-primary}"
     height: "56px"
     padding: "0 20px"
   summary-plate:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.text-primary}"
-    rounded: "{rounded.control}"
-    padding: "12px"
+    rounded: "{rounded.panel}"
+    padding: "16px per metric"
   data-panel:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.text-primary}"
-    rounded: "{rounded.control}"
+    rounded: "{rounded.panel}"
     padding: "16px"
   segmented-selected:
     backgroundColor: "{colors.surface}"
@@ -110,9 +116,9 @@ components:
     header-typography: "12px/18px, 600"
     primary-typography: "14px/20px"
     secondary-typography: "12px/18px"
-    cell-padding: "8px 12px"
-    header-height: "40px"
-    two-line-row-height: "52-60px"
+    cell-padding: "12px 16px"
+    header-height: "44px"
+    two-line-row-height: "64-72px"
 ---
 
 # Design System: PSD Body worn camera Precision Plate
@@ -123,16 +129,30 @@ components:
 
 PSD Body worn camera is an operational interface whose premium character comes from exact alignment, controlled density, and immediate status legibility. The graphite rail anchors the application while opaque neutral work surfaces, hairline dividers, and compact page spacing keep attention on live operations rather than decoration.
 
-The Precision Plate dashboard extends the existing Operational Precision foundation without changing product truth. It adapts the shipped fleet aggregates, GPS activity, work-order stages, overdue work, and recent events into an instrument-panel hierarchy; it does not imply a device-level register that the production data contract does not provide. Cobalt remains deliberately scarce and marks navigation selection, actions, links, and focus. Green, yellow, red, blue, and gray remain semantic status colors paired with text or icons.
+The workspace extends the Operational Precision foundation across live video, work orders, evidence, maps, people, audit and settings. Its home page offers actual permitted destinations rather than invented metrics. PSD Blue is drawn from the logo's navy wordmark and marks actions, links and focus; the orange mark remains brand identification rather than a warning or action color. Green, yellow, red, blue and gray remain semantic status colors paired with text or icons. The established white branched navigation and selected Prism Glass login are intentional brand exceptions.
 
 **Key Characteristics:**
 
-- Graphite application rail with a clear cobalt active state
+- Graphite navy application rail with the established white active branch
 - Compact, border-led neutral surfaces with little resting elevation
-- Shared metric cards for top-level summaries, with continuous plates reserved for workflow stages
+- Continuous summary plates for related metrics; spacing separates controls, data and supporting information
 - Dense but readable Noto Sans Thai typography with tabular operational numerals
 - Responsive reflow that preserves all information and avoids page-level overflow
 - Equal visual intent in light and dark themes rather than mechanical color inversion
+
+## Recorded Refinement — 28 November 2026
+
+The requested pass used `frontend-design` for visual direction and `ui-taste` for the AI-slop review. Its scope was hierarchy, whitespace and consistency with the existing PSD logo across all shipped routes. It refines the established identity and working controls rather than introducing a new product or decorative dashboard.
+
+- **Brand:** Navy actions and links follow the PSD wordmark. Orange remains a small brand accent in the logo; success, warning, danger and connectivity colors retain their semantic meaning.
+- **Hierarchy:** One page `h1`, meaningful section headings, clear primary values and subordinate metadata. Shared panel titles render as `h2`. The page heading is 22px on compact screens and 28px from the small breakpoint; full-bleed workspace headings remain 18px.
+- **Whitespace:** Standard content uses 16/24/32px horizontal page insets and 24/28/32px vertical insets, with 24px between major regions. Related controls stay together with 12px toolbar gaps. Map and video workspaces keep their full-bleed layout.
+- **Surfaces:** Shared data panels and table frames use 12px corners. Related Entra metrics share one divided summary plate. Camera directories use quiet list rows, and empty states avoid a redundant inner dashed border.
+- **Actions and motion:** Routine view, edit and link tools use quiet navy icons with 8px corners, a 36px fine-pointer target and a 44px default/coarse-pointer target. Page changes display content immediately; routine fade-and-slide page entrances are removed while interaction feedback and reduced-motion support remain.
+- **Home:** Show real workspace destinations grouped by Operations, Users & access and System, filtered by the existing permission rules. Do not add placeholder metrics or links to unavailable modules.
+- **Preserved identity:** Keep the white active branch in expanded navigation, the neutral selected well when collapsed, the existing PSD logo assets, Noto Sans Thai and the previously selected Prism Glass login. The login's glass treatment and media-stage vignette are intentional exceptions to the restrained operational surfaces.
+
+The detailed contracts below describe the resulting implementation. CSS tokens and shared components remain the runtime source of truth.
 
 ## Decision Priority and Source of Truth
 
@@ -152,12 +172,12 @@ When design goals conflict, resolve them in this order:
 
 ## Colors
 
-The palette is a cool neutral instrument field with graphite structure and a single cobalt interaction voice. `src/styles/tailwind.css` remains the runtime source of truth for both themes.
+The palette is a cool neutral instrument field with graphite structure and a single PSD blue interaction voice. `src/styles/tailwind.css` remains the runtime source of truth for both themes.
 
 ### Primary
 
-- **Command Cobalt:** Use for selected navigation, primary actions, focus, and information that must read as interactive.
-- **Readable Cobalt Link:** Use the contrast-adjusted link role for cobalt text on neutral surfaces; do not substitute the button fill token for small text.
+- **Command PSD Blue:** Use for primary actions, focus, interactive selection and links. Preserve the application rail's existing white active branch and neutral collapsed selection.
+- **Readable PSD Blue Link:** Use the contrast-adjusted link role for PSD blue text on neutral surfaces; do not substitute the button fill token for small text.
 
 ### Neutral
 
@@ -175,7 +195,7 @@ The palette is a cool neutral instrument field with graphite structure and a sin
 
 ### Named Rules
 
-**The One Cobalt Voice Rule.** Cobalt identifies selection, action, links, and focus; it is not a decorative wash.
+**The One PSD Blue Voice Rule.** PSD Blue identifies selection, action, links, and focus; it is not a decorative wash.
 
 **The Status Has Language Rule.** Semantic color never carries meaning by itself; status also appears as text, an icon, or both.
 
@@ -192,24 +212,25 @@ The palette is a cool neutral instrument field with graphite structure and a sin
 **Display Font:** Noto Sans Thai Variable (with UI sans-serif and system fallbacks)  
 **Body Font:** Noto Sans Thai Variable (with UI sans-serif and system fallbacks)
 
-**Character:** One family serves Thai, English, and numerals so mixed-language controls align on a common baseline. Dashboard content stays within a compact 12–22px working range beneath the standard 28px page title.
+**Character:** One family serves Thai, English, and numerals so mixed-language controls align on a common baseline. Working content stays within the 12–22px range beneath responsive page titles.
 
 ### Hierarchy
 
-- **Display** (28px/36px): Standard page titles, including Dashboard and Reports.
-- **Heading** (22px/28px): Primary operational figures and prominent section emphasis.
+- **Display** (28px/36px, semibold): Standard page titles from the small breakpoint.
+- **Heading** (22px/28px, semibold): Compact page titles, primary operational figures and prominent section emphasis.
 - **Title** (18px/24px): Section emphasis and responsive metric values.
 - **Body** (16px/24px): Explanatory prose and comfortable reading, normally capped at 70ch.
 - **Label** (14px/20px): Application chrome, navigation, controls, and dense panel titles.
 - **Caption** (12px/18px): Metadata, compact labels, timestamps, and secondary descriptions.
 
 Metrics, timestamps, identifiers, and other changing numeric data use tabular numerals. Dashboard titles use the standard page hierarchy and do not add an eyebrow merely for decoration.
+Shared page descriptions use 14px/24px with an 8px gap below the title and a maximum width of 70ch. Longer explanatory prose retains the 16px/24px body role. Use heading levels to describe the document structure; visual size alone does not establish hierarchy.
 Use `nwl-mono` for operational identifiers and technical metadata: it retains Noto Sans Thai
 with aligned numerals, as in Internal-BodyCam. Do not substitute the `font-mono` family.
-Work-order numbers use the reference's `work-order-id` style at 12px/18px semibold;
+Work-order numbers use the `work-order-id` style at 14px/20px semibold in the readable brand-link color;
 job titles use 14px/20px medium and table headers use the muted surface.
 
-Work-order rows expose a circular view tool in a sticky right-hand tools column. The view tool
+Work-order rows expose a quiet rounded-square view tool in a sticky right-hand tools column. The view tool
 and work-order number open a detail dialog over the list, preserving filters, pagination and
 scroll position. Match Internal-BodyCam's fixed title/number header and internally scrolling
 body; keep close and Escape available through loading, empty and error states. Show the job's
@@ -240,15 +261,17 @@ Headings normally use a 1.2–1.3 line-height; labels, body copy, and Thai prose
 
 ## Layout
 
-The desktop shell uses a fixed graphite navigation rail that is 232px expanded and 72px collapsed. The solid application header is 56px high. Non-full-bleed routes use compact page insets of 16px on small screens, 20px from the small breakpoint, and 24px on wide screens; the workspace is centered at a maximum width of 1600px with 16px between major regions.
+The desktop shell uses a fixed graphite navy navigation rail that is 232px expanded and 72px collapsed. The solid card-surface application header is at least 56px high. Standard content routes use horizontal page insets of 16px, 24px from the small breakpoint and 32px from the extra-large breakpoint. Vertical insets are 24px, 28px and 32px at the same breakpoints. The usual content width is capped at 1600px; settings and direct work-order detail use 1200px. Major page regions are separated by 24px.
 
-The Dashboard begins with the standard page title and description, then a grid of shared summary cards that matches Reports. Its six metrics reflow as two columns by default, three from the large breakpoint, and six from the extra-large breakpoint. The primary operational workspace stacks until extra-large screens, where it becomes a flexible main fleet/GPS area plus a 360px attention rail. Both cards stretch to the shared row height so the desktop composition has no orphaned gap, while their empty-state content stays centered. On compact screens, populated operational panels appear before empty supporting panels; the work-order flow and recent-event ledger span the available workspace below on extra-large screens.
+The home route begins with the welcome title and signed-in user's name, followed by permitted workspace destinations. Groups reflow from one to two to three columns, with 32px between groups and a shared divided list inside each group. Routes without a destination are omitted. The home route has no fleet aggregates, GPS chart or invented activity totals.
+
+Tracking, route history and live video own the full area below the application header and receive no standard page padding. Their operational side panels use 16px control insets and 18px headings. Evidence keeps a 16:9 video stage beside its selection inspector on desktop; the video determines row height and the inspector can scroll. On narrow screens, video and controls stack with all controls reachable.
 
 Responsive behavior preserves information rather than hiding it. Row contents may truncate locally, but the page must not acquire horizontal overflow at compact, tablet, or desktop widths.
 
-**The First Viewport Rule.** On a 1440×1024 control-room display, overall status, fleet/GPS activity, abnormal work, and work-order flow belong in the initial scan without decorative whitespace.
+**The First Viewport Rule.** The current task, relevant filters, important data and next action belong in the initial scan. Choose density from the route's actual work rather than filling the screen with decorative summaries.
 
-**The Shared Summary Rule.** Top-level metrics use the same bordered summary-card component across Dashboard and Reports. Sequential workflow stages may share one continuous bordered surface with internal dividers.
+**The Shared Summary Rule.** Reuse `MetricSummary` for real metrics. Related Entra counts share one continuous bordered surface with internal dividers; do not introduce one equally prominent floating card for every count.
 
 ### Grid and Spacing Contract
 
@@ -261,7 +284,7 @@ Responsive behavior preserves information rather than hiding it. Row contents ma
 
 ## Elevation & Depth
 
-The system is flat by default. Opaque surface contrast, one-pixel borders, and tonal grouping establish depth for dashboard plates and panels; resting dashboard surfaces do not use decorative shadows. The existing low, medium, and high elevation tokens remain available for raised actions or selected segmented tabs, menus, and dialogs/toasts respectively. Keyboard focus uses an explicit cobalt ring rather than shadow-only feedback.
+The system is flat by default. Opaque surface contrast, one-pixel borders, and tonal grouping establish depth for dashboard plates and panels; resting dashboard surfaces do not use decorative shadows. The existing low, medium, and high elevation tokens remain available for raised actions or selected segmented tabs, menus, and dialogs/toasts respectively. Keyboard focus uses an explicit PSD blue ring rather than shadow-only feedback.
 
 ### Shadow Vocabulary
 
@@ -273,11 +296,11 @@ The system is flat by default. Opaque surface contrast, one-pixel borders, and t
 
 ## Shapes
 
-Precision Plates use small, controlled corners. Navigation items use the 6px medium radius; summary plates, dashboard panels, controls, and interactive rows use the 8px control radius. The broader 12px and 16px radii remain available for overlays and large surfaces, not routine dashboard panels. Full circles are limited to status dots, avatars, and true pills.
+Precision Plates use a role-based corner scale: 6px for compact segments, 8px for controls and interactive rows, 12px for shared panels/table frames and the continuous summary plate, and 16px for the approved login card. Full circles are reserved for status dots, avatars and established pill controls such as the language switcher.
 
-One-pixel dividers form the grid inside continuous workflow plates. Summary cards use a compact semantic icon tile consistent with Reports. Compact dashboard rows target a 52–56px rhythm, and 34px status-icon containers keep row silhouettes aligned without becoming decorative tiles.
+One-pixel dividers group content inside continuous plates. Use `border-border` explicitly on table rows so dark mode does not inherit a bright default border. Related summary icons may use the corresponding semantic tone; ordinary view, edit and link actions remain in the navy interaction family.
 
-**The Small Radius Rule.** Operational plates stay within the 6–8px instrument range; larger rounding does not replace hierarchy or spacing.
+**The Role-Based Radius Rule.** Choose corners from the shared scale according to the surface's role. Rounding does not replace hierarchy or spacing.
 
 Nested surfaces use progressively smaller radii: an inner control or tile must not appear more rounded than the panel containing it unless it is a true pill or circle. Boxed fields are the default; underline-only inputs do not provide enough affordance for this operational context.
 
@@ -285,7 +308,7 @@ Nested surfaces use progressively smaller radii: an inner control or tile must n
 
 ### Buttons and Actions
 
-- **Primary:** Solid cobalt, one dominant action per context. Use an explicit verb such as Save, Create work order, Assign, Retry, or Export.
+- **Primary:** Solid PSD navy, one dominant action per context. Use an explicit verb such as Save, Create work order, Assign, Retry, or Export.
 - **Secondary:** Neutral filled or outlined treatment for useful alternatives that should remain visible.
 - **Tertiary:** Ghost or link treatment for low-emphasis actions such as Cancel, Back, or View details.
 - **Destructive:** Red treatment only when the action destroys, removes, cancels, or irreversibly changes data. Confirmations name the object and consequence.
@@ -346,39 +369,39 @@ All interactive components provide relevant default, hover, focus, active, selec
 
 - **Rail:** Solid graphite, 232px expanded and 72px collapsed, with 12px horizontal navigation padding.
 - **Brand/header rhythm:** The brand block and application header share a 56px minimum height and a separating hairline.
-- **Navigation:** Items are at least 44px tall for touch and 38px at desktop density; active items use a solid cobalt field with white text/icon, while inactive items use quiet graphite foregrounds and a darker hover surface.
+- **Navigation:** Items are at least 44px tall for touch and 38px at desktop density. Preserve the white active branch and label in expanded navigation, and the neutral selected well when collapsed. Inactive items use quiet graphite foregrounds and a darker hover surface.
 - **Motion:** Width and label-opacity changes run for 150–200ms and are disabled by reduced-motion preferences.
 
-### Operational Summary Cards
+### Operational Summaries
 
-- **Structure:** Six data-derived instances of the shared `MetricSummary` card used by Reports.
-- **Responsive grid:** Six, three, or two columns according to available width; no metric is hidden.
+- **Structure:** Use the shared `MetricSummary` for data-derived counts. Entra's four counts share a continuous plate with quiet internal dividers.
+- **Responsive grid:** Entra uses two columns on compact screens and four from the extra-large breakpoint; no metric is hidden.
 - **Readout:** A semantic icon tile and subordinate label lead a 22px semibold tabular value.
 - **States:** Loading keeps each card's geometry with skeleton values; errors show an em dash rather than fabricated totals.
 
-### Dashboard Panels
+### Shared Data Panels
 
-- **Surface:** Solid card color, 8px corners, a one-pixel border, and no resting shadow.
-- **Header:** Compact 44px-minimum header with a bottom divider, 16px horizontal inset, and optional right-aligned action.
+- **Surface:** Solid card color, 12px corners, a one-pixel border, and no resting shadow.
+- **Header:** At least 44px high, with a bottom divider, 20px horizontal/16px vertical padding, an `h2` title and optional right-aligned action.
 - **Content:** 16px standard inset, with continuous internal bands allowed to meet panel edges when the grouping needs it.
 - **States:** Loading, empty, error, and retry behavior use the shared asynchronous-state pattern and preserve region labels.
 - **Content model:** One card or panel represents one concept. If the entire card has only one destination, the full card may be interactive with a visible focus state; otherwise use explicit actions and avoid competing click targets.
 
-### Segmented Period Control
+### Segmented Controls
 
 - **Shape:** A muted 8px control well containing 6px segments.
 - **Selection:** The active segment moves to the solid surface with low elevation; selection remains keyboard-operable and visibly focused.
-- **Behavior:** The period changes the existing GPS chart/table only; the control does not imply a new data source.
+- **Behavior:** Selection changes the existing route filter, tab or layout that it names. It does not imply a new data source.
 
-### Status Rails and Ledgers
+### Operational Rows and Ledgers
 
-- **Work-order flow:** All shipped stages remain in one responsive two/three/six-column rail with tabular counts, status dots, and a connecting hairline at wide widths.
-- **Attention rows:** 56px-minimum rows prioritize abnormal state, pair a semantic icon with text, and keep the existing work-order destination.
-- **Recent events:** 52px-minimum rows use separators, explicit status text, and tabular timestamps; the ledger remains a full-width continuation of the operational hierarchy.
+- **Work orders:** Keep existing status tabs and readable work-order identifiers. Preserve the detail dialog, sticky tools and current filters/pagination.
+- **Camera directories:** Quiet rows prioritize camera identity and connectivity. Selection receives the meaningful border/tint; ordinary rows do not need an individual shadow or colored icon tile.
+- **Audit and events:** Use separators, explicit result/status text and tabular timestamps. Supporting technical context stays subordinate to the actor and event.
 
 ### Data Adaptation
 
-The fleet/GPS workspace expresses the hierarchy of a precision register using the production aggregate contract. It may summarize fleet health, show GPS activity, and expose an accessible data table, but it must not invent device-level records, API fields, or implied drill-down behavior to mimic a reference image.
+Every surface uses its existing production data and permissions contract. Do not invent device records, aggregate metrics, chart series, API fields or implied drill-down behavior to mimic a reference image. Browser QA fixtures are test content, never product requirements.
 
 ### Live camera wall
 
@@ -400,7 +423,7 @@ replace semantic colors on the camera list, controls or screen headers.
 
 ### Operational Data Tables
 
-- Use a 40px header and 8px vertical/12px horizontal cell padding. A typical two-line row is 52–60px tall; one-line utility tables may be denser only when targets and readability remain intact.
+- Use a 44px header and 12px vertical/16px horizontal cell padding. Typical two-line rows are approximately 64–72px high; wrapping content may increase height. Preserve targets and readability when choosing density.
 - Put the most identifying value first and its supporting context directly beneath it. Metadata is muted rather than made smaller than the 12px caption floor.
 - Status uses a semantic dot or icon plus a text label. Priority, assignment, and timestamps remain independently understandable without color.
 - Align columns consistently across rows. Numeric values align for comparison; prose aligns to the reading edge. Keep action columns narrow and predictable.
@@ -414,6 +437,7 @@ replace semantic colors on the camera list, controls or screen headers.
 - Skeletons mirror the approximate geometry and count of the final content. Use generic spinners only for a compact action whose surrounding layout already exists.
 - Loading labels remain available to assistive technology; shimmer and spinners stop under reduced-motion preferences.
 - Empty states distinguish “no data exists” from “no results match the current filters.” Give the next useful action when one exists.
+- An empty state inside an already bordered table frame or panel does not add a second dashed frame.
 - Error states explain the affected scope and recovery path. Retry preserves filters and entered information whenever safe.
 - Success feedback confirms the completed object or action and does not block the next operational task unnecessarily.
 
@@ -445,10 +469,23 @@ setting descriptions lead their technical keys, and visible labels focus their c
 - Selection, severity, validation, and availability never rely on color alone. Pair color with text, icon, shape, or state attributes.
 - Focus rings remain visible in light and dark themes and are not clipped by `overflow: hidden` containers.
 - Motion communicates a change of state, generally within 150–200ms. Honor reduced motion by removing nonessential animation while preserving the state change.
+- Frequent page navigation renders content immediately; do not reintroduce a fade-and-slide entrance on every route. Preserve route remount behavior and full-bleed layout when changing presentation.
 - Test at 320, 375, 768, 1024, 1280, and 1440px reference widths, plus 200% zoom. Test both pointer modes where control density differs.
 - Test real Thai and English content, long names, large numbers, empty values, validation messages, loading, permissions, and network failure.
 - Local truncation must expose the full meaningful value through a title, tooltip, expansion, or detail view. Primary actions and recovery actions must never be clipped or unreachable.
 - Responsive adaptation preserves task order and information hierarchy. Reordering visual regions must not create a conflicting DOM or keyboard order.
+
+## AI-Slop Review Rules
+
+- Derive the palette from the PSD logo and reuse semantic tokens. Do not assign a different accent to each page or use warning/success colors to decorate routine actions.
+- Establish hierarchy with type, alignment and proximity before adding another card, border, badge or background.
+- Keep related summary metrics on a shared plate when they belong to one comparison. Avoid repeating an identical icon/title/value card as the entire page structure.
+- Use quiet rounded-square row tools. Circles remain appropriate for the existing avatar, status dots and pill controls.
+- Do not add decorative eyebrows, all-caps labels, arbitrary section numbering, emoji icons, gradient headings, glow effects or ornamental charts.
+- Do not add invented KPIs, sample customer claims or unsupported product capabilities. Empty, filtered-empty, loading, error and recovery states remain real product states.
+- Keep routine route changes immediate. Motion must explain an interaction or state change and honor reduced motion.
+- Preserve deliberate exceptions: the approved Prism Glass login, white branched navigation and dark video stages. Anti-slop rules do not authorize replacing those established choices.
+- Review actual rendered screens in both themes and Thai/English, including long values and compact widths. A clean build or a subjective “less slop” score is not visual evidence.
 
 ## Design Review Checklist
 
@@ -468,14 +505,26 @@ Before a UI foundation or feature is considered ready, verify:
 - [ ] Images are sharp, correctly cropped, efficiently loaded, and use appropriate alt text.
 - [ ] Thai, English, mixed numerals, long content, permissions, failure states, reduced motion, keyboard use, and 200% zoom have been checked.
 - [ ] No page-level overflow or unreachable action appears across compact, tablet, and desktop widths.
+- [ ] Palette, corners, row tools and motion follow the AI-slop review rules; intentional brand exceptions remain intact.
+
+## Verification Record — 28 November 2026
+
+This is the recorded outcome of the refinement, not a claim that every future revision has passed the same checks.
+
+- **Coverage:** 13 routes: login, home, live wall, evidence, tracking, route history, users, Entra users, work orders, direct work-order detail, audit logs, settings and not-found.
+- **Browser matrix:** Chrome via Playwright at 1440×960 and 390×844 in light/dark Thai, 1024×768 in light English, and 320×740 in light Thai: 78 route/configuration captures. No horizontal document overflow or uncaught page errors was observed. Map captures were repeated after tiles loaded and their opacity settled.
+- **Interactions:** Nine paths passed: work-order detail open/dismiss, user filter/empty-state recovery, add-user dialog/dismissal, roles matrix, setting validation/correction, recording selection, live-wall layout selection, map camera selection and mobile navigation.
+- **Project checks:** 108 client test files / 945 tests passed; TypeScript/Vite production build, ESLint and `git diff --check` passed. Vite retained the existing large-chunk advisory.
+- **Evidence:** `visual-evidence.json` and before/final screenshots were stored outside the repository in the task's temporary `psd-brand-polish-20261128` directory. The `ui-taste` integrity helper passed 87 declared checks and 325 source/artifact hash checks. This validates evidence integrity and coverage, not a subjective design score or pixel-perfect fidelity.
+- **Limits:** API/auth content was synthetic data confined to the browser context. Production backend behavior, Microsoft SSO, real camera streaming/export, physical touch devices and the full accessibility/zoom matrix were not verified by this pass. Motion's expected development notice appeared under reduced-motion emulation; no console errors were observed.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** keep the graphite 232/72px rail, 56px header rhythm, and compact 16/20/24px page inset aligned across the shell.
-- **Do** use the shared summary-card language for page-level KPIs and continuous plates for sequential status flows.
-- **Do** preserve the six/three/two-column summary reflow and all loading, empty, error, retry, keyboard, and responsive behavior.
+- **Do** keep the graphite navy 232/72px rail, 56px minimum header rhythm and standard 16/24/32px horizontal page insets aligned across the shell.
+- **Do** use the shared summary language for actual metrics and continuous plates for related counts.
+- **Do** preserve content-driven responsive reflow and all loading, empty, error, retry, keyboard and permission behavior.
 - **Do** pair semantic status color with text or an icon and use tabular numerals for changing operational data.
 - **Do** adapt reference imagery to the product's real API, permissions, routes, and realtime boundaries.
 - **Do** keep visible labels, specific recovery text, appropriate input masks, and summaries of completed steps in long workflows.
@@ -486,8 +535,8 @@ Before a UI foundation or feature is considered ready, verify:
 ### Don't:
 
 - **Don't** invent page-specific KPI styling when the shared summary-card component already expresses the metric hierarchy.
-- **Don't** use gradients, glass, glow, hard decorative shadows, oversized hero type, decorative eyebrows, or large routine panel radii.
-- **Don't** spend cobalt on decoration or use success, warning, danger, info, or unknown colors outside semantic status.
+- **Don't** add gradients, glass, glow, hard decorative shadows, oversized hero type, decorative eyebrows or arbitrary panel radii to operational pages. Preserve the documented login and media-stage exceptions.
+- **Don't** spend PSD blue on decoration or use success, warning, danger, info, or unknown colors outside semantic status.
 - **Don't** use placeholder text as a label, generic errors, unexplained icon-only actions, or Yes/No buttons when the action can be named.
 - **Don't** shrink table text or touch targets indiscriminately to create density; use grouping, reflow, and input-modality-aware exceptions.
 - **Don't** split a short form into artificial steps or hide completed-step context when users need it to verify later answers.

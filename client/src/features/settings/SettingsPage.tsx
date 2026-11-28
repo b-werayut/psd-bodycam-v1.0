@@ -53,7 +53,7 @@ function SettingRow({ item }: { item: SettingItem }) {
       .join(' ') || undefined;
 
   return (
-    <div className="grid min-h-[72px] gap-2 border-b border-border px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-4">
+    <div className="grid min-h-[88px] gap-3 border-b border-border px-5 py-5 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-6">
       <div className="min-w-0">
         <label htmlFor={`${baseId}-value`} className="block text-sm font-medium text-foreground">
           {item.description || item.key}
@@ -168,7 +168,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6">
       <PageHeader title={t('settings.title')} description={t('settings.description')} />
 
       <Alert feedbackScope="page">

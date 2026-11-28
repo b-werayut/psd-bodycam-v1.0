@@ -1,5 +1,5 @@
 import L from 'leaflet';
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 
 import type { ClusterMarker } from '@/components/map/MarkerClusterLayer';
@@ -13,7 +13,7 @@ export function LiveMapViewport({ markers, selectedId, focusRequest = 0, focusSe
   const previousPadding = useRef(bottomPadding);
   const previousTopPadding = useRef(topPadding);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const selectionChanged = selectedId !== previousSelection.current;
     previousSelection.current = selectedId;
     const focusRequested = focusRequest !== previousFocusRequest.current;

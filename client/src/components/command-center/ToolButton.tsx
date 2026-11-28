@@ -5,9 +5,9 @@ import { cn } from '@/lib/utils';
 
 const TOOL_TONE = {
   neutral: 'text-muted-foreground hover:bg-primary/10 hover:text-primary',
-  view: 'text-info hover:bg-info/15 hover:text-info',
-  link: 'text-success hover:bg-success/15 hover:text-success',
-  edit: 'text-warning hover:bg-warning/15 hover:text-warning',
+  view: 'text-link hover:bg-accent hover:text-link',
+  link: 'text-link hover:bg-accent hover:text-link',
+  edit: 'text-link hover:bg-accent hover:text-link',
   danger: 'text-destructive hover:bg-destructive/10 hover:text-destructive',
 } as const;
 
@@ -24,7 +24,7 @@ const ToolButton = React.forwardRef<HTMLButtonElement, ToolButtonProps>(
       variant="ghost"
       size="sm"
       className={cn(
-        'size-11 rounded-full bg-muted p-0 [&_svg]:size-4',
+        'size-11 rounded-lg bg-transparent p-0 [@media(pointer:fine)]:size-9 [&_svg]:size-4',
         TOOL_TONE[tone],
         className,
       )}

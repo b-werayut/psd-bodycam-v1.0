@@ -178,7 +178,7 @@ export function EntraUsersPage() {
     });
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
       <PageHeader
         title={t('users.entraSync.title')}
         description={t('users.entraSync.description')}
@@ -201,10 +201,11 @@ export function EntraUsersPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card [&>*:nth-child(2n)]:border-l [&>*:nth-child(n+3)]:border-t xl:grid-cols-4 xl:[&>*:nth-child(n+2)]:border-l xl:[&>*:nth-child(n+3)]:border-t-0">
         {METRICS.map(({ key, labelKey, icon: Icon, tone }) => (
           <MetricSummary
             key={key}
+            className="rounded-none border-0 border-border bg-transparent"
             label={t(labelKey)}
             tone={tone}
             icon={<Icon aria-hidden="true" strokeWidth={1.5} />}

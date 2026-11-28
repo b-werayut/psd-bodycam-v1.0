@@ -140,6 +140,38 @@ final result: passed
 - Screenshots in `C:/Users/WERAYU~1/AppData/Local/Temp/codex-evidence-qa/`: `empty-player-sections-desktop.png`, `empty-player-sections-mobile-actions.jpg`. Default viewport restored and the page left with no selection.
 - Evidence/player/translation tests: 90 passed. TypeScript/production build and ESLint passed.
 
+### Search sidebar and bottom recordings — 27 November 2026
+
+- Latest layout request moves camera/day/file search into the adjacent controls card and returns recorded files below the timeline. Search, selected metadata, time fields and actions retain full-width separators; file choices use a responsive grid.
+- Search fields form two compact rows when their container is at least 400px wide, and stack in narrower cards. At 1680x900 the player and controls card both measure 560.984px high; the search section is 180px high. The picture remains 16:9 and the page uses the full available width.
+- Browser verified selecting a real bottom file fills the start/end fields and updates the timeline while leaving zero video elements. Local file filtering from the sidebar reduced the list to one matching recording. Playback still requires Watch; download feedback still appears only after a request below its button.
+- At 390px the controls stack, file choices form one column, and main-content client/scroll widths both equal 380px. Restored the default viewport and left the page without a selection.
+- Screenshots in `C:/Users/WERAYU~1/AppData/Local/Temp/codex-evidence-qa/`: `search-sidebar-desktop-idle.jpg`, `search-sidebar-desktop-files.jpg`, `search-sidebar-mobile-files.jpg`.
+- Evidence/player/translation tests: 90 passed. TypeScript/production build, ESLint and scoped diff checks passed. No new real playback or MP4 export was requested during this layout QA.
+
+### Search work orders using the selected camera — 27 November 2026
+
+- Replaced the free-text recording filter with a searchable work-order dropdown. Its choices come from actual work orders for the selected camera and their actual work period on the selected Bangkok day. Search matches work-order number/title; clearing restores all recordings.
+- Added optional `deviceId` filtering to `GET /work-orders`, before counting/pagination. Camera code, vendor ID and serial references use the existing resolver precedence; unknown/deleted cameras return no matches. Existing `work-orders:read` permission remains required.
+- The client reads all scoped pages, handles loading/errors/retry/no permission, and resets its choice when camera/day changes. Choosing a work order fills the clipped actual period and filters overlapping recording files. Choosing a file clips playback to that period; playback still requires Watch.
+- Browser verified actual camera 101: the API returned four related jobs, two with work periods overlapping 25 November. Searching by title and number, selecting each, no-overlap feedback, clearing, and zero video elements before Watch worked. Fixed and verified reopening a focused dropdown by clicking it again.
+- Desktop/mobile captures: `C:/Users/WERAYU~1/AppData/Local/Temp/codex-evidence-qa/camera-work-order-search-desktop.jpg` and `camera-work-order-search-mobile.jpg`. At 390px, client/scroll widths both measured 380px. Default viewport restored; no playback or MP4 job started.
+- Validation: full client suite 107 files / 943 tests passed; work-order API integration suite 8 tests passed. Client/server production builds, server typecheck, both ESLint checks and scoped diff checks passed. Rebuilt/restarted the existing local API so its running version accepts the new query parameter; verified the scoped request succeeds.
+
+### Remove the redundant search action — 27 November 2026
+
+- Removed Search because camera/day changes already load recordings and choosing a work order immediately filters them. The work-order dropdown now fills its row; empty-state instructions no longer ask users to press Search. Failed-load retry and explicit Watch/download actions remain available.
+- Browser confirmed there is no Search button and the dropdown occupies the available row. Evidence/player/picker/translation tests: 105 passed. TypeScript/production build, ESLint and scoped diff checks passed.
+
+### Playback limits and error feedback — 27 November 2026
+
+- Combined the 24-hour playback and 120-minute export limits into one desktop line. Removed redundant helper text beneath the controls and adjusted section spacing. The first section has 20px top padding so its labels have room above them.
+- Evidence playback failures use the existing error toast. The player retains a message inside its fixed video stage; it no longer inserts an error banner above the picture. Other player surfaces retain their existing inline/quiet feedback behavior.
+- Browser checked 1680×900 with collapsed navigation: the idle inspector measured 559px for both its client and content height, with no internal scroll. Both limit messages shared the same top coordinate. Video remained 16:9.
+- Selecting work order WO-202611-00002 on 25 November and pressing Watch produced the actual no-recording error. The toast appeared, and the video stayed 1px below the inspector's top border before and after failure. Watch's existing scroll-to-player behavior still applies.
+- At 390px, both document client and scroll widths measured 380px. The inspector had no internal overflow, and the two limits wrapped naturally. Restored the default viewport and cleared the failed playback by reloading; recording files loaded again. No MP4 export was requested.
+- Validation: 10 focused test files / 95 tests passed, including the new toast regression and existing inline player behavior. Client TypeScript/production build and ESLint passed.
+
 ## Login: Prism Glass — 27 November 2026
 
 final result: passed

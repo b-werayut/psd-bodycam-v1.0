@@ -25,7 +25,7 @@ export function PageHeader({
     <header
       aria-labelledby={titleId}
       className={cn(
-        'mb-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between',
+        'flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6',
         className,
       )}
     >
@@ -37,12 +37,12 @@ export function PageHeader({
         ) : null}
         <h1
           id={titleId}
-          className="text-balance text-display font-bold tracking-[-0.025em] text-foreground"
+          className="text-balance text-heading font-semibold text-foreground sm:text-display"
         >
           {title}
         </h1>
         {description ? (
-          <p className="mt-2 max-w-[70ch] text-pretty text-body text-muted-foreground">
+          <p className="mt-2 max-w-[70ch] text-pretty text-control leading-6 text-muted-foreground">
             {description}
           </p>
         ) : null}

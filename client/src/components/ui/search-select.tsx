@@ -157,6 +157,7 @@ export function SearchSelect({
           setActiveIndex(-1);
         }}
         onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
         onKeyDown={onKeyDown}
         className="min-h-11 pr-20 [@media(pointer:fine)]:pr-16"
       />

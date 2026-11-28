@@ -103,6 +103,39 @@ afterAll(async () => {
 });
 
 describe('GET /api/work-orders', () => {
+  it('filters camera references before counting and pagination, with normalised refs and resolver precedence', async () => {
+    const [camera] = await ctx.sql`
+      insert into "Devices" ("DeviceCode", "VendorDeviceId", "SerialNo", "Kind")
+      values ('T9W-CAM-A', 'T9W-VENDOR-A', 'T9W-SERIAL-A', 1) returning "Id"`;
+    try {
+      const byCode = await ingest({ jobId: 'T9W-CODE', deviceRefs: ['T9W-CAM-A', 'T9W-VENDOR-A'] });
+      const byVendor = await ingest({ jobId: 'T9W-VENDOR', deviceRefs: [' t9w-vendor-a '] });
+      const bySerial = await ingest({ jobId: 'T9W-SERIAL', deviceRefs: ['t9w-serial-a'] });
+      await ingest({ jobId: 'T9W-OTHER', deviceRefs: ['SIM-0001'] });
+
+      const first = await get('').query({ deviceId: String(camera.Id), pageSize: 2 });
+      expect(first.status).toBe(200);
+      expect(first.body.total).toBe(3);
+      expect(first.body.data).toHaveLength(2);
+      const second = await get('').query({ deviceId: String(camera.Id), pageSize: 2, page: 2 });
+      expect([...first.body.data, ...second.body.data].map((x: { id: string }) => x.id).sort())
+        .toEqual([byCode, byVendor, bySerial].sort());
+      expect((await get('').query({ deviceId: String(camera.Id), q: 'T9W-VENDOR' })).body.total).toBe(1);
+      expect((await get('?deviceId=999999999999999999')).body.total).toBe(0);
+      expect((await get('?deviceId=not-a-number')).status).toBe(400);
+
+      // A camera code takes precedence over another camera's serial number.
+      await ctx.sql`insert into "Devices" ("DeviceCode", "VendorDeviceId", "Kind")
+        values ('T9W-SERIAL-A', 'T9W-COLLISION-VENDOR', 1)`;
+      const collision = await get('').query({ deviceId: String(camera.Id) });
+      expect(collision.body.total).toBe(2);
+      expect(collision.body.data.map((x: { id: string }) => x.id).sort()).toEqual([byCode, byVendor].sort());
+    } finally {
+      await cleanup();
+      await ctx.sql`delete from "Devices" where "DeviceCode" in ('T9W-CAM-A', 'T9W-SERIAL-A')`;
+    }
+  });
+
   it('lists Planned and Open first with workWindow, booking summary and cameras with platformState', async () => {
     const closedId = await ingest({
       jobId: 'T9W-CLOSED',

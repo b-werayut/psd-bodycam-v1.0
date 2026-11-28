@@ -41,6 +41,7 @@ export function BranchedNav({
   const rootRef = useRef<HTMLDivElement>(null);
   const headRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const markerRef = useRef<HTMLSpanElement>(null);
+  const previousActiveGroupRef = useRef<NavGroupId | null>(null);
 
   const activeIndex = groups.findIndex((group) =>
     group.items.some((item) => isNavItemActive(item, pathname)),
@@ -57,7 +58,7 @@ export function BranchedNav({
     writeFoldedGroups(folded);
   }, [folded]);
 
-  // ขีดสีข้างหัวกลุ่มที่มีหน้าที่เลือก — เลื่อนตามเมื่อเปลี่ยนกลุ่ม แต่ตอนความสูงเปลี่ยน (พับกลุ่มอื่น) วางทันที
+  // Place the first marker immediately; glide only between already-visible navigation groups.
   useLayoutEffect(() => {
     const place = (glide: boolean) => {
       const marker = markerRef.current;
@@ -72,7 +73,9 @@ export function BranchedNav({
         marker.style.transition = '';
       }
     };
-    place(true);
+    const wasVisible = markerRef.current?.hasAttribute('data-on');
+    place(Boolean(wasVisible && previousActiveGroupRef.current !== activeGroupId));
+    previousActiveGroupRef.current = activeGroupId;
     if (typeof ResizeObserver === 'undefined' || !rootRef.current) return undefined;
     let first = true;
     const observer = new ResizeObserver(() => {
@@ -84,7 +87,7 @@ export function BranchedNav({
     });
     observer.observe(rootRef.current);
     return () => observer.disconnect();
-  }, [activeIndex, markerShown, groups, rowHeight]);
+  }, [activeIndex, activeGroupId, markerShown, groups, rowHeight]);
 
   return (
     <div

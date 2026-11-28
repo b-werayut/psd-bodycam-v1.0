@@ -9,6 +9,10 @@ import { useAuthStore } from '@/stores/authStore';
 import { StreamPlayer } from './StreamPlayer';
 import { STREAM_END_REASON, STREAM_STATUS, streamingApi, type LiveSession } from '../streaming.api';
 
+const feedback = vi.hoisted(() => ({ error: vi.fn(), dismiss: vi.fn() }));
+vi.mock('@/components/ui/action-toast', () => ({ actionToast: { error: feedback.error } }));
+vi.mock('sonner', () => ({ toast: { dismiss: feedback.dismiss } }));
+
 const realtime = vi.hoisted(() => {
   const listeners = new Map<string, (payload: unknown) => void>();
   return {
@@ -99,6 +103,7 @@ function renderPlayer() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  feedback.error.mockReturnValue('stream-error-toast');
   realtime.listeners.clear();
   hls.FakeHls.latest = null;
   hls.FakeHls.isSupported.mockReturnValue(false);
@@ -420,6 +425,19 @@ describe('StreamPlayer — ถ้อยคำของโหมดย้อน�
     expect(screen.queryByText('ขอภาพสดไม่สำเร็จ')).toBeNull();
     expect(screen.queryByText(/กล้องออฟไลน์/)).toBeNull();
     expect(screen.queryByText('ไม่มีสัญญาณวีดีโอ')).toBeNull();
+    expect(feedback.error).not.toHaveBeenCalled();
+  });
+
+  it('toast feedback reports playback failure without inserting an alert above the video', async () => {
+    vi.mocked(streamingApi.startPlayback).mockRejectedValue(rejected(404, 'ไม่พบไฟล์บันทึกในช่วงเวลานี้'));
+    const { unmount } = render(<StreamPlayer device={DEVICE} playback={PLAYBACK} errorFeedback="toast" />, { wrapper });
+    await waitFor(() => expect(feedback.error).toHaveBeenCalledWith(
+      'เปิดวิดีโอย้อนหลังไม่สำเร็จ', 'ไม่พบไฟล์บันทึกในช่วงเวลานี้',
+    ));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('ไม่พบไฟล์บันทึกในช่วงเวลานี้').closest('.stream-stage')).not.toBeNull();
+    unmount();
+    expect(feedback.dismiss).toHaveBeenCalledWith('stream-error-toast');
   });
 
   it('server ปิดจอย้อนหลังแล้ว: เวทีบอก "เล่นจบแล้ว" ไม่ใช่กล้องออฟไลน์', async () => {

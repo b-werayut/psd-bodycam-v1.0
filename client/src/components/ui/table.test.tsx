@@ -22,8 +22,8 @@ describe('Table', () => {
 
     expect(screen.getByRole('table')).toHaveClass('text-control');
     expect(screen.getByRole('table')).not.toHaveClass('text-[13px]');
-    expect(screen.getByRole('columnheader')).toHaveClass('h-10', 'px-3', 'text-caption');
+    expect(screen.getByRole('columnheader')).toHaveClass('h-11', 'px-4', 'text-caption');
     expect(screen.getByRole('columnheader')).toHaveAttribute('scope', 'col');
-    expect(screen.getByRole('cell')).toHaveClass('h-10', 'px-3', 'py-2');
+    expect(screen.getByRole('cell')).toHaveClass('h-12', 'px-4', 'py-3');
   });
 });

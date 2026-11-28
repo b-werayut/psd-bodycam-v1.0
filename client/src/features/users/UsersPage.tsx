@@ -225,10 +225,10 @@ export function UsersPage() {
                 const statusKey = STATUS_KEY[user.status];
                 return (
                   <TableRow key={user.id}>
-                    <TableCell className="nwl-mono text-xs">{user.username}</TableCell>
+                    <TableCell className="nwl-mono text-control font-medium">{user.username}</TableCell>
                     <TableCell className="font-medium">{[user.firstName, user.lastName].filter(Boolean).join(' ')}</TableCell>
                     <TableCell className="text-sm">{user.roleName}</TableCell>
-                    <TableCell className="nwl-mono text-xs">{user.email ?? '—'}</TableCell>
+                    <TableCell className="nwl-mono text-caption text-muted-foreground">{user.email ?? '—'}</TableCell>
                     <TableCell className="whitespace-nowrap nwl-mono text-xs">{user.phone || '—'}</TableCell>
                     <TableCell>
                       <StatusBadge tone={user.azureLinked ? 'success' : 'neutral'}>
@@ -339,7 +339,7 @@ export function UsersPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
       <PageHeader title={t('users.title')} description={t('users.description')} />
 
       <Tabs defaultValue="users">

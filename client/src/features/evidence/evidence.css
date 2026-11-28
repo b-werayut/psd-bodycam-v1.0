@@ -8,6 +8,20 @@
   padding: 16px;
 }
 
+.evidence-search {
+  container-type: inline-size;
+}
+
+.evidence-inspector .evidence-search {
+  padding-top: 20px;
+}
+
+@container (min-width: 400px) {
+  .evidence-search-camera-date {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  }
+}
+
 @media (min-width: 1024px) {
   .evidence-workspace {
     align-items: stretch;
@@ -17,7 +31,7 @@
     min-height: 0;
   }
 
-  /* The video determines row height; the recording list and export status scroll here. */
+  /* The video determines row height; search and playback controls scroll here. */
   .evidence-inspector {
     contain: size;
     min-height: 0;
@@ -35,7 +49,6 @@
   .evidence-recordings {
     flex-shrink: 0;
     gap: 8px;
-    max-height: 208px;
     padding: 12px;
   }
 

@@ -51,7 +51,7 @@ export function MetricSummary({
         </div>
       ) : null}
       <div className="min-w-0">
-        <p className="text-caption font-medium leading-4 tracking-[0.03em] text-muted-foreground">
+        <p className="text-caption font-medium leading-5 text-muted-foreground">
           {label}
         </p>
         <div className="mt-0.5 text-heading font-semibold tabular-nums tracking-[-0.02em] text-foreground">

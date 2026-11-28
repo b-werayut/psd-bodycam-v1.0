@@ -49,13 +49,13 @@ export function RecordingFileList({ state, activeKey, filtered, onSelect, onRetr
           </EmptyHeader>
         </Empty>
       ) : (
-        <ul aria-label={t('evidence.segments.title')} className="max-h-48 space-y-1 overflow-y-auto p-0.5">
+        <ul aria-label={t('evidence.segments.title')} className="grid max-h-56 grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2 overflow-y-auto p-0.5">
           {files.map((file) => {
             const key = `${file.startAt}|${file.endAt}`;
             return (
               <li key={key} className="min-w-0">
                 <button type="button" aria-pressed={activeKey === key} onClick={() => onSelect(file)}
-                  className={cn('flex min-h-14 w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none', activeKey === key && 'bg-accent text-primary')}>
+                  className={cn('flex min-h-16 w-full items-center gap-3 rounded-md border border-border px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none', activeKey === key && 'border-primary bg-accent text-primary')}>
                   <FileVideo aria-hidden="true" className="size-4 shrink-0" />
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-control font-medium tabular-nums">{recordingClock(file, language)}</span>

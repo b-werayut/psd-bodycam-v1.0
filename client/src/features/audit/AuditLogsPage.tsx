@@ -108,7 +108,7 @@ export function AuditLogsPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
       <PageHeader title={t('audit.title')} description={t('audit.description')} />
 
       <DataToolbar label={t('audit.toolbar')}>

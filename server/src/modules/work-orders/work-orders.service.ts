@@ -5,7 +5,7 @@ import { likePattern } from '../../common/http/page-query.dto';
 import { paged, type Paged } from '../../common/http/paged';
 import { DRIZZLE } from '../../db/db.constants';
 import type { DrizzleDB } from '../../db/db.types';
-import { BookingJobs, Teams, Users, WorkOrderEvents, WorkOrders } from '../../db/schema';
+import { BookingJobs, Devices, Teams, Users, WorkOrderEvents, WorkOrders } from '../../db/schema';
 import { resolveDeviceRefs } from '../devices/device-refs';
 import { DeviceStatusDisplayService } from '../devices/device-status-display.service';
 import type { QueryWorkOrdersDto } from './dto/query-work-orders.dto';
@@ -88,6 +88,7 @@ export class WorkOrdersService {
 
   async list(query: QueryWorkOrdersDto): Promise<Paged<WorkOrderRow>> {
     const where: SQL[] = [];
+    if (query.deviceId !== undefined) where.push(await this.cameraCondition(query.deviceId));
     if (query.status !== undefined) where.push(eq(WorkOrders.Status, query.status));
     const q = query.q?.trim();
     if (q) {
@@ -135,6 +136,23 @@ export class WorkOrdersService {
     const record = await this.find(id);
     const camerasOf = await this.camerasFor([record]);
     return toWorkOrderDetail(record, camerasOf(record), fullBooking);
+  }
+
+  /** Resolve aliases first so code/vendor/serial collisions follow the same rule as camera display. */
+  private async cameraCondition(deviceId: string): Promise<SQL> {
+    const [device] = await this.db.select({
+      id: Devices.Id, code: Devices.DeviceCode, vendorId: Devices.VendorDeviceId, serial: Devices.SerialNo,
+    }).from(Devices).where(and(eq(Devices.Id, BigInt(deviceId)), eq(Devices.IsDeleted, false)));
+    if (!device) return sql`false`;
+    const refs = [device.code, device.vendorId, device.serial].filter((ref): ref is string => Boolean(ref));
+    const resolved = await resolveDeviceRefs(this.db, refs);
+    const aliases = [...new Set(refs.filter((ref) => resolved.get(ref)?.id === device.id)
+      .map((ref) => ref.trim().toLowerCase()))];
+    if (!aliases.length) return sql`false`;
+    return sql`exists (
+      select 1 from unnest(${BookingJobs.DeviceRefs}) as camera_ref(value)
+      where lower(btrim(camera_ref.value)) in (${sql.join(aliases.map((ref) => sql`${ref}`), sql`, `)})
+    )`;
   }
 
   async events(id: string) {

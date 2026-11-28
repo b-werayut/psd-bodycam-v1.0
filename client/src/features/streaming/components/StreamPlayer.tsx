@@ -3,7 +3,9 @@ import type HlsType from 'hls.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { Eye, Loader2, ShieldAlert, TriangleAlert, VideoOff } from 'lucide-react';
+import { toast } from 'sonner';
 
+import { actionToast } from '@/components/ui/action-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/i18n/useLanguage';
@@ -35,6 +37,7 @@ export function StreamPlayer({
   compact = false,
   fill = false,
   quietErrors = false,
+  errorFeedback = 'inline',
 }: {
   device: LiveTarget;
   playback?: { startAt: string; endAt: string };
@@ -55,6 +58,8 @@ export function StreamPlayer({
    * ไม่แสดงข้อความจาก DSS/middleware ในจอเล็ก · เกินโควตา (429) ยังบอกสั้น ๆ เพราะผู้ใช้แก้เองได้ (ปิดจออื่น)
    */
   quietErrors?: boolean;
+  /** Toast feedback keeps standalone playback errors from shifting the video. */
+  errorFeedback?: 'inline' | 'toast';
 }) {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
@@ -266,11 +271,21 @@ export function StreamPlayer({
     start.mutate();
   };
   const failed = Boolean(error || playbackError);
+  const isPlayback = playback !== undefined;
   const connectingText = t(playback ? 'evidence.player.connecting' : 'streaming.connecting');
+
+  useEffect(() => {
+    if (errorFeedback !== 'toast' || quietErrors || (!error && !playbackError)) return;
+    const title = error
+      ? t(isPlayback ? 'evidence.error.playback' : 'streaming.startFailed')
+      : t('streaming.playbackFailed');
+    const toastId = actionToast.error(title, error ?? playbackError ?? undefined);
+    return () => { toast.dismiss(toastId); };
+  }, [errorFeedback, quietErrors, error, playbackError, isPlayback, t]);
 
   return (
     <div className={cn('flex flex-col', fill && 'relative h-full min-h-0', className)}>
-      {failed && !quietErrors ? (
+      {failed && !quietErrors && errorFeedback === 'inline' ? (
         <div
           className={cn(
             'flex flex-col gap-2',

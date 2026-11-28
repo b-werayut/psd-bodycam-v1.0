@@ -66,6 +66,19 @@ describe('SearchSelect', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 
+  it('คลิกช่องเดิมหลังเลือกแล้วเปิดรายการอีกครั้งแม้ยังมีโฟกัส', async () => {
+    render(<Harness />);
+    const picker = screen.getByRole('combobox', { name: 'บริษัทที่จะผูก' });
+    await userEvent.click(picker);
+    await userEvent.click(screen.getByRole('option', { name: /บริษัทบัญชี/ }));
+    expect(picker).toHaveFocus();
+    expect(screen.queryByRole('listbox')).toBeNull();
+    await userEvent.click(picker);
+    expect(screen.getByRole('option', { name: /บริษัทสร้างบ้าน/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('option', { name: /บริษัทสร้างบ้าน/ }));
+    expect(screen.getByTestId('picked')).toHaveTextContent('2');
+  });
+
   it('วางคำค้นแล้วกรองรายการ และ Escape ปิดโดยไม่เปลี่ยนค่า', async () => {
     const user = userEvent.setup();
     render(<Harness />);

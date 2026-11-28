@@ -8,4 +8,5 @@ export const app = {
   'theme.switchToDark': 'เปลี่ยนเป็นโหมดมืด',
   'theme.switchToLight': 'เปลี่ยนเป็นโหมดสว่าง',
   'app.home.title': 'ยินดีต้อนรับ',
+  'app.home.workspaces': 'เลือกพื้นที่ทำงาน',
 } as const;

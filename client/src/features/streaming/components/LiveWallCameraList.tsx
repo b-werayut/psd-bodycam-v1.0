@@ -44,9 +44,9 @@ export function LiveWallCameraList({ devices, isLoading, error, onRetry, slots, 
 
   return (
     <aside aria-label={t('liveWall.list.title')} className="flex max-h-[45dvh] shrink-0 flex-col border-b border-border bg-card lg:h-full lg:max-h-none lg:w-80 lg:border-b-0 lg:border-r">
-      <div className="shrink-0 px-3 pb-2 pt-3">
+      <div className="shrink-0 px-4 pb-3 pt-4">
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold">{t('liveWall.list.title')}</h2>
+          <h2 className="text-subheading font-semibold">{t('liveWall.list.title')}</h2>
           {devices ? <span className="text-xs tabular-nums text-muted-foreground">{t('liveWall.list.count', { online: available.filter((device) => device.platformState === 'online').length, total: available.length })}</span> : null}
         </div>
         <Input type="search" className="mt-2" aria-label={t('liveWall.list.search')} placeholder={t('liveWall.list.search')} value={search} onChange={(event) => setSearch(event.target.value)} />

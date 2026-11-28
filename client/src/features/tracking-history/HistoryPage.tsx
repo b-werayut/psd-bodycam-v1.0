@@ -10,11 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { SearchSelect } from '@/components/ui/search-select';
+import { loadCameraWorkOrders, workOrderDayRange as workOrderRange } from '@/features/evidence/evidenceWorkOrders';
 import type { TranslationKey } from '@/i18n/locales/th';
 import { useLanguage } from '@/i18n/useLanguage';
 import { apiErrorOf } from '@/lib/apiError';
 import { formatDayMonth, formatTime } from '@/lib/time';
+import { usePermission } from '@/lib/usePermission';
 import { RouteLayers } from './components/RouteLayers';
 import { TrackingViewSwitch } from '../tracking/components/TrackingViewSwitch';
 import { VIEW_PARAM } from '../tracking/trackingView';
@@ -40,10 +42,11 @@ const PROBLEM_KEY: Record<RangeProblem, TranslationKey> = {
   tooLong: 'tracking.history.rangeTooLong',
   future: 'tracking.history.rangeFuture',
 };
+const EMPTY_RANGE: RangeFields = { startDate: '', startTime: '', endDate: '', endTime: '' };
 
 /**
- * ประวัติเส้นทาง: one camera over a Bangkok start–end window of at most 36 h (a whole day by default).
- * The fields are a draft: only Show route or choosing a camera loads — every load is audited.
+ * ประวัติเส้นทาง: choose a camera and a Bangkok start–end window of at most 36 h before searching.
+ * The range fields filter work orders immediately; Show route or choosing a camera loads the route.
  */
 /**
  * `viewSwitch`: shown as the history tab of แผนที่ติดตาม (with the ตำแหน่งปัจจุบัน | ประวัติเส้นทาง tabs).
@@ -53,29 +56,62 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
   const { t, language } = useLanguage();
   const [params, setParams] = useSearchParams();
   const query = useMemo(() => parseHistoryQuery(params), [params]);
+  const hasLoadedRange = Date.parse(params.get('from') ?? '') === Date.parse(query.from)
+    && Date.parse(params.get('to') ?? '') === Date.parse(query.to);
   const hasCamera = Boolean(query.deviceId);
   const today = bangkokDateOf(new Date());
   const [focus, setFocus] = useState<[number, number] | null>(null);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
-  const [draft, setDraft] = useState<RangeFields>(() => rangeFieldsOf(query));
+  const [draft, setDraft] = useState<RangeFields>(() => hasLoadedRange ? rangeFieldsOf(query) : EMPTY_RANGE);
+  const context = query.deviceId;
+  const [seen, setSeen] = useState(context);
+  const [workOrderId, setWorkOrderId] = useState('');
+  if (seen !== context) {
+    setSeen(context);
+    setWorkOrderId('');
+  }
   // back / forward or a link changes the loaded window: the fields follow it
-  useEffect(() => setDraft(rangeFieldsOf({ from: query.from, to: query.to })), [query.from, query.to]);
+  useEffect(() => setDraft(hasLoadedRange ? rangeFieldsOf({ from: query.from, to: query.to }) : EMPTY_RANGE),
+    [query.from, query.to, hasLoadedRange]);
 
   const draftWindow = windowOfFields(draft);
   const problem = rangeProblem(draftWindow);
   const edit = (edge: 'start' | 'end') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const [date = '', time = ''] = e.target.value.split('T');
     const wallTime = time.split('.')[0];
+    setWorkOrderId('');
     setDraft((current) => edge === 'start'
       ? { ...current, startDate: date, startTime: wallTime }
       : { ...current, endDate: date, endTime: wallTime });
   };
 
   const devices = useQuery({ queryKey: ['tracking', 'history-devices'], queryFn: historyApi.devices });
+  const device = devices.data?.find((item) => item.id === query.deviceId) ?? null;
+  const canReadWorkOrders = usePermission('work-orders:read');
+  const cameraWorkOrders = useQuery({
+    queryKey: ['evidence', 'work-orders', query.deviceId],
+    queryFn: () => loadCameraWorkOrders(query.deviceId!),
+    enabled: device !== null && canReadWorkOrders && problem === null,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const workOrderWindow = draftWindow && problem === null
+    ? { from: draftWindow.from, to: new Date(Math.min(Date.parse(draftWindow.to), Date.now())).toISOString() }
+    : null;
+  const availableWorkOrders = (cameraWorkOrders.data ?? []).filter((order) =>
+    workOrderWindow !== null && order.cameras.some((camera) => camera.deviceId === query.deviceId)
+      && workOrderRange(order, workOrderWindow) !== null);
+  const chooseWorkOrder = (id: string) => {
+    setWorkOrderId(id);
+    const order = availableWorkOrders.find((item) => item.id === id);
+    const range = order && workOrderWindow ? workOrderRange(order, workOrderWindow) : null;
+    if (range) setDraft(rangeFieldsOf({ from: range.startAt, to: range.endAt }));
+  };
   const history = useQuery({
     queryKey: ['tracking', 'history', query.deviceId, query.from, query.to],
     queryFn: () => historyApi.history(query.deviceId!, query.from, query.to),
-    enabled: hasCamera,
+    enabled: hasCamera && hasLoadedRange,
     // every request writes an audit row: never refetch on its own
     staleTime: Infinity,
     refetchOnWindowFocus: false,
@@ -85,9 +121,11 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
 
   const go = (next: { deviceId?: string | null; window?: HistoryWindow }) => {
     setFocus(null);
-    const window = next.window ?? { from: query.from, to: query.to };
-    setDraft(rangeFieldsOf(window));
-    const search = new URLSearchParams(historySearch({ deviceId: next.deviceId === undefined ? query.deviceId : next.deviceId, ...window }));
+    const window = next.window ?? (hasLoadedRange ? { from: query.from, to: query.to } : null);
+    const deviceId = next.deviceId === undefined ? query.deviceId : next.deviceId;
+    const search = window ? new URLSearchParams(historySearch({ deviceId, ...window })) : new URLSearchParams();
+    if (window) setDraft(rangeFieldsOf(window));
+    else if (deviceId) search.set('deviceId', deviceId);
     // opened as a tab of แผนที่ติดตาม (`?view=history`): stay in that view
     const view = params.get(VIEW_PARAM);
     if (view) search.set(VIEW_PARAM, view);
@@ -96,7 +134,7 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
 
   // valid fields that differ from what is loaded: the results below are not for them yet
   const pending =
-    problem === null && draftWindow !== null && (draftWindow.from !== query.from || draftWindow.to !== query.to);
+    problem === null && draftWindow !== null && (!hasLoadedRange || draftWindow.from !== query.from || draftWindow.to !== query.to);
   const show = () => {
     if (!hasCamera || !draftWindow) return;
     if (pending) return go({ window: draftWindow });
@@ -109,41 +147,33 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
     return `${formatDayMonth(iso, language)} ${formatTime(iso, language)}${second ? `:${String(second).padStart(2, '0')}` : ''}`;
   };
 
-  const route = history.data;
+  const route = hasLoadedRange ? history.data : undefined;
   const error = history.isError ? apiErrorOf(history.error, t).message : null;
   const stops = route?.timeline.filter((item) => item.kind === 'stop').length ?? 0;
   const withDate = spansDays(query);
 
   const renderPanel = (idPrefix: string) => (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
-      <div className="flex shrink-0 flex-col gap-2.5 border-b border-border p-3">
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border p-4">
         <div data-slot="history-heading">
-          <p aria-hidden="true" className="text-base font-semibold">{t('navigation.trackingHistory')}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t('tracking.history.description')}</p>
+          <p aria-hidden="true" className="text-title font-semibold">{t('navigation.trackingHistory')}</p>
+          <p className="mt-1.5 text-caption leading-5 text-muted-foreground">{t('tracking.history.description')}</p>
         </div>
         {viewSwitch ? <TrackingViewSwitch current="history" /> : null}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
       <div className="flex shrink-0 flex-col gap-3">
-        <div>
-          <label htmlFor={`${idPrefix}-camera`} className="mb-1 block text-sm font-medium">
-            {t('tracking.history.camera')}
-          </label>
-          <Select
-            id={`${idPrefix}-camera`}
-            value={query.deviceId ?? ''}
-            // the fields' range when valid (what the screen shows is what loads), else the loaded one
-            onChange={(e) => go({ deviceId: e.target.value || null, window: problem ? undefined : draftWindow! })}
-            disabled={devices.isPending}
-          >
-            <option value="">{t('tracking.history.cameraPlaceholder')}</option>
-            {(devices.data ?? []).map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name && d.name !== d.deviceCode ? `${d.deviceCode} · ${d.name}` : d.deviceCode}
-              </option>
-            ))}
-          </Select>
-        </div>
+        <FieldGroup className="gap-2">
+          <Field className="min-w-0">
+            <FieldLabel htmlFor={`${idPrefix}-camera`}>{t('tracking.history.camera')}</FieldLabel>
+            <SearchSelect id={`${idPrefix}-camera`} value={query.deviceId ?? ''}
+              onChange={(value) => go({ deviceId: value || null, window: problem ? undefined : draftWindow! })}
+              options={(devices.data ?? []).map((item) => ({ value: item.id,
+                label: item.name && item.name !== item.deviceCode ? `${item.deviceCode} · ${item.name}` : item.deviceCode }))}
+              placeholder={t('evidence.cameraPlaceholder')} emptyText={t('evidence.cameraNone')}
+              clearLabel={t('common.pickerClear')} disabled={devices.isPending} />
+          </Field>
+        </FieldGroup>
         <div className="flex flex-col gap-3">
           <h2 id={`${idPrefix}-range-title`} className="text-control font-semibold">{t('tracking.history.rangeTitle')}</h2>
           <FieldGroup aria-labelledby={`${idPrefix}-range-title`} className="gap-3">
@@ -173,6 +203,26 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
               />
             </Field>
           </FieldGroup>
+          <Field className="min-w-0">
+            <FieldLabel htmlFor={`${idPrefix}-work-order`}>{t('evidence.workOrder.label')}</FieldLabel>
+            <SearchSelect id={`${idPrefix}-work-order`} value={workOrderId} onChange={chooseWorkOrder}
+              options={availableWorkOrders.map((order) => ({ value: order.id, label: [order.workOrderNo, order.title].filter(Boolean).join(' · ') }))}
+              wrapOptions placeholder={t(!device ? 'evidence.workOrder.pickCamera' : problem !== null ? 'tracking.history.workOrderPickRange' : cameraWorkOrders.isFetching ? 'evidence.workOrder.loading' : 'evidence.workOrder.placeholder')}
+              emptyText={t('tracking.history.workOrderEmpty')} clearLabel={t('evidence.workOrder.clear')}
+              disabled={!device || !canReadWorkOrders || cameraWorkOrders.isPending || problem !== null}
+              aria-describedby={`${idPrefix}-work-order-hint`} />
+          </Field>
+          <p id={`${idPrefix}-work-order-hint`} className={canReadWorkOrders ? 'sr-only' : 'text-caption text-muted-foreground'}>
+            {t(canReadWorkOrders ? 'tracking.history.workOrderHint' : 'evidence.workOrder.noPermission')}
+          </p>
+          {cameraWorkOrders.isError && problem === null ? (
+            <div role="alert" className="flex flex-wrap items-center gap-2 text-caption text-destructive">
+              <p>{t('evidence.workOrder.loadFailed')}</p>
+              <Button type="button" size="sm" variant="outline" onClick={() => void cameraWorkOrders.refetch()}>
+                {t('evidence.workOrder.retry')}
+              </Button>
+            </div>
+          ) : null}
           <Button
             type="button"
             className="min-h-11"
@@ -182,13 +232,13 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
             {t('tracking.history.show')}
           </Button>
         </div>
-        {problem ? (
+        {problem && (draft.startDate || draft.endDate) ? (
           <p role="alert" className="text-sm text-destructive">
             {t(PROBLEM_KEY[problem], { hours: HISTORY_MAX_HOURS })}
           </p>
         ) : null}
         {pending ? <p className="text-sm font-medium text-warning-foreground">{t('tracking.history.notLoaded')}</p> : null}
-        {query.deviceId ? (
+        {query.deviceId && hasLoadedRange ? (
           <p className="text-sm text-muted-foreground">
             {t('tracking.history.loadedRange', { from: clockOf(query.from), to: clockOf(query.to) })}
           </p>
@@ -218,6 +268,10 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
           {!query.deviceId ? (
             <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
               {t('tracking.history.pickCamera')}
+            </p>
+          ) : !hasLoadedRange ? (
+            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+              {t('tracking.history.pickRange')}
             </p>
           ) : history.isFetching && !route ? (
             <LoadingSkeleton loadingLabel={t('common.loading')} />
@@ -271,7 +325,7 @@ export function HistoryPage({ viewSwitch = false }: { viewSwitch?: boolean } = {
     <Dialog open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
       <section aria-labelledby="tracking-history-title" className="relative isolate flex min-h-0 min-w-0 flex-1 overflow-hidden bg-muted">
         <h1 id="tracking-history-title" className="sr-only">{t('navigation.trackingHistory')}</h1>
-        <aside className="hidden min-h-0 w-80 shrink-0 flex-col overflow-hidden border-r border-border bg-card lg:flex">
+        <aside className="hidden min-h-0 w-[26rem] shrink-0 flex-col overflow-hidden border-r border-border bg-card lg:flex">
           {renderPanel('history')}
         </aside>
         <div className="relative isolate min-h-0 min-w-0 flex-1 overflow-hidden">

@@ -1,5 +1,6 @@
 import L from 'leaflet';
-import { useEffect, useMemo } from 'react';
+import { useReducedMotion } from 'motion/react';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
 
 import { useLanguage } from '@/i18n/useLanguage';
@@ -20,6 +21,7 @@ const pin = (kind: 'start' | 'end' | 'stop', text = '') =>
 export function RouteLayers({ route, focus }: { route: RouteHistory; focus: [number, number] | null }) {
   const map = useMap();
   const { t } = useLanguage();
+  const reduceMotion = useReducedMotion();
   // SVG for the route even though the map prefers canvas: the canvas renderer ignores `className`, so the
   // token-coloured `.route-line` / dashed `.route-gap-line` styles would never apply (review #1)
   const renderer = useMemo(() => L.svg({ padding: 0.5 }), []);
@@ -31,11 +33,12 @@ export function RouteLayers({ route, focus }: { route: RouteHistory; focus: [num
     return points.length ? L.latLngBounds(points) : null;
   }, [route]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (bounds) map.fitBounds(bounds, {
       paddingTopLeft: window.matchMedia('(min-width: 1024px)').matches ? [32, 32] : [32, 80],
       paddingBottomRight: [32, 32],
       maxZoom: 17,
+      animate: false,
     });
   }, [map, bounds]);
 
@@ -44,8 +47,9 @@ export function RouteLayers({ route, focus }: { route: RouteHistory; focus: [num
       paddingTopLeft: window.matchMedia('(min-width: 1024px)').matches ? [32, 32] : [32, 80],
       paddingBottomRight: [32, 32],
       maxZoom: Math.max(map.getZoom(), 16),
+      animate: !reduceMotion,
     });
-  }, [map, focus]);
+  }, [map, focus, reduceMotion]);
 
   const stops = route.timeline.filter((item) => item.kind === 'stop');
 
